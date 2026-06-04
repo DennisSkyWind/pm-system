@@ -1,0 +1,52 @@
+/* PM系统移动端优化 */
+@media (max-width: 768px) {
+    header { padding: 12px 15px; }
+    header h1 { font-size: 18px; }
+    nav { gap: 6px; flex-wrap: wrap; }
+    nav a { padding: 5px 10px; font-size: 12px; }
+    
+    main { padding: 10px; }
+    
+    .stats-cards { grid-template-columns: repeat(2, 1fr) !important; gap: 8px; }
+    .stats-cards .card { padding: 12px; }
+    .stats-cards .card h3 { font-size: 11px; }
+    .stats-cards .card .number { font-size: 20px; }
+    
+    .section { padding: 12px; }
+    
+    /* 图表区域单列 */
+    .section[style*="grid-template-columns: 1fr 1fr 1fr"],
+    .section[style*="grid-template-columns:repeat(3"] {
+        grid-template-columns: 1fr !important;
+    }
+    .section[style*="grid-template-columns: 1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+    }
+    
+    /* 工具栏换行 */
+    .toolbar-row { flex-wrap: wrap; }
+    .toolbar-row select, .toolbar-row input { width: 100% !important; min-width: 0; }
+    
+    /* 表格横向滚动 */
+    .tasks-table { overflow-x: auto; }
+    table { min-width: 600px; }
+    
+    /* 看板单列 */
+    .kanban-board.show { grid-template-columns: 1fr !important; }
+    
+    /* 弹窗全屏 */
+    .modal-content { max-width: 100% !important; width: 95% !important; max-height: 90vh; }
+    
+    /* 通知面板全宽 */
+    #notification-panel { width: calc(100% - 20px) !important; right: 10px !important; }
+    
+    /* 全局搜索全宽 */
+    #global-search-overlay > div { max-width: calc(100% - 20px) !important; margin: 60px 10px 0 !important; }
+    
+    /* 快速操作区 */
+    .section[style*="display: flex"] { flex-direction: column; gap: 10px; }
+    .section[style*="display: flex"] > div:last-child { flex-wrap: wrap; }
+    
+    /* 批量操作栏 */
+    .batch-bar { flex-wrap: wrap; }
+}

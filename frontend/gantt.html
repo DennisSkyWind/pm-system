@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>甘特图 - 项目管理系统</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+        
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; }
+        header h1 { font-size: 24px; }
+        nav { display: flex; gap: 15px; margin-top: 15px; flex-wrap: wrap; }
+        nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; background: rgba(255,255,255,0.2); }
+        nav a:hover { background: rgba(255,255,255,0.3); }
+        nav a.active { background: rgba(255,255,255,0.4); font-weight: bold; }
+        
+        main { padding: 20px; max-width: 1400px; margin: 0 auto; }
+        
+        .controls { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+        
+        select, input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        select:focus, input:focus { outline: none; border-color: #667eea; }
+        
+        .gantt-container { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow-x: auto; overflow-y: hidden; }
+        
+        .gantt-header { display: flex; border-bottom: 2px solid #e0e0e0; background: #f9f9f9; min-width: 100%; }
+        .gantt-header-left { padding: 15px; font-weight: bold; min-width: 250px; max-width: 250px; flex-shrink: 0; }
+        .gantt-header-right { padding: 15px 0; display: flex; flex-shrink: 0; }
+        
+        .gantt-row { display: flex; border-bottom: 1px solid #e0e0e0; min-width: 100%; }
+        .gantt-row:hover { background: #f5f5f5; }
+        .gantt-row:last-child { border-bottom: none; }
+        
+        .gantt-task-info { padding: 12px 15px; display: flex; align-items: center; gap: 10px; min-width: 250px; max-width: 250px; flex-shrink: 0; }
+        .task-name { font-weight: 500; }
+        .task-meta { font-size: 12px; color: #666; }
+        
+        .gantt-bar-area { padding: 8px 15px; position: relative; min-height: 40px; flex-shrink: 0; }
+        
+        .gantt-bar { position: absolute; height: 24px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: white; cursor: grab; transition: box-shadow 0.2s; user-select: none; }
+        .gantt-bar:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .gantt-bar.dragging { cursor: grabbing; opacity: 0.8; box-shadow: 0 6px 16px rgba(0,0,0,0.3); z-index: 100; }
+        .gantt-bar .resize-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: rgba(255,255,255,0.3); border-radius: 0 4px 4px 0; }
+        .gantt-bar .resize-handle:hover { background: rgba(255,255,255,0.5); }
+        
+        .today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #f44336; z-index: 50; pointer-events: none; }
+        .today-line::before { content: '今天'; position: absolute; top: -18px; left: -12px; font-size: 10px; color: #f44336; font-weight: 600; }
+        
+        .dependency-line { position: absolute; z-index: 40; pointer-events: none; }
+        
+        .bar-pending { background: #9e9e9e; }
+        .bar-in_progress { background: linear-gradient(135deg, #ff9800, #f57c00); }
+        .bar-completed { background: linear-gradient(135deg, #4caf50, #2e7d32); }
+        .bar-delayed { background: linear-gradient(135deg, #f44336, #c62828); }
+        
+        .phase-row { background: #e3f2fd; }
+        .phase-row .gantt-task-info { font-weight: bold; color: #1565c0; }
+        
+        .milestone { position: absolute; width: 12px; height: 12px; background: #673ab7; border-radius: 50%; transform: translateX(-50%); cursor: pointer; }
+        .milestone:hover { transform: translateX(-50%) scale(1.3); }
+        
+        .time-grid { position: absolute; top: 0; bottom: 0; border-left: 1px dashed #e0e0e0; }
+        
+        .today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #f44336; z-index: 10; }
+        .today-label { position: absolute; top: -20px; font-size: 10px; color: #f44336; transform: translateX(-50%); }
+        
+        .legend { display: flex; gap: 20px; padding: 15px; background: white; border-radius: 8px; margin-top: 20px; flex-wrap: wrap; }
+        .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+        .legend-bar { width: 30px; height: 16px; border-radius: 3px; }
+        
+        .empty-state { text-align: center; padding: 60px; color: #999; }
+        .empty-state h3 { margin-bottom: 10px; }
+        
+        .progress-mini { height: 4px; background: #e0e0e0; border-radius: 2px; width: 60px; margin-top: 5px; }
+        .progress-mini-fill { height: 100%; border-radius: 2px; background: #4caf50; }
+        
+        /* 项目分组样式 */
+        .project-group { border-bottom: 2px solid #667eea; }
+        .project-header-row { background: linear-gradient(135deg, #667eea20, #764ba220); }
+        .project-header-row .gantt-task-info { font-weight: bold; color: #667eea; font-size: 15px; }
+        
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .gantt-header, .gantt-row { grid-template-columns: 150px 1fr; }
+            .gantt-task-info { padding: 8px 10px; }
+            .controls { flex-direction: column; }
+        }
+        /* 导出弹窗 */
+        .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; }
+        .modal.show { display:flex; align-items:center; justify-content:center; }
+        .modal-content { background:white; padding:30px; border-radius:12px; max-width:600px; width:90%; max-height:85vh; overflow-y:auto; }
+        .modal-title { font-size:20px; margin-bottom:20px; }
+        .form-group { margin-bottom:15px; }
+        .form-group label { display:block; margin-bottom:5px; font-size:14px; color:#666; }
+        .form-group select, .form-group input { width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:14px; }
+        .form-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+        .btn-secondary { padding:10px 20px; background:#e0e0e0; color:#333; border:none; border-radius:6px; cursor:pointer; }
+        .time-radio { display:flex;align-items:center;gap:4px;cursor:pointer;padding:6px 14px;border:1px solid #ddd;border-radius:6px;font-size:13px;transition:all 0.2s; }
+        .time-radio:hover { background:#f0f0f0; }
+        .time-radio:has(input:checked) { background:#e3f2fd;border-color:#667eea;color:#1565c0; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <link rel="stylesheet" href="common.css">
+    <link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+    <header>
+        <h1>📊 甘特图视图</h1>
+        <nav>
+            <a href="index.html">Dashboard</a>
+            <a href="projects.html">项目列表</a>
+            <a href="tasks.html">任务列表</a>
+            <a href="issues.html">问题追踪</a>
+            <a href="persons.html">人员管理</a>
+            <a href="gantt.html" class="active">甘特图</a>
+        <a href="settings.html">⚙️ 个人设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span></nav>
+    </header>
+    
+
+    <!-- 全局搜索弹窗 -->
+    <div id="global-search-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;backdrop-filter:blur(2px);" onclick="hideGlobalSearch()">
+        <div style="max-width:600px;margin:80px auto 0;background:white;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;" onclick="event.stopPropagation()">
+            <div style="display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid #eee;gap:10px;">
+                <span style="font-size:20px">🔍</span>
+                <input type="text" id="global-search-input" placeholder="搜索项目、任务、人员..." 
+                    style="flex:1;border:none;font-size:16px;outline:none;" 
+                    oninput="doGlobalSearch()" onkeydown="handleSearchKey(event)">
+                <kbd style="background:#f0f0f0;padding:2px 8px;border-radius:4px;font-size:12px;color:#888">ESC</kbd>
+            </div>
+            <div id="global-search-results" style="max-height:400px;overflow-y:auto;padding:8px;"></div>
+        </div>
+    </div>
+
+
+    <!-- 通知面板 -->
+    <div id="notification-panel" style="display:none;position:fixed;top:60px;right:20px;width:360px;max-height:500px;background:white;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.15);z-index:9998;overflow:hidden;">
+        <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="font-size:15px;margin:0;">🔔 通知</h3>
+            <div>
+                <a onclick="markAllNotificationsRead()" style="font-size:12px;color:#667eea;cursor:pointer;margin-right:10px;">全部已读</a>
+                <a onclick="toggleNotificationPanel()" style="cursor:pointer;font-size:16px;">✕</a>
+            </div>
+        </div>
+        <div id="notification-list" style="max-height:420px;overflow-y:auto;"></div>
+    </div>
+
+    <main>
+        <div class="controls">
+            <label>项目筛选：</label>
+            <select id="project-filter" onchange="loadGantt()">
+                <option value="all">全部项目</option>
+            </select>
+            
+            <label>时间范围：</label>
+            <select id="time-range" onchange="loadGantt()">
+                <option value="week">本周</option>
+                <option value="month" selected>本月</option>
+                <option value="quarter">本季度</option>
+                <option value="all">全部</option>
+            </select>
+            
+            <label>显示：</label>
+            <select id="display-mode" onchange="loadGantt()">
+                <option value="tasks">仅任务</option>
+                <option value="phases">仅阶段</option>
+                <option value="both" selected>任务+阶段</option>
+            </select>
+            
+            <button onclick="loadGantt()" style="padding:8px 16px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">刷新</button>
+            
+            <button onclick="showExportModal()" style="padding:8px 16px;background:#4caf50;color:white;border:none;border-radius:6px;cursor:pointer;">📤 导出甘特图</button>
+        </div>
+
+        <!-- 导出弹窗 -->
+        <div id="export-modal" class="modal">
+            <div class="modal-content" style="max-width:700px;">
+                <h2 class="modal-title">📤 导出甘特图</h2>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
+                    <div class="form-group">
+                        <label>选择风格</label>
+                        <select id="export-style" onchange="previewExportStyle()">
+                            <option value="classic">🎨 经典商务 — 白底蓝色条</option>
+                            <option value="modern">🌈 现代彩色 — 渐变配色</option>
+                            <option value="dark">🌙 深色主题 — 暗底亮色条</option>
+                            <option value="minimal">✏️ 极简线框 — 黑白线条</option>
+                            <option value="gantt">📊 甘特图专业 — 标准PM风格</option>
+                            <option value="timeline">🗓️ 时间轴 — 垂直卡片式</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>导出格式</label>
+                        <select id="export-format">
+                            <option value="png">PNG 图片</option>
+                            <option value="pdf">PDF 文档</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>时间维度</label>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <label class="time-radio"><input type="radio" name="export-time" value="week" checked onchange="onExportTimeChange()"> 📅 本周</label>
+                        <label class="time-radio"><input type="radio" name="export-time" value="month" onchange="onExportTimeChange()"> 📆 本月</label>
+                        <label class="time-radio"><input type="radio" name="export-time" value="quarter" onchange="onExportTimeChange()"> 📊 本季度</label>
+                        <label class="time-radio"><input type="radio" name="export-time" value="year" onchange="onExportTimeChange()"> 🗓️ 本年度</label>
+                        <label class="time-radio"><input type="radio" name="export-time" value="custom" onchange="onExportTimeChange()"> ✏️ 自定义</label>
+                    </div>
+                </div>
+                <div id="custom-date-range" style="display:none;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px;">
+                    <div class="form-group">
+                        <label>开始日期</label>
+                        <input type="date" id="export-start-date">
+                    </div>
+                    <div class="form-group">
+                        <label>结束日期</label>
+                        <input type="date" id="export-end-date">
+                    </div>
+                </div>
+                <div id="export-preview" style="border:1px solid #e0e0e0;border-radius:8px;padding:15px;margin:15px 0;min-height:80px;background:#fafafa;overflow:auto;"></div>
+                <div style="background:#e3f2fd;padding:10px 15px;border-radius:8px;font-size:12px;color:#1565c0;margin-bottom:15px;" id="export-info">
+                    💡 周/月维度按天显示，季度维度按周显示，年度维度按月显示
+                </div>
+                <div class="form-actions">
+                    <button class="btn-secondary" onclick="hideExportModal()">取消</button>
+                    <button onclick="doExport()" style="padding:10px 24px;background:#4caf50;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;">🚀 开始导出</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="gantt-container" id="gantt-chart">
+            <div class="empty-state">
+                <h3>⏳ 加载中...</h3>
+                <p>正在获取项目数据...</p>
+            </div>
+        </div>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-bar bar-pending"></div>
+                <span>待开始</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-bar bar-in_progress"></div>
+                <span>进行中</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-bar bar-completed"></div>
+                <span>已完成</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-bar bar-delayed"></div>
+                <span>已延期</span>
+            </div>
+            <div class="legend-item">
+                <div class="milestone" style="position:relative;"></div>
+                <span>里程碑</span>
+            </div>
+            <div class="legend-item">
+                <div style="width:2px;height:16px;background:#f44336;"></div>
+                <span>今日</span>
+            </div>
+        </div>
+    </main>
+    
+    <script src="auth.js"></script>
+    <script>
+        
+        // ========== 全局搜索 ==========
+        let _gsData = { projects: [], tasks: [], persons: [] };
+        function showGlobalSearch() {
+            document.getElementById('global-search-overlay').style.display = 'block';
+            const input = document.getElementById('global-search-input');
+            input.value = ''; input.focus();
+            document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>';
+        }
+        function hideGlobalSearch() { document.getElementById('global-search-overlay').style.display = 'none'; }
+        async function doGlobalSearch() {
+            const q = document.getElementById('global-search-input').value.trim().toLowerCase();
+            if (!q) { document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>'; return; }
+            if (_gsData.projects.length === 0) {
+                try {
+                    const [pR, tR, peR] = await Promise.all([authFetch(`${API}/projects`), authFetch(`${API}/tasks`), authFetch(`${API}/persons`)]);
+                    _gsData.projects = (await pR.json()).projects || [];
+                    _gsData.tasks = (await tR.json()).tasks || [];
+                    _gsData.persons = (await peR.json()).persons || [];
+                } catch(e) {}
+            }
+            const res = [];
+            _gsData.projects.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'project',i:'📁',n:p.name,d:`进度 ${p.progress||0}%`,l:`project.html?id=${p.id}`}));
+            _gsData.tasks.filter(t => (t.name||'').toLowerCase().includes(q)).slice(0,8).forEach(t => res.push({t:'task',i:'📋',n:t.name,d:`${t.project_name||''} · ${t.assignee_name||'未分配'}`,l:'tasks.html'}));
+            _gsData.persons.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'person',i:'👤',n:p.name,d:`${p.line||''} ${p.position||''}`,l:'persons.html'}));
+            const c = document.getElementById('global-search-results');
+            if (!res.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#999">未找到相关结果</div>'; return; }
+            c.innerHTML = res.map(r => `<a href="${r.l}" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;text-decoration:none;color:#333" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background=''"><span style="font-size:18px">${r.i}</span><div style="flex:1"><div style="font-weight:500">${r.n}</div><div style="font-size:12px;color:#888">${r.d}</div></div><span style="font-size:11px;color:#bbb;background:#f5f5f5;padding:2px 6px;border-radius:3px">${r.t==='project'?'项目':r.t==='task'?'任务':'人员'}</span></a>`).join('');
+        }
+        function handleSearchKey(e) { if (e.key === 'Escape') hideGlobalSearch(); }
+        document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); showGlobalSearch(); } });
+
+        
+        // ========== 通知中心 ==========
+        let _notifPanelOpen = false;
+        function toggleNotificationPanel() {
+            _notifPanelOpen = !_notifPanelOpen;
+            const panel = document.getElementById('notification-panel');
+            if (!panel) return;
+            panel.style.display = _notifPanelOpen ? 'block' : 'none';
+            if (_notifPanelOpen) loadNotifications();
+        }
+        async function loadNotifications() {
+            try {
+                const res = await authFetch(`${API}/notifications`);
+                const data = await res.json();
+                const badge = document.getElementById('notification-badge');
+                const list = document.getElementById('notification-list');
+                if (!list) return;
+                const unread = data.unread_count || 0;
+                if (badge) { badge.textContent = unread; badge.style.display = unread > 0 ? 'inline' : 'none'; }
+                const notifs = data.notifications || [];
+                if (!notifs.length) { list.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">暂无通知</div>'; return; }
+                const typeIcons = { task_assign: '📋', task_complete: '✅', comment: '💬', info: 'ℹ️', warning: '⚠️' };
+                list.innerHTML = notifs.map(n => `<div style="padding:10px 16px;border-bottom:1px solid #f5f5f5;${n.is_read?'':'background:#f0f4ff;'}cursor:pointer;" onclick="handleNotificationClick(${n.id}, '${n.entity_type||''}', ${n.entity_id||0})"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:16px;">${typeIcons[n.type]||'🔔'}</span><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:${n.is_read?'400':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.title||''}</div><div style="font-size:12px;color:#888;margin-top:2px;">${n.content||''}</div><div style="font-size:11px;color:#bbb;margin-top:3px;">${(n.created_at||'').replace('T',' ').substring(0,16)}</div></div></div></div>`).join('');
+            } catch(e) { console.error('加载通知失败', e); }
+        }
+        async function handleNotificationClick(nid, entityType, entityId) {
+            await authFetch(`${API}/notifications/${nid}/read`, { method: 'POST' });
+            loadNotifications();
+            if (entityType === 'task' && entityId) location.href = 'tasks.html';
+        }
+        async function markAllNotificationsRead() {
+            await authFetch(`${API}/notifications/read-all`, { method: 'POST' });
+            loadNotifications();
+        }
+        setInterval(() => { if (!_notifPanelOpen) loadNotifications(); }, 60000);
+        setTimeout(loadNotifications, 2000);
+
+        const API = '/api';
+
+
+        
+        // 时间范围计算
+        function getTimeRange(range) {
+            const today = new Date();
+            let start, end;
+            
+            switch(range) {
+                case 'week':
+                    start = new Date(today);
+                    start.setDate(today.getDate() - today.getDay());
+                    end = new Date(start);
+                    end.setDate(start.getDate() + 6);
+                    break;
+                case 'month':
+                    start = new Date(today.getFullYear(), today.getMonth(), 1);
+                    end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                    break;
+                case 'quarter':
+                    const quarter = Math.floor(today.getMonth() / 3);
+                    start = new Date(today.getFullYear(), quarter * 3, 1);
+                    end = new Date(today.getFullYear(), quarter * 3 + 3, 0);
+                    break;
+                case 'all':
+                    start = null;
+                    end = null;
+                    break;
+            }
+            
+            return { start, end };
+        }
+        
+        // 计算日期在时间轴上的位置
+        function calcPosition(date, rangeStart, rangeEnd, containerWidth) {
+            if (!date) return null;
+            
+            const d = new Date(date);
+            const totalDays = (rangeEnd - rangeStart) / (1000 * 60 * 60 * 24);
+            const daysFromStart = (d - rangeStart) / (1000 * 60 * 60 * 24);
+            
+            return Math.max(0, Math.min(containerWidth, (daysFromStart / totalDays) * containerWidth));
+        }
+        
+        // 计算任务条宽度
+        function calcWidth(startDate, endDate, rangeStart, rangeEnd, containerWidth) {
+            if (!startDate || !endDate) return 60; // 默认宽度
+            
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const totalDays = (rangeEnd - rangeStart) / (1000 * 60 * 60 * 24);
+            const taskDays = (end - start) / (1000 * 60 * 60 * 24) + 1;
+            
+            return Math.max(40, Math.min(containerWidth, (taskDays / totalDays) * containerWidth));
+        }
+        
+        async function loadProjects() {
+            const res = await authFetch(`${API}/projects`);
+            if (!res) return;
+            const data = await res.json();
+            
+            const select = document.getElementById('project-filter');
+            select.innerHTML = '<option value="all">全部项目</option>';
+            
+            (data.projects || []).forEach(p => {
+                if (p.status !== 'archived') {
+                    select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                }
+            });
+        }
+        
+        async function loadGantt() {
+            const projectId = document.getElementById('project-filter').value;
+            const timeRange = document.getElementById('time-range').value;
+            const displayMode = document.getElementById('display-mode').value;
+            
+            try {
+                // 获取数据
+                let projectsRes;
+                if (projectId === 'all') {
+                    projectsRes = await authFetch(`${API}/projects`);
+                } else {
+                    projectsRes = await authFetch(`${API}/projects/${projectId}`);
+                }
+                
+                if (!projectsRes) return;
+                
+                const projectsData = await projectsRes.json();
+                let projects = projectId === 'all' 
+                    ? (projectsData.projects || []).filter(p => p.status !== 'archived')
+                    : [projectsData.project];
+                
+                if (!projects || projects.length === 0) {
+                    document.getElementById('gantt-chart').innerHTML = `
+                        <div class="empty-state">
+                            <h3>📭 暂无数据</h3>
+                            <p>请先创建项目和任务</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // 获取所有任务和阶段
+                let allTasks = [];
+                let allPhases = [];
+                
+                for (const p of projects) {
+                    if (p.tasks) allTasks.push(...p.tasks.map(t => ({...t, project_name: p.name})));
+                    if (p.phases) allPhases.push(...p.phases.map(ph => ({...ph, project_name: p.name})));
+                }
+                
+                // 始终通过独立API获取任务和阶段（/api/projects 不返回嵌套数据）
+                if (allTasks.length === 0) {
+                    const tasksRes = await authFetch(`${API}/tasks`);
+                    if (!tasksRes) return;
+                    const tasksData = await tasksRes.json();
+                    allTasks = (tasksData.tasks || []).map(t => {
+                        const proj = projects.find(p => p.id === t.project_id);
+                        return {...t, project_name: proj ? proj.name : ''};
+                    });
+                }
+                if (allPhases.length === 0) {
+                    for (const p of projects) {
+                        const phasesRes = await authFetch(`${API}/phases?project_id=${p.id}`);
+                        if (!phasesRes) return;
+                        const phasesData = await phasesRes.json();
+                        allPhases.push(...(phasesData.phases || []).map(ph => ({...ph, project_name: p.name})));
+                    }
+                }
+                
+                // 如果是单个项目，补充获取任务
+                if (projectId !== 'all') {
+                    const tasksRes = await authFetch(`${API}/tasks?project_id=${projectId}`);
+                    if (!tasksRes) return;
+                    const tasksData = await tasksRes.json();
+                    allTasks = (tasksData.tasks || []).map(t => ({...t, project_name: projects[0].name}));
+                    
+                    const phasesRes = await authFetch(`${API}/phases?project_id=${projectId}`);
+                    if (!phasesRes) return;
+                    const phasesData = await phasesRes.json();
+                    allPhases = (phasesData.phases || []).map(ph => ({...ph, project_name: projects[0].name}));
+                }
+                
+                // 计算时间范围
+                const range = getTimeRange(timeRange);
+                let rangeStart = range.start;
+                let rangeEnd = range.end;
+                
+                // 自动计算范围（如果没有指定）
+                if (!rangeStart || !rangeEnd) {
+                    const allDates = [];
+                    allTasks.forEach(t => {
+                        if (t.due_date) allDates.push(new Date(t.due_date));
+                        if (t.created_at) allDates.push(new Date(t.created_at));
+                    });
+                    allPhases.forEach(ph => {
+                        if (ph.start_date) allDates.push(new Date(ph.start_date));
+                        if (ph.end_date) allDates.push(new Date(ph.end_date));
+                    });
+                    
+                    if (allDates.length > 0) {
+                        rangeStart = new Date(Math.min(...allDates));
+                        rangeEnd = new Date(Math.max(...allDates));
+                        rangeStart.setDate(rangeStart.getDate() - 3);
+                        rangeEnd.setDate(rangeEnd.getDate() + 3);
+                    } else {
+                        rangeStart = new Date();
+                        rangeStart.setDate(rangeStart.getDate() - 7);
+                        rangeEnd = new Date();
+                        rangeEnd.setDate(rangeEnd.getDate() + 30);
+                    }
+                }
+                
+                // 渲染甘特图
+                renderGantt(projects, allTasks, allPhases, rangeStart, rangeEnd, displayMode);
+                
+                // 缓存数据供导出使用
+                window._ganttTasks = allTasks;
+                window._ganttPhases = allPhases;
+                window._ganttProjects = projects;
+                
+            } catch (e) {
+                console.error('加载甘特图失败:', e);
+                document.getElementById('gantt-chart').innerHTML = `
+                    <div class="empty-state" style="color:#c62828">
+                        <h3>❌ 加载失败</h3>
+                        <p>${e.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function renderGantt(projects, tasks, phases, rangeStart, rangeEnd, displayMode) {
+            const container = document.getElementById('gantt-chart');
+            const totalDays = Math.ceil((rangeEnd - rangeStart) / (1000 * 60 * 60 * 24));
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+            
+            // 生成日期头部
+            const dateHeaders = [];
+            const currentDate = new Date(rangeStart);
+            while (currentDate <= rangeEnd) {
+                const dateStr = currentDate.toISOString().split('T')[0];
+                const dayOfWeek = currentDate.getDay();
+                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                const isToday = dateStr === todayStr;
+                dateHeaders.push({
+                    date: dateStr,
+                    label: `${currentDate.getMonth()+1}/${currentDate.getDate()}`,
+                    isWeekend,
+                    isToday
+                });
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            // 构建HTML
+            const timelineWidth = totalDays * 40;
+            let html = `
+                <div class="gantt-header">
+                    <div class="gantt-header-left">任务/阶段</div>
+                    <div class="gantt-header-right" style="width:${timelineWidth}px;">
+                        ${dateHeaders.map(d => `
+                            <div style="width:40px;text-align:center;font-size:12px;padding:5px 0;${d.isWeekend ? 'background:#f5f5f5;' : ''}${d.isToday ? 'background:#fff3e0;color:#e65100;font-weight:bold;' : ''}">
+                                ${d.label}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            
+            // 按项目分组显示
+            if (projects.length > 1) {
+                projects.forEach(project => {
+                    const projectTasks = tasks.filter(t => t.project_id === project.id);
+                    const projectPhases = phases.filter(ph => ph.project_id === project.id);
+                    
+                    html += `
+                        <div class="project-group">
+                            <div class="gantt-row project-header-row">
+                                <div class="gantt-task-info">
+                                    📁 ${project.name}
+                                    <span class="task-meta">${projectTasks.length}个任务</span>
+                                </div>
+                                <div class="gantt-bar-area" style="width:${totalDays * 40}px;"></div>
+                            </div>
+                    `;
+                    
+                    // 显示阶段
+                    if (displayMode === 'phases' || displayMode === 'both') {
+                        projectPhases.forEach(phase => {
+                            html += renderPhaseRow(phase, rangeStart, totalDays, todayStr);
+                        });
+                    }
+                    
+                    // 显示任务
+                    if (displayMode === 'tasks' || displayMode === 'both') {
+                        projectTasks.forEach(task => {
+                            html += renderTaskRow(task, rangeStart, totalDays, todayStr);
+                        });
+                    }
+                    
+                    html += '</div>';
+                });
+            } else {
+                // 单个项目
+                if (displayMode === 'phases' || displayMode === 'both') {
+                    phases.forEach(phase => {
+                        html += renderPhaseRow(phase, rangeStart, totalDays, todayStr);
+                    });
+                }
+                
+                if (displayMode === 'tasks' || displayMode === 'both') {
+                    tasks.forEach(task => {
+                        html += renderTaskRow(task, rangeStart, totalDays, todayStr);
+                    });
+                }
+            }
+            
+            container.innerHTML = html;
+            
+            // 添加今日线
+            const todayOffset = Math.floor((today - rangeStart) / (1000 * 60 * 60 * 24)) * 40;
+            if (todayOffset >= 0 && todayOffset <= totalDays * 40) {
+                const barAreas = container.querySelectorAll('.gantt-bar-area');
+                barAreas.forEach(area => {
+                    const line = document.createElement('div');
+                    line.className = 'today-line';
+                    line.style.left = todayOffset + 'px';
+                    area.style.position = 'relative';
+                    area.appendChild(line);
+                });
+            }
+        }
+        
+        function renderTaskRow(task, rangeStart, totalDays, todayStr) {
+            const isDelayed = task.due_date && task.due_date < todayStr && task.status !== 'completed';
+            const barClass = isDelayed ? 'bar-delayed' : `bar-${task.status || 'pending'}`;
+            
+            // 计算位置 - 限制在可见范围内
+            const startDate = task.created_at ? task.created_at.split(' ')[0] : null;
+            const endDate = task.due_date;
+            
+            let leftPos = 0;
+            let barWidth = 60;
+            const containerWidth = totalDays * 40; // 容器最大宽度
+            
+            if (startDate && rangeStart) {
+                const daysFromStart = Math.floor((new Date(startDate) - rangeStart) / (1000 * 60 * 60 * 24));
+                leftPos = Math.max(0, Math.min(containerWidth - 40, daysFromStart * 40));
+            }
+            
+            if (endDate && startDate && rangeStart) {
+                const taskDays = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1;
+                barWidth = Math.max(40, Math.min(containerWidth - leftPos, taskDays * 40));
+            }
+            
+            const statusIcon = task.status === 'completed' ? '✅' : task.status === 'in_progress' ? '⏳' : '⏸️';
+            const progress = task.progress || 0;
+            
+            const timelineWidth = totalDays * 40;
+            return `
+                <div class="gantt-row">
+                    <div class="gantt-task-info">
+                        <span>${statusIcon}</span>
+                        <span class="task-name">${task.name}</span>
+                        <div class="task-meta">
+                            ${task.assignee_name || '未指定'} | ${task.due_date || '-'}
+                        </div>
+                        <div class="progress-mini">
+                            <div class="progress-mini-fill" style="width:${progress}%"></div>
+                        </div>
+                    </div>
+                    <div class="gantt-bar-area" data-task-id="${task.id}" style="width:${timelineWidth}px;">
+                        <div class="gantt-bar ${barClass}" style="left:${leftPos}px;width:${barWidth}px;" 
+                             data-task-id="${task.id}"
+                             onmousedown="startDrag(event, ${task.id})"
+                             onclick="event.stopPropagation(); window.location.href='project.html?id=${task.project_id}'"
+                             title="${task.name}\\n进度: ${progress}%\\n截止: ${task.due_date || '未设置'}${isDelayed ? '\\n⚠️ 已延期' : ''}\\n💡 拖拽调整时间">
+                            ${progress}%
+                            <div class="resize-handle" onmousedown="startResize(event, ${task.id})"></div>
+                        </div>
+                        ${task.due_date ? `
+                            <div class="milestone" style="left:${Math.max(0, Math.floor((new Date(task.due_date) - rangeStart) / (1000 * 60 * 60 * 24)) * 40 + 20)}px;" 
+                                 title="截止日期: ${task.due_date}"></div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderPhaseRow(phase, rangeStart, totalDays, todayStr) {
+            const statusColor = phase.status === 'completed' ? '#4caf50' : phase.status === 'in_progress' ? '#ff9800' : '#9e9e9e';
+            
+            let leftPos = 0;
+            let barWidth = 80;
+            const containerWidth = totalDays * 40; // 容器最大宽度
+            
+            if (phase.start_date && rangeStart) {
+                const daysFromStart = Math.floor((new Date(phase.start_date) - rangeStart) / (1000 * 60 * 60 * 24));
+                leftPos = Math.max(0, Math.min(containerWidth - 80, daysFromStart * 40));
+            }
+            
+            if (phase.end_date && phase.start_date && rangeStart) {
+                const phaseDays = Math.ceil((new Date(phase.end_date) - new Date(phase.start_date)) / (1000 * 60 * 60 * 24)) + 1;
+                barWidth = Math.max(80, Math.min(containerWidth - leftPos, phaseDays * 40));
+            }
+            
+            const timelineWidth = totalDays * 40;
+            return `
+                <div class="gantt-row phase-row">
+                    <div class="gantt-task-info">
+                        <span style="color:${statusColor}">●</span>
+                        <span class="task-name">${phase.name}</span>
+                        <div class="task-meta">
+                            ${phase.start_date || '-'} ~ ${phase.end_date || '-'}
+                        </div>
+                    </div>
+                    <div class="gantt-bar-area" style="width:${timelineWidth}px;">
+                        <div style="position:absolute;left:${leftPos}px;width:${barWidth}px;height:24px;background:${statusColor}20;border:2px solid ${statusColor};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;color:${statusColor};cursor:pointer;"
+                             onclick="window.location.href='project.html?id=${phase.project_id}'"
+                             title="${phase.name}\n${phase.start_date || '-'} ~ ${phase.end_date || '-'}">
+                            ${phase.progress || 0}%
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 初始化
+        async function start() {
+            const user = await initAuthPage();
+            if (!user) return;
+            loadProjects().then(() => loadGantt());
+        }
+        
+        // ========== 甘特图拖拽 ==========
+        let dragState = null;
+        let _ganttTasks = []; // 缓存任务数据
+        
+        function startDrag(e, taskId) {
+            if (e.target.classList.contains('resize-handle')) return; // resize优先
+            e.preventDefault();
+            e.stopPropagation();
+            const bar = e.target.closest('.gantt-bar');
+            if (!bar) return;
+            
+            bar.classList.add('dragging');
+            dragState = {
+                type: 'move',
+                taskId,
+                bar,
+                startX: e.clientX,
+                origLeft: parseInt(bar.style.left),
+                origWidth: parseInt(bar.style.width)
+            };
+            document.addEventListener('mousemove', onDragMove);
+            document.addEventListener('mouseup', onDragEnd);
+        }
+        
+        function startResize(e, taskId) {
+            e.preventDefault();
+            e.stopPropagation();
+            const bar = e.target.closest('.gantt-bar');
+            if (!bar) return;
+            
+            bar.classList.add('dragging');
+            dragState = {
+                type: 'resize',
+                taskId,
+                bar,
+                startX: e.clientX,
+                origLeft: parseInt(bar.style.left),
+                origWidth: parseInt(bar.style.width)
+            };
+            document.addEventListener('mousemove', onDragMove);
+            document.addEventListener('mouseup', onDragEnd);
+        }
+        
+        function onDragMove(e) {
+            if (!dragState) return;
+            const dx = e.clientX - dragState.startX;
+            
+            if (dragState.type === 'move') {
+                const newLeft = Math.max(0, dragState.origLeft + dx);
+                dragState.bar.style.left = newLeft + 'px';
+            } else if (dragState.type === 'resize') {
+                const newWidth = Math.max(40, dragState.origWidth + dx);
+                dragState.bar.style.width = newWidth + 'px';
+            }
+        }
+        
+        async function onDragEnd(e) {
+            if (!dragState) return;
+            document.removeEventListener('mousemove', onDragMove);
+            document.removeEventListener('mouseup', onDragEnd);
+            
+            dragState.bar.classList.remove('dragging');
+            
+            // 计算新的日期
+            const newLeft = parseInt(dragState.bar.style.left);
+            const newWidth = parseInt(dragState.bar.style.width);
+            const daysPerPixel = 1 / 40; // 40px = 1天
+            
+            // 获取当前任务
+            try {
+                const res = await authFetch(`${API}/tasks/${dragState.taskId}`);
+                const data = await res.json();
+                const task = data.task;
+                if (!task) return;
+                
+                if (dragState.type === 'move') {
+                    // 移动：调整开始日期（用created_at近似）
+                    const dayShift = Math.round((newLeft - dragState.origLeft) * daysPerPixel);
+                    if (dayShift !== 0 && task.due_date) {
+                        const newDue = new Date(task.due_date);
+                        newDue.setDate(newDue.getDate() + dayShift);
+                        const dueStr = newDue.toISOString().split('T')[0];
+                        await authFetch(`${API}/tasks/${dragState.taskId}`, {
+                            method: 'PUT',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({due_date: dueStr})
+                        });
+                    }
+                } else if (dragState.type === 'resize') {
+                    // 调整宽度：改变截止日期
+                    const dayShift = Math.round((newWidth - dragState.origWidth) * daysPerPixel);
+                    if (dayShift !== 0 && task.due_date) {
+                        const newDue = new Date(task.due_date);
+                        newDue.setDate(newDue.getDate() + dayShift);
+                        const dueStr = newDue.toISOString().split('T')[0];
+                        await authFetch(`${API}/tasks/${dragState.taskId}`, {
+                            method: 'PUT',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({due_date: dueStr})
+                        });
+                    }
+                }
+                
+                // 刷新甘特图
+                setTimeout(() => loadGantt(), 300);
+            } catch(err) {
+                console.error('拖拽更新失败:', err);
+            }
+            
+            dragState = null;
+        }
+        
+        start();
+    </script>
+    <script src="dark-mode.js"></script>
+    <script src="gantt-export.js"></script>
+</body>
+</html>

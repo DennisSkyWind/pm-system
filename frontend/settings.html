@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>项目管理系统 - 个人设置</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+        
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; }
+        header h1 { font-size: 24px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; }
+        .user-area { display: flex; align-items: center; gap: 10px; }
+        .user-area .user-name { font-size: 14px; padding: 6px 12px; background: rgba(255,255,255,0.2); border-radius: 6px; }
+        .logout-btn { font-size: 13px; padding: 6px 12px; background: rgba(255,255,255,0.3); border-radius: 6px; color: white; cursor: pointer; border: none; }
+        nav { display: flex; gap: 15px; margin-top: 15px; }
+        nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; background: rgba(255,255,255,0.2); }
+        nav a:hover { background: rgba(255,255,255,0.3); }
+        nav a.active { background: rgba(255,255,255,0.4); }
+        
+        main { padding: 20px; max-width: 600px; margin: 0 auto; }
+        
+        .section { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .section h2 { font-size: 18px; margin-bottom: 20px; color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
+        
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; color: #333; font-size: 14px; margin-bottom: 8px; font-weight: 500; }
+        .form-group input { width: 100%; padding: 12px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
+        .form-group input:focus { outline: none; border-color: #667eea; }
+        
+        .btn { padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; border: none; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn:hover { opacity: 0.9; }
+        
+        .error-msg { color: #e74c3c; padding: 12px; background: #fdf2f2; border-radius: 8px; margin-top: 15px; display: none; }
+        .success-msg { color: #27ae60; padding: 12px; background: #f0fff4; border-radius: 8px; margin-top: 15px; display: none; }
+        
+        .user-info { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .user-info p { margin-bottom: 8px; color: #666; }
+        .user-info .name { font-size: 18px; color: #333; font-weight: 500; }
+        .user-info .role { font-size: 14px; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <link rel="stylesheet" href="common.css">
+    <link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+    <header>
+        <div class="header-top">
+            <h1>⚙️ 个人设置</h1>
+            <div id="user-area" class="user-area">
+                <span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-right:10px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span></div>
+        </div>
+        <nav>
+            <a href="index.html">Dashboard</a>
+            <a href="projects.html">项目列表</a>
+            <a href="tasks.html">任务管理</a>
+            <a href="persons.html">人员名册</a>
+            <a href="settings.html" class="active">个人设置</a>
+        <span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span></nav>
+    </header>
+    
+
+    <!-- 全局搜索弹窗 -->
+    <div id="global-search-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;backdrop-filter:blur(2px);" onclick="hideGlobalSearch()">
+        <div style="max-width:600px;margin:80px auto 0;background:white;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;" onclick="event.stopPropagation()">
+            <div style="display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid #eee;gap:10px;">
+                <span style="font-size:20px">🔍</span>
+                <input type="text" id="global-search-input" placeholder="搜索项目、任务、人员..." 
+                    style="flex:1;border:none;font-size:16px;outline:none;" 
+                    oninput="doGlobalSearch()" onkeydown="handleSearchKey(event)">
+                <kbd style="background:#f0f0f0;padding:2px 8px;border-radius:4px;font-size:12px;color:#888">ESC</kbd>
+            </div>
+            <div id="global-search-results" style="max-height:400px;overflow-y:auto;padding:8px;"></div>
+        </div>
+    </div>
+
+
+    <!-- 通知面板 -->
+    <div id="notification-panel" style="display:none;position:fixed;top:60px;right:20px;width:360px;max-height:500px;background:white;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.15);z-index:9998;overflow:hidden;">
+        <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="font-size:15px;margin:0;">🔔 通知</h3>
+            <div>
+                <a onclick="markAllNotificationsRead()" style="font-size:12px;color:#667eea;cursor:pointer;margin-right:10px;">全部已读</a>
+                <a onclick="toggleNotificationPanel()" style="cursor:pointer;font-size:16px;">✕</a>
+            </div>
+        </div>
+        <div id="notification-list" style="max-height:420px;overflow-y:auto;"></div>
+    </div>
+
+    <main>
+        <!-- 用户信息 -->
+        <div class="section">
+            <h2>👤 当前用户</h2>
+            <div class="user-info">
+                <p class="name" id="user-name"></p>
+                <p class="role" id="user-role"></p>
+                <p id="user-username"></p>
+            </div>
+        </div>
+        
+        <!-- 修改密码 -->
+        <div class="section">
+            <h2>🔐 修改密码</h2>
+            <div class="form-group">
+                <label for="old-password">当前密码</label>
+                <input type="password" id="old-password" placeholder="请输入当前密码">
+            </div>
+            <div class="form-group">
+                <label for="new-password">新密码</label>
+                <input type="password" id="new-password" placeholder="至少8位，含字母和数字">
+            </div>
+            <div class="form-group">
+                <label for="confirm-password">确认新密码</label>
+                <input type="password" id="confirm-password" placeholder="再次输入新密码">
+            </div>
+            <button class="btn btn-primary" onclick="changePassword()">修改密码</button>
+            <div class="error-msg" id="error-msg"></div>
+            <div class="success-msg" id="success-msg"></div>
+        </div>
+    </main>
+    
+    <script src="auth.js"></script>
+    <script>
+        
+        // ========== 全局搜索 ==========
+        let _gsData = { projects: [], tasks: [], persons: [] };
+        function showGlobalSearch() {
+            document.getElementById('global-search-overlay').style.display = 'block';
+            const input = document.getElementById('global-search-input');
+            input.value = ''; input.focus();
+            document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>';
+        }
+        function hideGlobalSearch() { document.getElementById('global-search-overlay').style.display = 'none'; }
+        async function doGlobalSearch() {
+            const q = document.getElementById('global-search-input').value.trim().toLowerCase();
+            if (!q) { document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>'; return; }
+            if (_gsData.projects.length === 0) {
+                try {
+                    const [pR, tR, peR] = await Promise.all([authFetch(`${API}/projects`), authFetch(`${API}/tasks`), authFetch(`${API}/persons`)]);
+                    _gsData.projects = (await pR.json()).projects || [];
+                    _gsData.tasks = (await tR.json()).tasks || [];
+                    _gsData.persons = (await peR.json()).persons || [];
+                } catch(e) {}
+            }
+            const res = [];
+            _gsData.projects.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'project',i:'📁',n:p.name,d:`进度 ${p.progress||0}%`,l:`project.html?id=${p.id}`}));
+            _gsData.tasks.filter(t => (t.name||'').toLowerCase().includes(q)).slice(0,8).forEach(t => res.push({t:'task',i:'📋',n:t.name,d:`${t.project_name||''} · ${t.assignee_name||'未分配'}`,l:'tasks.html'}));
+            _gsData.persons.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'person',i:'👤',n:p.name,d:`${p.line||''} ${p.position||''}`,l:'persons.html'}));
+            const c = document.getElementById('global-search-results');
+            if (!res.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#999">未找到相关结果</div>'; return; }
+            c.innerHTML = res.map(r => `<a href="${r.l}" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;text-decoration:none;color:#333" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background=''"><span style="font-size:18px">${r.i}</span><div style="flex:1"><div style="font-weight:500">${r.n}</div><div style="font-size:12px;color:#888">${r.d}</div></div><span style="font-size:11px;color:#bbb;background:#f5f5f5;padding:2px 6px;border-radius:3px">${r.t==='project'?'项目':r.t==='task'?'任务':'人员'}</span></a>`).join('');
+        }
+        function handleSearchKey(e) { if (e.key === 'Escape') hideGlobalSearch(); }
+        document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); showGlobalSearch(); } });
+
+        
+        // ========== 通知中心 ==========
+        let _notifPanelOpen = false;
+        function toggleNotificationPanel() {
+            _notifPanelOpen = !_notifPanelOpen;
+            const panel = document.getElementById('notification-panel');
+            if (!panel) return;
+            panel.style.display = _notifPanelOpen ? 'block' : 'none';
+            if (_notifPanelOpen) loadNotifications();
+        }
+        async function loadNotifications() {
+            try {
+                const res = await authFetch(`${API}/notifications`);
+                const data = await res.json();
+                const badge = document.getElementById('notification-badge');
+                const list = document.getElementById('notification-list');
+                if (!list) return;
+                
+                const unread = data.unread_count || 0;
+                if (badge) {
+                    badge.textContent = unread;
+                    badge.style.display = unread > 0 ? 'inline' : 'none';
+                }
+                
+                const notifs = data.notifications || [];
+                if (!notifs.length) {
+                    list.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">暂无通知</div>';
+                    return;
+                }
+                
+                const typeIcons = { task_assign: '📋', task_complete: '✅', comment: '💬', info: 'ℹ️', warning: '⚠️' };
+                list.innerHTML = notifs.map(n => `
+                    <div style="padding:10px 16px;border-bottom:1px solid #f5f5f5;${n.is_read?'':'background:#f0f4ff;'}cursor:pointer;" onclick="handleNotificationClick(${n.id}, '${n.entity_type||''}', ${n.entity_id||0})">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span style="font-size:16px;">${typeIcons[n.type]||'🔔'}</span>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:13px;font-weight:${n.is_read?'400':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.title||''}</div>
+                                <div style="font-size:12px;color:#888;margin-top:2px;">${n.content||''}</div>
+                                <div style="font-size:11px;color:#bbb;margin-top:3px;">${(n.created_at||'').replace('T',' ').substring(0,16)}</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch(e) { console.error('加载通知失败', e); }
+        }
+        async function handleNotificationClick(nid, entityType, entityId) {
+            // 标记已读
+            await authFetch(`${API}/notifications/${nid}/read`, { method: 'POST' });
+            loadNotifications();
+            // 跳转
+            if (entityType === 'task' && entityId) location.href = 'tasks.html';
+        }
+        async function markAllNotificationsRead() {
+            await authFetch(`${API}/notifications/read-all`, { method: 'POST' });
+            loadNotifications();
+        }
+        // 定时刷新通知
+        setInterval(() => { if (!_notifPanelOpen) loadNotifications(); }, 60000);
+        // 初始加载
+        setTimeout(loadNotifications, 2000);
+
+        const API = '/api';
+        
+        // 页面初始化
+        document.addEventListener('DOMContentLoaded', async () => {
+            const user = await initAuthPage();
+            if (!user) return;
+            
+            document.getElementById('user-name').textContent = user.person_name;
+            document.getElementById('user-role').textContent = '角色: ' + (user.role === 'admin' ? '管理员' : '普通用户');
+            document.getElementById('user-username').textContent = '用户名: ' + user.username;
+        });
+        
+        // 修改密码
+        async function changePassword() {
+            const oldPassword = document.getElementById('old-password').value;
+            const newPassword = document.getElementById('new-password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            
+            const errorMsg = document.getElementById('error-msg');
+            const successMsg = document.getElementById('success-msg');
+            errorMsg.style.display = 'none';
+            successMsg.style.display = 'none';
+            
+            // 验证
+            if (!oldPassword || !newPassword || !confirmPassword) {
+                errorMsg.textContent = '请填写所有字段';
+                errorMsg.style.display = 'block';
+                return;
+            }
+            
+            if (newPassword.length < 6) {
+                errorMsg.textContent = '新密码长度至少8位，且必须包含字母和数字';
+                errorMsg.style.display = 'block';
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                errorMsg.textContent = '两次输入的新密码不一致';
+                errorMsg.style.display = 'block';
+                return;
+            }
+            
+            const token = localStorage.getItem('pm_token');
+            
+            try {
+                const res = await authFetch(API + '/users/change-password', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        old_password: oldPassword,
+                        new_password: newPassword
+                    })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    successMsg.textContent = '密码修改成功！';
+                    successMsg.style.display = 'block';
+                    // 清空输入框
+                    document.getElementById('old-password').value = '';
+                    document.getElementById('new-password').value = '';
+                    document.getElementById('confirm-password').value = '';
+                } else {
+                    errorMsg.textContent = data.error || '修改失败';
+                    errorMsg.style.display = 'block';
+                }
+            } catch (e) {
+                errorMsg.textContent = '网络错误，请稍后重试';
+                errorMsg.style.display = 'block';
+            }
+        }
+    </script>
+    <script src="dark-mode.js"></script>
+</body>
+</html>

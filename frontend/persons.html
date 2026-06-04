@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人员名册 - 项目管理系统</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+        
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; }
+        header h1 { font-size: 24px; }
+        nav { display: flex; gap: 15px; margin-top: 15px; }
+        nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; background: rgba(255,255,255,0.2); }
+        nav a:hover { background: rgba(255,255,255,0.3); }
+        nav a.active { background: rgba(255,255,255,0.4); }
+        
+        main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+        
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .btn { padding: 10px 20px; border-radius: 8px; cursor: pointer; border: none; font-size: 14px; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-secondary { background: #e0e0e0; color: #333; }
+        .btn-danger { background: #f44336; color: white; }
+        
+        .person-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        
+        .person-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .person-header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+        .avatar { width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; color: white; font-size: 20px; font-weight: bold; }
+        .person-info { flex: 1; }
+        .person-name { font-size: 18px; font-weight: 600; }
+        .person-role { font-size: 13px; color: #666; }
+        
+        .person-details { margin-top: 15px; }
+        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .detail-label { color: #666; }
+        .detail-value { font-weight: 500; }
+        
+        .person-stats { display: flex; gap: 10px; margin-top: 15px; }
+        .stat-box { background: #f5f5f5; border-radius: 8px; padding: 10px; text-align: center; flex: 1; }
+        .stat-box .num { font-size: 24px; font-weight: bold; color: #667eea; }
+        .stat-box .label { font-size: 12px; color: #666; }
+        
+        .badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; }
+        .badge-admin { background: #e3f2fd; color: #2196f3; }
+        .badge-member { background: #f5f5f5; color: #666; }
+        .badge-active { background: #e8f5e9; color: #4caf50; }
+        .badge-inactive { background: #ffebee; color: #f44336; }
+        .badge-manager { background: #fff3e0; color: #e65100; }
+        .badge-tech { background: #e8f5e9; color: #2e7d32; }
+        .badge-pro { background: #e3f2fd; color: #1565c0; }
+        
+        .line-tag { font-size: 11px; color: #667eea; background: #f3f0ff; padding: 2px 8px; border-radius: 4px; }
+        
+        /* 模态框 */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .modal-content { background: white; border-radius: 12px; padding: 30px; max-width: 700px; margin: 80px auto; }
+        .modal-title { font-size: 20px; font-weight: 600; margin-bottom: 20px; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
+        
+        /* 表单网格布局 */
+        .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px 20px; }
+        .form-group { margin-bottom: 0; }
+        .form-group label { display: block; margin-bottom: 5px; color: #666; font-size: 13px; }
+        .form-group input, .form-group select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .form-group.full-width { grid-column: 1 / -1; }
+        
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 25px; padding-top: 15px; border-top: 1px solid #eee; }
+        
+        .search-box { display: flex; gap: 10px; }
+        .search-box input { padding: 10px 15px; border: 1px solid #ddd; border-radius: 6px; width: 200px; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <link rel="stylesheet" href="common.css">
+    <link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+    <header>
+        <h1>👥 人员名册</h1>
+        <nav>
+            <a href="index.html">Dashboard</a>
+            <a href="projects.html">项目列表</a>
+            <a href="phases.html">阶段管理</a>
+            <a href="tasks.html">任务管理</a>
+            <a href="issues.html">问题追踪</a>
+            <a href="gantt.html">📊 甘特图</a>
+            <a href="reminders.html">提醒管理</a>
+            <a href="persons.html" class="active">人员名册</a>
+        <a href="settings.html">⚙️ 个人设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span></nav>
+    </header>
+    
+
+    <!-- 全局搜索弹窗 -->
+    <div id="global-search-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;backdrop-filter:blur(2px);" onclick="hideGlobalSearch()">
+        <div style="max-width:600px;margin:80px auto 0;background:white;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;" onclick="event.stopPropagation()">
+            <div style="display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid #eee;gap:10px;">
+                <span style="font-size:20px">🔍</span>
+                <input type="text" id="global-search-input" placeholder="搜索项目、任务、人员..." 
+                    style="flex:1;border:none;font-size:16px;outline:none;" 
+                    oninput="doGlobalSearch()" onkeydown="handleSearchKey(event)">
+                <kbd style="background:#f0f0f0;padding:2px 8px;border-radius:4px;font-size:12px;color:#888">ESC</kbd>
+            </div>
+            <div id="global-search-results" style="max-height:400px;overflow-y:auto;padding:8px;"></div>
+        </div>
+    </div>
+
+
+    <!-- 通知面板 -->
+    <div id="notification-panel" style="display:none;position:fixed;top:60px;right:20px;width:360px;max-height:500px;background:white;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.15);z-index:9998;overflow:hidden;">
+        <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="font-size:15px;margin:0;">🔔 通知</h3>
+            <div>
+                <a onclick="markAllNotificationsRead()" style="font-size:12px;color:#667eea;cursor:pointer;margin-right:10px;">全部已读</a>
+                <a onclick="toggleNotificationPanel()" style="cursor:pointer;font-size:16px;">✕</a>
+            </div>
+        </div>
+        <div id="notification-list" style="max-height:420px;overflow-y:auto;"></div>
+    </div>
+
+    <main>
+        <div class="toolbar">
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="搜索人员..." onkeyup="filterPersons()">
+                <select id="line-filter" onchange="filterPersons()">
+                    <option value="">全部条线</option>
+                    <option value="基座安全">基座安全</option>
+                    <option value="场景与解决方案">场景与解决方案</option>
+                    <option value="数据智能">数据智能</option>
+                </select>
+                <select id="status-filter" onchange="filterPersons()">
+                    <option value="">全部状态</option>
+                    <option value="active">在职</option>
+                    <option value="inactive">离职</option>
+                </select>
+            </div>
+                    <option value="inactive">离职</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-secondary" onclick="showImportModal()">📥 导入</button>
+                <button class="btn btn-secondary" onclick="exportPersons()">📤 导出</button>
+                <button class="btn btn-primary" onclick="showAddModal()">+ 新增人员</button>
+            </div>
+        </div>
+        
+        <div class="person-grid" id="person-grid">
+            <div style="text-align: center; padding: 40px; color: #999;">加载中...</div>
+        </div>
+    </main>
+    
+    <!-- 新增/编辑人员模态框 -->
+    <div class="modal" id="person-modal">
+        <div class="modal-content">
+            <div class="modal-title" id="modal-title">新增人员</div>
+            
+            <!-- 第一行：工号、姓名、部门 -->
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>工号</label>
+                    <input type="text" id="person-employee-id" placeholder="如：A1101008">
+                </div>
+                <div class="form-group">
+                    <label>姓名 *</label>
+                    <input type="text" id="person-name" required placeholder="必填">
+                </div>
+                <div class="form-group">
+                    <label>部门</label>
+                    <input type="text" id="person-department" value="智能与数字化中心">
+                </div>
+                
+                <!-- 第二行：职位序列、条线、子条线 -->
+                <div class="form-group">
+                    <label>职位序列</label>
+                    <select id="person-job-sequence">
+                        <option value="专业序列">专业序列</option>
+                        <option value="技术序列">技术序列</option>
+                        <option value="管理序列">管理序列</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>条线</label>
+                    <select id="person-line">
+                        <option value="">请选择</option>
+                        <option value="基座安全">基座安全</option>
+                        <option value="场景与解决方案">场景与解决方案</option>
+                        <option value="数据智能">数据智能</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>子条线</label>
+                    <input type="text" id="person-sub-line" placeholder="如：数字化场景">
+                </div>
+                
+                <!-- 第三行：岗位、角色、状态 -->
+                <div class="form-group">
+                    <label>岗位</label>
+                    <input type="text" id="person-position" placeholder="如：解决方案经理">
+                </div>
+                <div class="form-group">
+                    <label>角色</label>
+                    <select id="person-role">
+                        <option value="member">成员</option>
+                        <option value="admin">管理员</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>状态</label>
+                    <select id="person-status">
+                        <option value="active">在职</option>
+                        <option value="inactive">离职</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+                <button class="btn btn-primary" onclick="savePerson()">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 导入模态框 -->
+    <div class="modal" id="import-modal">
+        <div class="modal-content">
+            <div class="modal-title">📥 导入人员</div>
+            <div class="form-group">
+                <label>导入方式</label>
+                <select id="import-type" onchange="toggleImportType()">
+                    <option value="csv">CSV格式</option>
+                    <option value="json">JSON格式</option>
+                </select>
+            </div>
+            <div id="csv-section">
+                <div class="form-group">
+                    <label>CSV内容（逗号分隔）</label>
+                    <textarea id="csv-input" rows="8" placeholder="姓名,角色,部门,邮箱,电话
+张三,admin,技术部,zhangsan@example.com,13800138000
+李四,member,产品部,lisi@example.com,13900139000" onkeyup="previewImport()"></textarea>
+                </div>
+                <div style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                    格式说明：姓名,角色(member/admin),部门,邮箱,电话<br>
+                    每行一条记录，第一行可以是表头（会自动跳过）
+                </div>
+            </div>
+            <div id="json-section" style="display: none;">
+                <div class="form-group">
+                    <label>JSON内容</label>
+                    <textarea id="json-input" rows="8" placeholder='[
+  {"name": "张三", "role": "admin", "department": "技术部"},
+  {"name": "李四", "role": "member", "department": "产品部"}
+]' onkeyup="previewImport()"></textarea>
+                </div>
+                <div style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                    格式说明：JSON数组，每项包含 name, role, department, email, phone 等字段
+                </div>
+            </div>
+            <div class="form-group">
+                <label>或上传文件</label>
+                <input type="file" id="import-file" accept=".csv,.json,.txt" onchange="handleFileUpload()">
+            </div>
+            <div id="import-preview" style="margin-top: 15px; display: none;">
+                <label>预览（共 <span id="preview-count">0</span> 条）</label>
+                <div id="preview-list" style="max-height: 150px; overflow-y: auto; background: #f5f5f5; padding: 10px; border-radius: 6px; font-size: 13px;"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeImportModal()">取消</button>
+                <button class="btn btn-primary" onclick="importPersons()">导入</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="auth.js"></script>
+    <script>
+        
+        // ========== 全局搜索 ==========
+        let _gsData = { projects: [], tasks: [], persons: [] };
+        function showGlobalSearch() {
+            document.getElementById('global-search-overlay').style.display = 'block';
+            const input = document.getElementById('global-search-input');
+            input.value = ''; input.focus();
+            document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>';
+        }
+        function hideGlobalSearch() { document.getElementById('global-search-overlay').style.display = 'none'; }
+        async function doGlobalSearch() {
+            const q = document.getElementById('global-search-input').value.trim().toLowerCase();
+            if (!q) { document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>'; return; }
+            if (_gsData.projects.length === 0) {
+                try {
+                    const [pR, tR, peR] = await Promise.all([authFetch(`${API}/projects`), authFetch(`${API}/tasks`), authFetch(`${API}/persons`)]);
+                    _gsData.projects = (await pR.json()).projects || [];
+                    _gsData.tasks = (await tR.json()).tasks || [];
+                    _gsData.persons = (await peR.json()).persons || [];
+                } catch(e) {}
+            }
+            const res = [];
+            _gsData.projects.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'project',i:'📁',n:p.name,d:`进度 ${p.progress||0}%`,l:`project.html?id=${p.id}`}));
+            _gsData.tasks.filter(t => (t.name||'').toLowerCase().includes(q)).slice(0,8).forEach(t => res.push({t:'task',i:'📋',n:t.name,d:`${t.project_name||''} · ${t.assignee_name||'未分配'}`,l:'tasks.html'}));
+            _gsData.persons.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'person',i:'👤',n:p.name,d:`${p.line||''} ${p.position||''}`,l:'persons.html'}));
+            const c = document.getElementById('global-search-results');
+            if (!res.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#999">未找到相关结果</div>'; return; }
+            c.innerHTML = res.map(r => `<a href="${r.l}" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;text-decoration:none;color:#333" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background=''"><span style="font-size:18px">${r.i}</span><div style="flex:1"><div style="font-weight:500">${r.n}</div><div style="font-size:12px;color:#888">${r.d}</div></div><span style="font-size:11px;color:#bbb;background:#f5f5f5;padding:2px 6px;border-radius:3px">${r.t==='project'?'项目':r.t==='task'?'任务':'人员'}</span></a>`).join('');
+        }
+        function handleSearchKey(e) { if (e.key === 'Escape') hideGlobalSearch(); }
+        document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); showGlobalSearch(); } });
+
+        
+        // ========== 通知中心 ==========
+        let _notifPanelOpen = false;
+        function toggleNotificationPanel() {
+            _notifPanelOpen = !_notifPanelOpen;
+            const panel = document.getElementById('notification-panel');
+            if (!panel) return;
+            panel.style.display = _notifPanelOpen ? 'block' : 'none';
+            if (_notifPanelOpen) loadNotifications();
+        }
+        async function loadNotifications() {
+            try {
+                const res = await authFetch(`${API}/notifications`);
+                const data = await res.json();
+                const badge = document.getElementById('notification-badge');
+                const list = document.getElementById('notification-list');
+                if (!list) return;
+                const unread = data.unread_count || 0;
+                if (badge) { badge.textContent = unread; badge.style.display = unread > 0 ? 'inline' : 'none'; }
+                const notifs = data.notifications || [];
+                if (!notifs.length) { list.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">暂无通知</div>'; return; }
+                const typeIcons = { task_assign: '📋', task_complete: '✅', comment: '💬', info: 'ℹ️', warning: '⚠️' };
+                list.innerHTML = notifs.map(n => `<div style="padding:10px 16px;border-bottom:1px solid #f5f5f5;${n.is_read?'':'background:#f0f4ff;'}cursor:pointer;" onclick="handleNotificationClick(${n.id}, '${n.entity_type||''}', ${n.entity_id||0})"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:16px;">${typeIcons[n.type]||'🔔'}</span><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:${n.is_read?'400':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.title||''}</div><div style="font-size:12px;color:#888;margin-top:2px;">${n.content||''}</div><div style="font-size:11px;color:#bbb;margin-top:3px;">${(n.created_at||'').replace('T',' ').substring(0,16)}</div></div></div></div>`).join('');
+            } catch(e) { console.error('加载通知失败', e); }
+        }
+        async function handleNotificationClick(nid, entityType, entityId) {
+            await authFetch(`${API}/notifications/${nid}/read`, { method: 'POST' });
+            loadNotifications();
+            if (entityType === 'task' && entityId) location.href = 'tasks.html';
+        }
+        async function markAllNotificationsRead() {
+            await authFetch(`${API}/notifications/read-all`, { method: 'POST' });
+            loadNotifications();
+        }
+        setInterval(() => { if (!_notifPanelOpen) loadNotifications(); }, 60000);
+        setTimeout(loadNotifications, 2000);
+
+        const API = '/api';
+
+
+        let persons = [];
+        let editingId = null;
+        
+        async function loadPersons() {
+            try {
+                const res = await authFetch(`${API}/persons`);
+                const data = await res.json();
+                persons = data.persons || [];
+                renderPersons();
+            } catch (e) {
+                document.getElementById('person-grid').innerHTML = 
+                    '<div style="text-align: center; padding: 40px; color: #f44336;">加载失败: ' + e.message + '</div>';
+            }
+        }
+        
+        function renderPersons(filteredList = persons) {
+            const grid = document.getElementById('person-grid');
+            
+            if (filteredList.length === 0) {
+                grid.innerHTML = '<div style="text-align: center; padding: 40px; color: #999;">暂无人员</div>';
+                return;
+            }
+            
+            grid.innerHTML = filteredList.map(p => `
+                <div class="person-card">
+                    <div class="person-header">
+                        <div class="avatar">${p.name.charAt(0)}</div>
+                        <div class="person-info">
+                            <div class="person-name">${p.name}</div>
+                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">${p.position || ''}</div>
+                            <div class="person-role">
+                                <span class="badge badge-${p.job_sequence === '管理序列' ? 'manager' : p.job_sequence === '技术序列' ? 'tech' : 'pro'}">${p.job_sequence || '专业序列'}</span>
+                                <span class="badge badge-${p.status}">${p.status === 'active' ? '在职' : '离职'}</span>
+                                ${p.line ? `<span class="line-tag">${p.line}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="person-details">
+                        <div class="detail-row">
+                            <span class="detail-label">工号</span>
+                            <span class="detail-value">${p.employee_id || '-'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">部门</span>
+                            <span class="detail-value">${p.department || '-'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">条线</span>
+                            <span class="detail-value">${p.line || '-'}${p.sub_line ? ' / ' + p.sub_line : ''}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">岗位</span>
+                            <span class="detail-value">${p.position || '-'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">职位序列</span>
+                            <span class="detail-value">${p.job_sequence || '-'}</span>
+                        </div>
+                    </div>
+                    <div class="person-stats" id="stats-${p.id}">
+                        <div class="stat-box">
+                            <div class="num">-</div>
+                            <div class="label">负责项目</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="num">-</div>
+                            <div class="label">负责任务</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 15px;">
+                        <button class="btn btn-secondary" onclick="editPerson(${p.id})">编辑</button>
+                        <button class="btn btn-danger" onclick="deletePerson(${p.id})">删除</button>
+                    </div>
+                </div>
+            `).join('');
+            
+            // 加载统计
+            filteredList.forEach(p => loadPersonStats(p.id));
+        }
+        
+        async function loadPersonStats(personId) {
+            try {
+                const res = await authFetch(`${API}/persons/${personId}`);
+                const data = await res.json();
+                if (data.person) {
+                    const statsEl = document.getElementById(`stats-${personId}`);
+                    if (statsEl) {
+                        statsEl.innerHTML = `
+                            <div class="stat-box">
+                                <div class="num">${data.person.project_count || 0}</div>
+                                <div class="label">负责项目</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="num">${data.person.task_count || 0}</div>
+                                <div class="label">负责任务</div>
+                            </div>
+                        `;
+                    }
+                }
+            } catch (e) {}
+        }
+        
+        function filterPersons() {
+            const search = document.getElementById('search-input').value.toLowerCase();
+            const line = document.getElementById('line-filter').value;
+            const status = document.getElementById('status-filter').value;
+            
+            let filtered = persons.filter(p => {
+                let matchSearch = p.name.toLowerCase().includes(search) || 
+                                  (p.department && p.department.toLowerCase().includes(search)) ||
+                                  (p.position && p.position.toLowerCase().includes(search)) ||
+                                  (p.line && p.line.toLowerCase().includes(search)) ||
+                                  (p.employee_id && p.employee_id.toLowerCase().includes(search));
+                let matchLine = !line || p.line === line;
+                let matchStatus = !status || p.status === status;
+                return matchSearch && matchLine && matchStatus;
+            });
+            
+            renderPersons(filtered);
+        }
+        
+        function showAddModal() {
+            editingId = null;
+            document.getElementById('modal-title').textContent = '新增人员';
+            document.getElementById('person-employee-id').value = '';
+            document.getElementById('person-name').value = '';
+            document.getElementById('person-department').value = '智能与数字化中心';
+            document.getElementById('person-job-sequence').value = '专业序列';
+            document.getElementById('person-line').value = '';
+            document.getElementById('person-sub-line').value = '';
+            document.getElementById('person-position').value = '';
+            document.getElementById('person-role').value = 'member';
+            document.getElementById('person-status').value = 'active';
+            document.getElementById('person-modal').style.display = 'block';
+        }
+        
+        function editPerson(id) {
+            const person = persons.find(p => p.id === id);
+            if (!person) return;
+            
+            editingId = id;
+            document.getElementById('modal-title').textContent = '编辑人员';
+            document.getElementById('person-employee-id').value = person.employee_id || '';
+            document.getElementById('person-name').value = person.name;
+            document.getElementById('person-department').value = person.department || '智能与数字化中心';
+            document.getElementById('person-job-sequence').value = person.job_sequence || '专业序列';
+            document.getElementById('person-line').value = person.line || '';
+            document.getElementById('person-sub-line').value = person.sub_line || '';
+            document.getElementById('person-position').value = person.position || '';
+            document.getElementById('person-role').value = person.role || 'member';
+            document.getElementById('person-status').value = person.status || 'active';
+            document.getElementById('person-modal').style.display = 'block';
+        }
+        
+        function closeModal() {
+            document.getElementById('person-modal').style.display = 'none';
+        }
+        
+        async function savePerson() {
+            const name = document.getElementById('person-name').value.trim();
+            if (!name) {
+                alert('请输入姓名');
+                return;
+            }
+            
+            const data = {
+                employee_id: document.getElementById('person-employee-id').value,
+                name: name,
+                department: document.getElementById('person-department').value || '智能与数字化中心',
+                job_sequence: document.getElementById('person-job-sequence').value,
+                line: document.getElementById('person-line').value,
+                sub_line: document.getElementById('person-sub-line').value,
+                position: document.getElementById('person-position').value,
+                role: document.getElementById('person-role').value,
+                status: document.getElementById('person-status').value
+            };
+            
+            try {
+                let url = `${API}/persons`;
+                let method = 'POST';
+                
+                if (editingId) {
+                    url = `${API}/persons/${editingId}`;
+                    method = 'PUT';
+                }
+                
+                const res = await authFetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await res.json();
+                if (result.success) {
+                    closeModal();
+                    loadPersons();
+                } else {
+                    alert(result.error || '保存失败');
+                }
+            } catch (e) {
+                alert('保存失败: ' + e.message);
+            }
+        }
+        
+        async function deletePerson(id) {
+            const person = persons.find(p => p.id === id);
+            if (!person) return;
+            
+            if (!confirm(`确定删除人员 "${person.name}" 吗？`)) return;
+            
+            try {
+                const res = await authFetch(`${API}/persons/${id}`, { method: 'DELETE' });
+                const result = await res.json();
+                
+                if (result.success) {
+                    loadPersons();
+                } else {
+                    alert(result.error || '删除失败');
+                }
+            } catch (e) {
+                alert('删除失败: ' + e.message);
+            }
+        }
+        
+        // ========== 导入导出功能 ==========
+        
+        function showImportModal() {
+            document.getElementById('import-modal').style.display = 'block';
+            document.getElementById('csv-input').value = '';
+            document.getElementById('json-input').value = '';
+            document.getElementById('import-file').value = '';
+            document.getElementById('import-preview').style.display = 'none';
+        }
+        
+        function closeImportModal() {
+            document.getElementById('import-modal').style.display = 'none';
+        }
+        
+        function toggleImportType() {
+            const type = document.getElementById('import-type').value;
+            document.getElementById('csv-section').style.display = type === 'csv' ? 'block' : 'none';
+            document.getElementById('json-section').style.display = type === 'json' ? 'block' : 'none';
+        }
+        
+        function handleFileUpload() {
+            const file = document.getElementById('import-file').files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                const fileName = file.name.toLowerCase();
+                
+                if (fileName.endsWith('.json')) {
+                    document.getElementById('import-type').value = 'json';
+                    toggleImportType();
+                    document.getElementById('json-input').value = content;
+                } else {
+                    document.getElementById('import-type').value = 'csv';
+                    toggleImportType();
+                    document.getElementById('csv-input').value = content;
+                }
+                
+                previewImport();
+            };
+            reader.readAsText(file);
+        }
+        
+        function parseCSV(csvText) {
+            const lines = csvText.trim().split('\n');
+            const data = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                
+                // 跳过表头行（如果第一行包含"姓名"等关键字）
+                if (i === 0 && (line.includes('姓名') || line.includes('name') || line.includes('角色') || line.includes('role'))) {
+                    continue;
+                }
+                
+                const parts = line.split(',').map(p => p.trim());
+                if (parts.length >= 1 && parts[0]) {
+                    data.push({
+                        name: parts[0] || '',
+                        role: parts[1] || 'member',
+                        department: parts[2] || '',
+                        email: parts[3] || '',
+                        phone: parts[4] || '',
+                        status: 'active'
+                    });
+                }
+            }
+            
+            return data;
+        }
+        
+        function parseJSON(jsonText) {
+            try {
+                const data = JSON.parse(jsonText);
+                if (!Array.isArray(data)) {
+                    return [data];
+                }
+                return data.map(item => ({
+                    name: item.name || '',
+                    role: item.role || 'member',
+                    department: item.department || '',
+                    email: item.email || '',
+                    phone: item.phone || '',
+                    status: item.status || 'active'
+                }));
+            } catch (e) {
+                alert('JSON格式错误: ' + e.message);
+                return [];
+            }
+        }
+        
+        function previewImport() {
+            const type = document.getElementById('import-type').value;
+            const text = type === 'csv' ? document.getElementById('csv-input').value : document.getElementById('json-input').value;
+            
+            const data = type === 'csv' ? parseCSV(text) : parseJSON(text);
+            
+            if (data.length === 0) {
+                document.getElementById('import-preview').style.display = 'none';
+                return;
+            }
+            
+            document.getElementById('preview-count').textContent = data.length;
+            document.getElementById('preview-list').innerHTML = data.map(p => 
+                `<div>• ${p.name} (${p.role}) - ${p.department || '无部门'}</div>`
+            ).join('');
+            document.getElementById('import-preview').style.display = 'block';
+        }
+        
+        async function importPersons() {
+            const type = document.getElementById('import-type').value;
+            const text = type === 'csv' ? document.getElementById('csv-input').value : document.getElementById('json-input').value;
+            
+            if (!text.trim()) {
+                alert('请输入或上传数据');
+                return;
+            }
+            
+            const data = type === 'csv' ? parseCSV(text) : parseJSON(text);
+            
+            if (data.length === 0) {
+                alert('没有有效数据可导入');
+                return;
+            }
+            
+            // 验证数据
+            for (const p of data) {
+                if (!p.name) {
+                    alert('存在姓名为空的记录');
+                    return;
+                }
+            }
+            
+            let successCount = 0;
+            let failCount = 0;
+            
+            for (const person of data) {
+                try {
+                    const res = await authFetch(`${API}/persons`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(person)
+                    });
+                    
+                    const result = await res.json();
+                    if (result.success) {
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
+                } catch (e) {
+                    failCount++;
+                }
+            }
+            
+            closeImportModal();
+            loadPersons();
+            
+            alert(`导入完成！\n成功: ${successCount} 条\n失败: ${failCount} 条`);
+        }
+        
+        function exportPersons() {
+            if (persons.length === 0) {
+                alert('暂无人员数据可导出');
+                return;
+            }
+            
+            // 导出JSON
+            const json = JSON.stringify(persons.map(p => ({
+                name: p.name,
+                role: p.role,
+                department: p.department,
+                email: p.email,
+                phone: p.phone,
+                status: p.status
+            })), null, 2);
+            
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'persons_export.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            // 同时生成CSV
+            const csvHeader = '姓名,角色,部门,邮箱,电话,状态';
+            const csvRows = persons.map(p => 
+                `${p.name},${p.role},${p.department || ''},${p.email || ''},${p.phone || ''},${p.status}`
+            );
+            const csv = csvHeader + '\n' + csvRows.join('\n');
+            
+            const csvBlob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+            const csvUrl = URL.createObjectURL(csvBlob);
+            const csvA = document.createElement('a');
+            csvA.href = csvUrl;
+            csvA.download = 'persons_export.csv';
+            csvA.click();
+            URL.revokeObjectURL(csvUrl);
+        }
+        
+        document.addEventListener('DOMContentLoaded', async () => { const u = await initAuthPage(); if (u) loadPersons(); });
+    </script>
+    <script src="dark-mode.js"></script>
+</body>
+</html>

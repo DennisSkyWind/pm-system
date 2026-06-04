@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>问题追踪 - 项目管理系统</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+        
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; }
+        header h1 { font-size: 24px; }
+        nav { display: flex; gap: 15px; margin-top: 15px; flex-wrap: wrap; }
+        nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; background: rgba(255,255,255,0.2); }
+        nav a:hover { background: rgba(255,255,255,0.3); }
+        nav a.active { background: rgba(255,255,255,0.4); }
+        
+        main { padding: 20px; max-width: 1400px; margin: 0 auto; }
+        
+        /* 统计卡片 */
+        .stats-row { display: flex; gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 15px 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; flex: 1; }
+        .stat-card h4 { color: #666; font-size: 13px; margin-bottom: 5px; }
+        .stat-card .number { font-size: 28px; font-weight: bold; }
+        .stat-card.open .number { color: #f44336; }
+        .stat-card.in_progress .number { color: #ff9800; }
+        .stat-card.resolved .number { color: #4caf50; }
+        .stat-card.high .number { color: #c62828; }
+        
+        /* 批量操作栏 */
+        .batch-bar { background: #667eea; color: white; padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; display: none; align-items: center; gap: 15px; flex-wrap: wrap; }
+        .batch-bar.show { display: flex; }
+        .batch-bar span { font-weight: bold; }
+        .batch-btn { padding: 8px 16px; background: white; color: #667eea; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; }
+        .batch-btn:hover { background: #f0f0f0; }
+        .batch-btn.danger { background: #f44336; color: white; }
+        
+        /* 工具栏 */
+        .toolbar { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .toolbar-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+        .toolbar-row:last-child { margin-bottom: 0; }
+        
+        .filter-btn { padding: 8px 16px; background: #e0e0e0; border: none; border-radius: 6px; cursor: pointer; }
+        .filter-btn.active { background: #667eea; color: white; }
+        
+        select, input[type="text"] { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        
+        .export-btn { padding: 10px 20px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; }
+        
+        /* 问题表格 */
+        .issues-table { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e0e0e0; }
+        th { background: #f9f9f9; font-weight: 600; color: #666; font-size: 13px; }
+        tr:hover { background: #f5f5f5; }
+        tr.selected { background: #e3f2fd; }
+        
+        .checkbox-cell { width: 40px; }
+        .checkbox { width: 18px; height: 18px; cursor: pointer; accent-color: #667eea; }
+        
+        /* 严重程度 */
+        .severity-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+        .severity-high { background: #f44336; }
+        .severity-medium { background: #ff9800; }
+        .severity-low { background: #4caf50; }
+        
+        /* 状态徽章 */
+        .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; }
+        .status-open { background: #ffebee; color: #c62828; }
+        .status-in_progress { background: #fff3e0; color: #e65100; }
+        .status-resolved { background: #e8f5e9; color: #2e7d32; }
+        
+        /* 操作按钮 */
+        .action-btn { padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; margin: 2px; }
+        .btn-process { background: #ff9800; color: white; }
+        .btn-resolve { background: #4caf50; color: white; }
+        .btn-edit { background: #2196f3; color: white; }
+        .btn-delete { background: #f44336; color: white; }
+        
+        .new-btn { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 50%; font-size: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        
+        /* 模态框 */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .modal.show { display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; }
+        .modal-title { font-size: 20px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-size: 14px; color: #666; }
+        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
+        .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .btn-primary { background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+        .btn-secondary { background: #e0e0e0; color: #333; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <link rel="stylesheet" href="common.css">
+    <link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+    <header>
+        <h1>⚠️ 问题追踪</h1>
+        <nav>
+            <a href="index.html">Dashboard</a>
+            <a href="projects.html">项目列表</a>
+            <a href="tasks.html">任务管理</a>
+            <a href="issues.html" class="active">问题追踪</a>
+            <a href="persons.html">人员管理</a>
+            <a href="gantt.html">📊 甘特图</a>
+        <a href="settings.html">⚙️ 个人设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span></nav>
+    </header>
+    
+
+    <!-- 全局搜索弹窗 -->
+    <div id="global-search-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;backdrop-filter:blur(2px);" onclick="hideGlobalSearch()">
+        <div style="max-width:600px;margin:80px auto 0;background:white;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;" onclick="event.stopPropagation()">
+            <div style="display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid #eee;gap:10px;">
+                <span style="font-size:20px">🔍</span>
+                <input type="text" id="global-search-input" placeholder="搜索项目、任务、人员..." 
+                    style="flex:1;border:none;font-size:16px;outline:none;" 
+                    oninput="doGlobalSearch()" onkeydown="handleSearchKey(event)">
+                <kbd style="background:#f0f0f0;padding:2px 8px;border-radius:4px;font-size:12px;color:#888">ESC</kbd>
+            </div>
+            <div id="global-search-results" style="max-height:400px;overflow-y:auto;padding:8px;"></div>
+        </div>
+    </div>
+
+
+    <!-- 通知面板 -->
+    <div id="notification-panel" style="display:none;position:fixed;top:60px;right:20px;width:360px;max-height:500px;background:white;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.15);z-index:9998;overflow:hidden;">
+        <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="font-size:15px;margin:0;">🔔 通知</h3>
+            <div>
+                <a onclick="markAllNotificationsRead()" style="font-size:12px;color:#667eea;cursor:pointer;margin-right:10px;">全部已读</a>
+                <a onclick="toggleNotificationPanel()" style="cursor:pointer;font-size:16px;">✕</a>
+            </div>
+        </div>
+        <div id="notification-list" style="max-height:420px;overflow-y:auto;"></div>
+    </div>
+
+    <main>
+        <!-- 统计卡片 -->
+        <div class="stats-row">
+            <div class="stat-card open">
+                <h4>🔴 待处理</h4>
+                <div class="number" id="stat-open">0</div>
+            </div>
+            <div class="stat-card in_progress">
+                <h4>🟠 处理中</h4>
+                <div class="number" id="stat-in-progress">0</div>
+            </div>
+            <div class="stat-card resolved">
+                <h4>✅ 已解决</h4>
+                <div class="number" id="stat-resolved">0</div>
+            </div>
+            <div class="stat-card high">
+                <h4>⚠️ 高优先级</h4>
+                <div class="number" id="stat-high">0</div>
+            </div>
+        </div>
+        
+        <!-- 批量操作栏 -->
+        <div class="batch-bar" id="batch-bar">
+            <span>已选择 <span id="selected-count">0</span> 个问题</span>
+            <button class="batch-btn" onclick="batchSetStatus('in_progress')">批量处理中</button>
+            <button class="batch-btn" onclick="batchSetStatus('resolved')">批量解决</button>
+            <button class="batch-btn" onclick="batchSetSeverity()">批量设严重程度</button>
+            <button class="batch-btn danger" onclick="batchDelete()">批量删除</button>
+            <button class="batch-btn" onclick="clearSelection()">取消选择</button>
+        </div>
+        
+        <!-- 筛选工具栏 -->
+        <div class="toolbar">
+            <div class="toolbar-row">
+                <strong>状态筛选：</strong>
+                <button class="filter-btn active" data-filter="status" data-value="" onclick="setFilter('status', '')">全部</button>
+                <button class="filter-btn" data-filter="status" data-value="open" onclick="setFilter('status', 'open')">待处理</button>
+                <button class="filter-btn" data-filter="status" data-value="in_progress" onclick="setFilter('status', 'in_progress')">处理中</button>
+                <button class="filter-btn" data-filter="status" data-value="resolved" onclick="setFilter('status', 'resolved')">已解决</button>
+            </div>
+            <div class="toolbar-row">
+                <strong>高级筛选：</strong>
+                <select id="filter-project" onchange="applyFilters()">
+                    <option value="">所有项目</option>
+                </select>
+                <select id="filter-severity" onchange="applyFilters()">
+                    <option value="">所有严重程度</option>
+                    <option value="high">高严重度</option>
+                    <option value="medium">中严重度</option>
+                    <option value="low">低严重度</option>
+                </select>
+                <input type="text" id="filter-search" placeholder="搜索问题标题..." onkeyup="applyFilters()" style="width: 200px;">
+                <button onclick="clearAllFilters()" style="padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer;">清除筛选</button>
+            </div>
+            <div class="toolbar-row">
+                <strong>导出数据：</strong>
+                <button class="export-btn" onclick="exportIssues('csv')">📥 导出CSV</button>
+                <button class="export-btn" onclick="exportIssues('excel')">📥 导出Excel</button>
+                <button class="export-btn" style="background: #2196f3;" onclick="exportIssues('json')">📥 导出JSON</button>
+            </div>
+        </div>
+        
+        <!-- 问题表格 -->
+        <div class="issues-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="checkbox-cell"><input type="checkbox" class="checkbox" id="select-all" onchange="toggleSelectAll()"></th>
+                        <th>严重度</th>
+                        <th>问题标题</th>
+                        <th>所属项目</th>
+                        <th>所属阶段</th>
+                        <th>状态</th>
+                        <th>描述</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="issues-body">
+                    <tr><td colspan="8" style="text-align:center;color:#999;padding:30px;">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+    
+    <div class="new-btn" onclick="showNewIssueModal()">+</div>
+    
+    <!-- 新建问题模态框 -->
+    <div class="modal" id="new-issue-modal">
+        <div class="modal-content">
+            <h2 class="modal-title">记录新问题</h2>
+            <div class="form-group">
+                <label>问题标题</label>
+                <input type="text" id="issue-title" required>
+            </div>
+            <div class="form-group">
+                <label>所属项目</label>
+                <select id="issue-project">
+                    <option value="">无项目</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>所属阶段</label>
+                <select id="issue-phase">
+                    <option value="">无阶段</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>严重程度</label>
+                <select id="issue-severity">
+                    <option value="high">高</option>
+                    <option value="medium" selected>中</option>
+                    <option value="low">低</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>问题描述</label>
+                <textarea id="issue-desc" rows="3"></textarea>
+            </div>
+            <div class="form-actions">
+                <button class="btn-secondary" onclick="hideNewIssueModal()">取消</button>
+                <button class="btn-primary" onclick="createIssue()">创建</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 编辑问题模态框 -->
+    <div class="modal" id="edit-issue-modal">
+        <div class="modal-content">
+            <h2 class="modal-title">编辑问题</h2>
+            <input type="hidden" id="edit-issue-id">
+            <div class="form-group">
+                <label>问题标题</label>
+                <input type="text" id="edit-issue-title" required>
+            </div>
+            <div class="form-group">
+                <label>所属项目</label>
+                <select id="edit-issue-project">
+                    <option value="">无项目</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>所属阶段</label>
+                <select id="edit-issue-phase">
+                    <option value="">无阶段</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>严重程度</label>
+                <select id="edit-issue-severity">
+                    <option value="high">高</option>
+                    <option value="medium">中</option>
+                    <option value="low">低</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>状态</label>
+                <select id="edit-issue-status">
+                    <option value="open">待处理</option>
+                    <option value="in_progress">处理中</option>
+                    <option value="resolved">已解决</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>问题描述</label>
+                <textarea id="edit-issue-desc" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label>解决方案</label>
+                <textarea id="edit-issue-solution" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label>备注</label>
+                <textarea id="edit-issue-notes" rows="2"></textarea>
+            </div>
+            <div class="form-actions">
+                <button class="btn-secondary" onclick="hideEditIssueModal()">取消</button>
+                <button class="btn-primary" onclick="saveIssue()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量设置严重程度模态框 -->
+    <div class="modal" id="batch-severity-modal">
+        <div class="modal-content">
+            <h2 class="modal-title">批量设置严重程度</h2>
+            <div class="form-group">
+                <label>选择严重程度</label>
+                <select id="batch-severity">
+                    <option value="high">高严重度</option>
+                    <option value="medium">中严重度</option>
+                    <option value="low">低严重度</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button class="btn-secondary" onclick="hideBatchSeverityModal()">取消</button>
+                <button class="btn-primary" onclick="applyBatchSeverity()">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script>
+        
+        // ========== 全局搜索 ==========
+        let _gsData = { projects: [], tasks: [], persons: [] };
+        function showGlobalSearch() {
+            document.getElementById('global-search-overlay').style.display = 'block';
+            const input = document.getElementById('global-search-input');
+            input.value = ''; input.focus();
+            document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>';
+        }
+        function hideGlobalSearch() { document.getElementById('global-search-overlay').style.display = 'none'; }
+        async function doGlobalSearch() {
+            const q = document.getElementById('global-search-input').value.trim().toLowerCase();
+            if (!q) { document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>'; return; }
+            if (_gsData.projects.length === 0) {
+                try {
+                    const [pR, tR, peR] = await Promise.all([authFetch(`${API}/projects`), authFetch(`${API}/tasks`), authFetch(`${API}/persons`)]);
+                    _gsData.projects = (await pR.json()).projects || [];
+                    _gsData.tasks = (await tR.json()).tasks || [];
+                    _gsData.persons = (await peR.json()).persons || [];
+                } catch(e) {}
+            }
+            const res = [];
+            _gsData.projects.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'project',i:'📁',n:p.name,d:`进度 ${p.progress||0}%`,l:`project.html?id=${p.id}`}));
+            _gsData.tasks.filter(t => (t.name||'').toLowerCase().includes(q)).slice(0,8).forEach(t => res.push({t:'task',i:'📋',n:t.name,d:`${t.project_name||''} · ${t.assignee_name||'未分配'}`,l:'tasks.html'}));
+            _gsData.persons.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'person',i:'👤',n:p.name,d:`${p.line||''} ${p.position||''}`,l:'persons.html'}));
+            const c = document.getElementById('global-search-results');
+            if (!res.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#999">未找到相关结果</div>'; return; }
+            c.innerHTML = res.map(r => `<a href="${r.l}" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;text-decoration:none;color:#333" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background=''"><span style="font-size:18px">${r.i}</span><div style="flex:1"><div style="font-weight:500">${r.n}</div><div style="font-size:12px;color:#888">${r.d}</div></div><span style="font-size:11px;color:#bbb;background:#f5f5f5;padding:2px 6px;border-radius:3px">${r.t==='project'?'项目':r.t==='task'?'任务':'人员'}</span></a>`).join('');
+        }
+        function handleSearchKey(e) { if (e.key === 'Escape') hideGlobalSearch(); }
+        document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); showGlobalSearch(); } });
+
+        
+        // ========== 通知中心 ==========
+        let _notifPanelOpen = false;
+        function toggleNotificationPanel() {
+            _notifPanelOpen = !_notifPanelOpen;
+            const panel = document.getElementById('notification-panel');
+            if (!panel) return;
+            panel.style.display = _notifPanelOpen ? 'block' : 'none';
+            if (_notifPanelOpen) loadNotifications();
+        }
+        async function loadNotifications() {
+            try {
+                const res = await authFetch(`${API}/notifications`);
+                const data = await res.json();
+                const badge = document.getElementById('notification-badge');
+                const list = document.getElementById('notification-list');
+                if (!list) return;
+                const unread = data.unread_count || 0;
+                if (badge) { badge.textContent = unread; badge.style.display = unread > 0 ? 'inline' : 'none'; }
+                const notifs = data.notifications || [];
+                if (!notifs.length) { list.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">暂无通知</div>'; return; }
+                const typeIcons = { task_assign: '📋', task_complete: '✅', comment: '💬', info: 'ℹ️', warning: '⚠️' };
+                list.innerHTML = notifs.map(n => `<div style="padding:10px 16px;border-bottom:1px solid #f5f5f5;${n.is_read?'':'background:#f0f4ff;'}cursor:pointer;" onclick="handleNotificationClick(${n.id}, '${n.entity_type||''}', ${n.entity_id||0})"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:16px;">${typeIcons[n.type]||'🔔'}</span><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:${n.is_read?'400':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.title||''}</div><div style="font-size:12px;color:#888;margin-top:2px;">${n.content||''}</div><div style="font-size:11px;color:#bbb;margin-top:3px;">${(n.created_at||'').replace('T',' ').substring(0,16)}</div></div></div></div>`).join('');
+            } catch(e) { console.error('加载通知失败', e); }
+        }
+        async function handleNotificationClick(nid, entityType, entityId) {
+            await authFetch(`${API}/notifications/${nid}/read`, { method: 'POST' });
+            loadNotifications();
+            if (entityType === 'task' && entityId) location.href = 'tasks.html';
+        }
+        async function markAllNotificationsRead() {
+            await authFetch(`${API}/notifications/read-all`, { method: 'POST' });
+            loadNotifications();
+        }
+        setInterval(() => { if (!_notifPanelOpen) loadNotifications(); }, 60000);
+        setTimeout(loadNotifications, 2000);
+
+        const API = '/api';
+        
+        let allIssues = [];
+        let filteredIssues = [];
+        let selectedIssues = [];
+        let currentFilters = { status: '', project: '', severity: '', search: '' };
+        
+        async function init() {
+            await loadProjects();
+            await loadIssues();
+        }
+        
+        async function loadProjects() {
+            const res = await authFetch(`${API}/projects`);
+            const data = await res.json();
+            const projects = data.projects || [];
+            
+            const filterSelect = document.getElementById('filter-project');
+            filterSelect.innerHTML = '<option value="">所有项目</option>';
+            projects.forEach(p => {
+                filterSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+            });
+            
+            const issueSelect = document.getElementById('issue-project');
+            issueSelect.innerHTML = '<option value="">无项目</option>';
+            issueSelect.onchange = loadProjectPhases;
+            projects.forEach(p => {
+                issueSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+            });
+        }
+        
+        // 加载项目阶段列表
+        async function loadProjectPhases() {
+            const projectId = document.getElementById('issue-project').value;
+            const phaseSelect = document.getElementById('issue-phase');
+            
+            if (!projectId) {
+                phaseSelect.innerHTML = '<option value="">无阶段</option>';
+                return;
+            }
+            
+            const res = await authFetch(`${API}/projects/${projectId}`);
+            const data = await res.json();
+            
+            if (data.success && data.project.phases) {
+                phaseSelect.innerHTML = '<option value="">无阶段</option>';
+                data.project.phases.forEach(ph => {
+                    phaseSelect.innerHTML += `<option value="${ph.id}">${ph.name}</option>`;
+                });
+            }
+        }
+        
+        async function loadIssues() {
+            try {
+                const res = await authFetch(`${API}/issues`);
+                const data = await res.json();
+                allIssues = data.issues || [];
+                applyFilters();
+                updateStats();
+            } catch (e) {
+                console.error('加载失败:', e);
+                document.getElementById('issues-body').innerHTML = '<tr><td colspan="8" style="text-align:center;color:#c62828;padding:30px;">加载失败</td></tr>';
+            }
+        }
+        
+        function updateStats() {
+            let open = 0, inProgress = 0, resolved = 0, high = 0;
+            
+            allIssues.forEach(i => {
+                if (i.status === 'open') open++;
+                else if (i.status === 'in_progress') inProgress++;
+                else if (i.status === 'resolved') resolved++;
+                
+                if (i.severity === 'high' && i.status !== 'resolved') high++;
+            });
+            
+            document.getElementById('stat-open').textContent = open;
+            document.getElementById('stat-in-progress').textContent = inProgress;
+            document.getElementById('stat-resolved').textContent = resolved;
+            document.getElementById('stat-high').textContent = high;
+        }
+        
+        // 筛选
+        function setFilter(type, value) {
+            currentFilters[type] = value;
+            
+            document.querySelectorAll(`.filter-btn[data-filter="${type}"]`).forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.value === value) btn.classList.add('active');
+            });
+            
+            applyFilters();
+        }
+        
+        function applyFilters() {
+            currentFilters.project = document.getElementById('filter-project').value;
+            currentFilters.severity = document.getElementById('filter-severity').value;
+            currentFilters.search = document.getElementById('filter-search').value.toLowerCase();
+            
+            filteredIssues = allIssues.filter(i => {
+                if (currentFilters.status && i.status !== currentFilters.status) return false;
+                if (currentFilters.project && i.project_id != currentFilters.project) return false;
+                if (currentFilters.severity && i.severity !== currentFilters.severity) return false;
+                if (currentFilters.search && !i.title.toLowerCase().includes(currentFilters.search)) return false;
+                return true;
+            });
+            
+            renderIssues();
+        }
+        
+        function clearAllFilters() {
+            currentFilters = { status: '', project: '', severity: '', search: '' };
+            document.getElementById('filter-project').value = '';
+            document.getElementById('filter-severity').value = '';
+            document.getElementById('filter-search').value = '';
+            
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.value === '') btn.classList.add('active');
+            });
+            
+            applyFilters();
+        }
+        
+        // 渲染问题表格
+        function renderIssues() {
+            const tbody = document.getElementById('issues-body');
+            
+            if (filteredIssues.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#999;padding:30px;">暂无符合条件的问题</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = filteredIssues.map(i => {
+                const isSelected = selectedIssues.includes(i.id);
+                const statusText = i.status === 'open' ? '待处理' : i.status === 'in_progress' ? '处理中' : '已解决';
+                const severityText = i.severity === 'high' ? '高' : i.severity === 'medium' ? '中' : '低';
+                
+                return `
+                    <tr class="${isSelected ? 'selected' : ''}">
+                        <td class="checkbox-cell">
+                            <input type="checkbox" class="checkbox issue-checkbox" data-id="${i.id}"
+                                   ${isSelected ? 'checked' : ''} onchange="toggleIssueSelect(${i.id})">
+                        </td>
+                        <td>
+                            <span class="severity-dot severity-${i.severity || 'medium'}"></span>
+                            ${severityText}
+                        </td>
+                        <td><strong>${i.title}</strong></td>
+                        <td>${i.project_name || '-'}</td>
+                        <td>${i.phase_name || '-'}</td>
+                        <td>
+                            <span class="status-badge status-${i.status || 'open'}">${statusText}</span>
+                        </td>
+                        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">${i.description || '-'}</td>
+                        <td>${i.created_at ? i.created_at.split(' ')[0] : '-'}</td>
+                        <td>
+                            ${i.status === 'open' ? `<button class="action-btn btn-process" onclick="startProcessing(${i.id})">处理</button>` : ''}
+                            ${i.status !== 'resolved' ? `<button class="action-btn btn-resolve" onclick="resolveIssue(${i.id})">解决</button>` : ''}
+                            <button class="action-btn btn-edit" onclick="showEditIssueModal(${i.id})">编辑</button>
+                            <button class="action-btn btn-delete" onclick="deleteIssue(${i.id})">删除</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            const allChecked = filteredIssues.length > 0 && filteredIssues.every(i => selectedIssues.includes(i.id));
+            document.getElementById('select-all').checked = allChecked;
+        }
+        
+        // 多选
+        function toggleSelectAll() {
+            const checked = document.getElementById('select-all').checked;
+            
+            if (checked) {
+                filteredIssues.forEach(i => {
+                    if (!selectedIssues.includes(i.id)) selectedIssues.push(i.id);
+                });
+            } else {
+                selectedIssues = selectedIssues.filter(id => !filteredIssues.find(i => i.id === id));
+            }
+            
+            updateBatchBar();
+            renderIssues();
+        }
+        
+        function toggleIssueSelect(id) {
+            if (selectedIssues.includes(id)) {
+                selectedIssues = selectedIssues.filter(i => i !== id);
+            } else {
+                selectedIssues.push(id);
+            }
+            updateBatchBar();
+            renderIssues();
+        }
+        
+        function updateBatchBar() {
+            const bar = document.getElementById('batch-bar');
+            document.getElementById('selected-count').textContent = selectedIssues.length;
+            bar.classList.toggle('show', selectedIssues.length > 0);
+        }
+        
+        function clearSelection() {
+            selectedIssues = [];
+            updateBatchBar();
+            renderIssues();
+        }
+        
+        // 批量操作
+        async function batchSetStatus(status) {
+            if (selectedIssues.length === 0) return alert('请先选择问题');
+            
+            try {
+                for (const id of selectedIssues) {
+                    await authFetch(`${API}/issues/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status })
+                    });
+                }
+                clearSelection();
+                await loadIssues();
+                alert(`已修改 ${selectedIssues.length} 个问题状态`);
+            } catch (e) {
+                alert('批量修改失败: ' + e.message);
+            }
+        }
+        
+        function showBatchSeverityModal() {
+            if (selectedIssues.length === 0) return alert('请先选择问题');
+            document.getElementById('batch-severity-modal').classList.add('show');
+        }
+        
+        function hideBatchSeverityModal() {
+            document.getElementById('batch-severity-modal').classList.remove('show');
+        }
+        
+        async function applyBatchSeverity() {
+            const severity = document.getElementById('batch-severity').value;
+            
+            try {
+                for (const id of selectedIssues) {
+                    await authFetch(`${API}/issues/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ severity })
+                    });
+                }
+                hideBatchSeverityModal();
+                clearSelection();
+                await loadIssues();
+                alert(`已修改 ${selectedIssues.length} 个问题严重程度`);
+            } catch (e) {
+                alert('批量修改失败: ' + e.message);
+            }
+        }
+        
+        async function batchDelete() {
+            if (selectedIssues.length === 0) return;
+            if (!confirm(`确定删除 ${selectedIssues.length} 个问题？`)) return;
+            
+            try {
+                for (const id of selectedIssues) {
+                    await authFetch(`${API}/issues/${id}`, { method: 'DELETE' });
+                }
+                clearSelection();
+                await loadIssues();
+                alert('已删除所选问题');
+            } catch (e) {
+                alert('批量删除失败: ' + e.message);
+            }
+        }
+        
+        // 单个操作
+        async function startProcessing(id) {
+            await authFetch(`${API}/issues/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'in_progress' })
+            });
+            await loadIssues();
+        }
+        
+        async function resolveIssue(id) {
+            await authFetch(`${API}/issues/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'resolved', resolved_at: new Date().toISOString() })
+            });
+            await loadIssues();
+        }
+        
+        // 新建问题
+        function showNewIssueModal() {
+            document.getElementById('issue-title').value = '';
+            document.getElementById('issue-desc').value = '';
+            document.getElementById('issue-project').value = '';
+            document.getElementById('issue-phase').innerHTML = '<option value="">无阶段</option>';
+            document.getElementById('issue-severity').value = 'medium';
+            document.getElementById('new-issue-modal').classList.add('show');
+        }
+        
+        function hideNewIssueModal() {
+            document.getElementById('new-issue-modal').classList.remove('show');
+        }
+        
+        async function createIssue() {
+            const title = document.getElementById('issue-title').value;
+            if (!title) return alert('请输入问题标题');
+            
+            await authFetch(`${API}/issues`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title,
+                    description: document.getElementById('issue-desc').value,
+                    project_id: document.getElementById('issue-project').value || null,
+                    phase_id: document.getElementById('issue-phase').value || null,
+                    severity: document.getElementById('issue-severity').value
+                })
+            });
+            
+            hideNewIssueModal();
+            await loadIssues();
+        }
+        
+        // 编辑问题
+        let editingIssueData = null;
+        
+        async function showEditIssueModal(issueId) {
+            const issue = filteredIssues.find(i => i.id === issueId);
+            if (!issue) return alert('问题不存在');
+            editingIssueData = issue;
+            
+            document.getElementById('edit-issue-id').value = issue.id;
+            document.getElementById('edit-issue-title').value = issue.title || '';
+            document.getElementById('edit-issue-desc').value = issue.description || '';
+            document.getElementById('edit-issue-severity').value = issue.severity || 'medium';
+            document.getElementById('edit-issue-status').value = issue.status || 'open';
+            document.getElementById('edit-issue-solution').value = issue.solution || '';
+            document.getElementById('edit-issue-notes').value = issue.notes || '';
+            
+            // 加载项目列表
+            const projRes = await authFetch(`${API}/projects`);
+            const projData = await projRes.json();
+            const projSelect = document.getElementById('edit-issue-project');
+            projSelect.innerHTML = '<option value="">无项目</option>' + 
+                (projData.projects || []).map(p => `<option value="${p.id}" ${p.id === issue.project_id ? 'selected' : ''}>${p.name}</option>`).join('');
+            
+            // 加载阶段列表
+            const phaseSelect = document.getElementById('edit-issue-phase');
+            phaseSelect.innerHTML = '<option value="">无阶段</option>';
+            if (issue.project_id) {
+                const phaseRes = await authFetch(`${API}/phases?project_id=${issue.project_id}`);
+                const phaseData = await phaseRes.json();
+                phaseSelect.innerHTML = '<option value="">无阶段</option>' + 
+                    (phaseData.phases || []).map(p => `<option value="${p.id}" ${p.id === issue.phase_id ? 'selected' : ''}>${p.name}</option>`).join('');
+            }
+            
+            document.getElementById('edit-issue-modal').classList.add('show');
+        }
+        
+        function hideEditIssueModal() {
+            document.getElementById('edit-issue-modal').classList.remove('show');
+            editingIssueData = null;
+        }
+        
+        async function saveIssue() {
+            const issueId = document.getElementById('edit-issue-id').value;
+            const title = document.getElementById('edit-issue-title').value;
+            if (!title) return alert('请输入问题标题');
+            
+            const updateData = {
+                title,
+                description: document.getElementById('edit-issue-desc').value,
+                project_id: document.getElementById('edit-issue-project').value || null,
+                phase_id: document.getElementById('edit-issue-phase').value || null,
+                severity: document.getElementById('edit-issue-severity').value,
+                status: document.getElementById('edit-issue-status').value,
+                solution: document.getElementById('edit-issue-solution').value,
+                notes: document.getElementById('edit-issue-notes').value
+            };
+            
+            const res = await authFetch(`${API}/issues/${issueId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updateData)
+            });
+            
+            const data = await res.json();
+            if (data.success) {
+                hideEditIssueModal();
+                await loadIssues();
+            } else {
+                alert(data.error || '保存失败');
+            }
+        }
+        
+        async function deleteIssue(issueId) {
+            if (!confirm('确定删除该问题？')) return;
+            
+            const res = await authFetch(`${API}/issues/${issueId}`, {
+                method: 'DELETE'
+            });
+            
+            const data = await res.json();
+            if (data.success) {
+                await loadIssues();
+            } else {
+                alert(data.error || '删除失败');
+            }
+        }
+        
+        // 导出
+        function exportIssues(format) {
+            if (filteredIssues.length === 0) return alert('没有可导出的数据');
+            
+            let content, filename, type;
+            const timestamp = new Date().toISOString().split('T')[0];
+            
+            if (format === 'csv') {
+                const headers = ['标题', '项目', '严重程度', '状态', '描述', '创建时间'];
+                const rows = filteredIssues.map(i => [
+                    i.title, i.project_name || '', i.severity || 'medium',
+                    i.status || 'open', i.description || '', i.created_at || ''
+                ]);
+                content = headers.join(',') + '\n' + rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+                filename = `issues_${timestamp}.csv`;
+                type = 'text/csv';
+            } else if (format === 'json') {
+                content = JSON.stringify(filteredIssues, null, 2);
+                filename = `issues_${timestamp}.json`;
+                type = 'application/json';
+            } else if (format === 'excel') {
+                const headers = ['标题', '项目', '严重程度', '状态', '描述', '创建时间'];
+                content = '<html><head><meta charset="UTF-8"></head><body><table border="1">';
+                content += '<tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr>';
+                filteredIssues.forEach(i => {
+                    content += '<tr>';
+                    content += `<td>${i.title}</td><td>${i.project_name || ''}</td>`;
+                    content += `<td>${i.severity || 'medium'}</td><td>${i.status || 'open'}</td>`;
+                    content += `<td>${i.description || ''}</td><td>${i.created_at || ''}</td>`;
+                    content += '</tr>';
+                });
+                content += '</table></body></html>';
+                filename = `issues_${timestamp}.xls`;
+                type = 'application/vnd.ms-excel';
+            }
+            
+            const blob = new Blob([content], { type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            alert(`已导出 ${filteredIssues.length} 个问题`);
+        }
+        
+        // 初始化
+        async function start() {
+            const user = await initAuthPage();
+            if (!user) return;
+            init();
+        }
+        start();
+    </script>
+    <script src="dark-mode.js"></script>
+</body>
+</html>

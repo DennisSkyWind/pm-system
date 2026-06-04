@@ -1,0 +1,38 @@
+# 数据
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# 附件
+data/attachments/
+
+# 环境配置
+.env
+
+# 备份
+backups/
+*.bak
+*.bak2
+
+# 日志
+*.log
+logs/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 不需要的文件
+resumeai*.html
+gantt-test.html
+OPTIMIZATION_PLAN.md

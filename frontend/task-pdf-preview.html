@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务清单PDF导出风格设计</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        h1 { text-align: center; margin-bottom: 30px; color: #333; }
+        .style-selector {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .style-btn {
+            padding: 12px 24px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .style-btn:hover { border-color: #666; }
+        .style-btn.active { 
+            border-color: #2196F3;
+            background: #E3F2FD;
+        }
+        
+        /* PDF预览容器 - A4比例 */
+        .pdf-preview {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            aspect-ratio: 210/297;
+            overflow: hidden;
+        }
+        
+        /* ===================== 风格1：简约商务 ===================== */
+        .style-business {
+            padding: 40px 50px;
+            font-size: 12px;
+        }
+        .style-business .header {
+            border-bottom: 3px solid #1a1a1a;
+            padding-bottom: 20px;
+            margin-bottom: 25px;
+        }
+        .style-business .header h2 {
+            font-size: 24px;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+        .style-business .header .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+        .style-business .meta-info {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 25px;
+            color: #888;
+            font-size: 11px;
+        }
+        .style-business .section-title {
+            font-size: 14px;
+            color: #333;
+            margin: 20px 0 10px;
+            padding-left: 10px;
+            border-left: 3px solid #1a1a1a;
+        }
+        .style-business .task-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .style-business .task-checkbox {
+            width: 16px;
+            height: 16px;
+            border: 1.5px solid #333;
+            border-radius: 2px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        .style-business .task-checkbox.checked {
+            background: #333;
+            position: relative;
+        }
+        .style-business .task-checkbox.checked::after {
+            content: '✓';
+            color: white;
+            font-size: 10px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .style-business .task-content {
+            flex: 1;
+        }
+        .style-business .task-name {
+            font-size: 13px;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        .style-business .task-name.done {
+            color: #999;
+        }
+        .style-business .task-meta {
+            font-size: 10px;
+            color: #999;
+        }
+        .style-business .priority-tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            margin-right: 8px;
+        }
+        .style-business .priority-high { background: #ffebee; color: #c62828; }
+        .style-business .priority-medium { background: #fff8e1; color: #f57c00; }
+        .style-business .priority-low { background: #e8f5e9; color: #2e7d32; }
+        .style-business .progress-bar {
+            display: inline-block;
+            width: 60px;
+            height: 6px;
+            background: #eee;
+            border-radius: 3px;
+            overflow: hidden;
+            vertical-align: middle;
+        }
+        .style-business .progress-fill {
+            height: 100%;
+            background: #333;
+            border-radius: 3px;
+        }
+        .style-business .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+            font-size: 10px;
+            color: #999;
+            text-align: center;
+        }
+        
+        /* ===================== 风格2：现代彩色 ===================== */
+        .style-modern {
+            padding: 35px 45px;
+            font-size: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            position: relative;
+        }
+        .style-modern::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: white;
+            margin: 15px;
+            border-radius: 8px;
+        }
+        .style-modern > * { position: relative; z-index: 1; }
+        .style-modern .header {
+            margin-bottom: 20px;
+        }
+        .style-modern .header h2 {
+            font-size: 22px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .style-modern .header .subtitle {
+            color: #667eea;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .style-modern .summary-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-around;
+        }
+        .style-modern .summary-item {
+            text-align: center;
+        }
+        .style-modern .summary-num {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .style-modern .summary-label {
+            font-size: 10px;
+            opacity: 0.9;
+        }
+        .style-modern .task-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .style-modern .task-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-size: 14px;
+        }
+        .style-modern .task-icon.todo { background: #ffecb3; color: #ff9800; }
+        .style-modern .task-icon.doing { background: #e3f2fd; color: #2196f3; }
+        .style-modern .task-icon.done { background: #e8f5e9; color: #4caf50; }
+        .style-modern .task-content {
+            flex: 1;
+        }
+        .style-modern .task-name {
+            font-size: 13px;
+            color: #333;
+            margin-bottom: 3px;
+        }
+        .style-modern .task-desc {
+            font-size: 11px;
+            color: #888;
+        }
+        .style-modern .task-right {
+            text-align: right;
+        }
+        .style-modern .task-date {
+            font-size: 11px;
+            color: #667eea;
+        }
+        .style-modern .priority-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-left: 8px;
+        }
+        .style-modern .priority-dot.high { background: #f44336; }
+        .style-modern .priority-dot.medium { background: #ff9800; }
+        .style-modern .priority-dot.low { background: #4caf50; }
+        
+        /* ===================== 风格3：极简清单 ===================== */
+        .style-minimal {
+            padding: 50px 60px;
+            font-size: 12px;
+        }
+        .style-minimal .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .style-minimal .header h2 {
+            font-size: 20px;
+            color: #333;
+            font-weight: 300;
+            letter-spacing: 2px;
+        }
+        .style-minimal .header .date-line {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #999;
+        }
+        .style-minimal .divider {
+            width: 60px;
+            height: 1px;
+            background: #ddd;
+            margin: 0 auto 30px;
+        }
+        .style-minimal .task-row {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .style-minimal .task-num {
+            width: 25px;
+            color: #999;
+            font-size: 11px;
+        }
+        .style-minimal .task-name {
+            flex: 1;
+            font-size: 13px;
+            color: #333;
+        }
+        .style-minimal .task-status {
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 12px;
+            background: #f5f5f5;
+            color: #999;
+        }
+        .style-minimal .task-status.completed {
+            background: #333;
+            color: white;
+        }
+        .style-minimal .footer-note {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 11px;
+            color: #bbb;
+            font-style: italic;
+        }
+        
+        /* ===================== 风格4：专业表格 ===================== */
+        .style-table {
+            padding: 40px 50px;
+            font-size: 12px;
+        }
+        .style-table .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #1976D2;
+        }
+        .style-table .header-left h2 {
+            font-size: 18px;
+            color: #1976D2;
+        }
+        .style-table .header-left .project-name {
+            font-size: 14px;
+            color: #333;
+            margin-top: 5px;
+        }
+        .style-table .header-right {
+            text-align: right;
+        }
+        .style-table .header-right .label {
+            font-size: 10px;
+            color: #999;
+        }
+        .style-table .header-right .value {
+            font-size: 12px;
+            color: #333;
+        }
+        .style-table table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .style-table th {
+            background: #1976D2;
+            color: white;
+            padding: 10px 8px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .style-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 11px;
+        }
+        .style-table tr:nth-child(even) td {
+            background: #f5f5f5;
+        }
+        .style-table .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+        }
+        .style-table .status-pending { background: #fff3e0; color: #e65100; }
+        .style-table .status-progress { background: #e3f2fd; color: #1565c0; }
+        .style-table .status-completed { background: #e8f5e9; color: #2e7d32; }
+        .style-table .priority-high { color: #d32f2f; font-weight: 500; }
+        .style-table .priority-medium { color: #f57c00; }
+        .style-table .priority-low { color: #388e3c; }
+        .style-table .progress-mini {
+            display: inline-block;
+            width: 40px;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .style-table .progress-mini-fill {
+            height: 100%;
+            background: #1976D2;
+        }
+        .style-table .signature-area {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .style-table .signature-box {
+            width: 150px;
+        }
+        .style-table .signature-line {
+            border-top: 1px solid #333;
+            margin-top: 40px;
+            padding-top: 5px;
+            font-size: 10px;
+            color: #999;
+        }
+        
+        /* ===================== 风格5：卡片式 ===================== */
+        .style-card {
+            padding: 30px 40px;
+            font-size: 12px;
+            background: #fafafa;
+        }
+        .style-card .header {
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+        }
+        .style-card .logo-box {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #43A047, #2E7D32);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            margin-right: 15px;
+        }
+        .style-card .header-info h2 {
+            font-size: 18px;
+            color: #333;
+        }
+        .style-card .header-info .subtitle {
+            font-size: 12px;
+            color: #666;
+        }
+        .style-card .stats-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .style-card .stat-card {
+            flex: 1;
+            background: white;
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+        }
+        .style-card .stat-num {
+            font-size: 20px;
+            font-weight: 600;
+            color: #43A047;
+        }
+        .style-card .stat-label {
+            font-size: 10px;
+            color: #999;
+        }
+        .style-card .task-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border: 1px solid #e0e0e0;
+        }
+        .style-card .task-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .style-card .task-name {
+            font-size: 13px;
+            color: #333;
+            font-weight: 500;
+        }
+        .style-card .task-id {
+            font-size: 10px;
+            color: #999;
+        }
+        .style-card .task-desc {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .style-card .task-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .style-card .task-tags {
+            display: flex;
+            gap: 5px;
+        }
+        .style-card .tag {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+        }
+        .style-card .tag-priority { background: #ffebee; color: #c62828; }
+        .style-card .tag-status { background: #e3f2fd; color: #1565c0; }
+        .style-card .task-progress {
+            font-size: 11px;
+            color: #43A047;
+        }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+    <h1>任务清单PDF导出风格设计</h1>
+    
+    <div class="style-selector">
+        <button class="style-btn active" onclick="showStyle('business')">风格1：简约商务</button>
+        <button class="style-btn" onclick="showStyle('modern')">风格2：现代彩色</button>
+        <button class="style-btn" onclick="showStyle('minimal')">风格3：极简清单</button>
+        <button class="style-btn" onclick="showStyle('table')">风格4：专业表格</button>
+        <button class="style-btn" onclick="showStyle('card')">风格5：卡片式</button>
+    </div>
+    
+    <div class="pdf-preview" id="preview">
+        <!-- 默认显示风格1 -->
+        <div class="style-business" id="style-business">
+            <div class="header">
+                <h2>任务清单</h2>
+                <div class="subtitle">数据治理项目 · 第一阶段</div>
+            </div>
+            
+            <div class="meta-info">
+                <span>📅 生成日期：2026-05-11</span>
+                <span>👤 负责人：张明</span>
+                <span>📊 进度：45%</span>
+            </div>
+            
+            <div class="section-title">进行中的任务</div>
+            
+            <div class="task-item">
+                <div class="task-checkbox"></div>
+                <div class="task-content">
+                    <div class="task-name">
+                        <span class="priority-tag priority-high">高优先</span>
+                        高层问数试点
+                    </div>
+                    <div class="task-meta">截止：2026-06-30 | 进度：<span class="progress-bar"><span class="progress-fill" style="width:26%"></span></span> 26%</div>
+                </div>
+            </div>
+            
+            <div class="task-item">
+                <div class="task-checkbox"></div>
+                <div class="task-content">
+                    <div class="task-name">
+                        <span class="priority-tag priority-medium">中优先</span>
+                        RPA数据治理场景探索
+                    </div>
+                    <div class="task-meta">截止：2026-05-31 | 进度：<span class="progress-bar"><span class="progress-fill" style="width:5%"></span></span> 5%</div>
+                </div>
+            </div>
+            
+            <div class="section-title">待开始的任务</div>
+            
+            <div class="task-item">
+                <div class="task-checkbox"></div>
+                <div class="task-content">
+                    <div class="task-name">
+                        <span class="priority-tag priority-medium">中优先</span>
+                        底层数据架构重构
+                    </div>
+                    <div class="task-meta">截止：2026-05-31 | 进度：<span class="progress-bar"><span class="progress-fill" style="width:0%"></span></span> 0%</div>
+                </div>
+            </div>
+            
+            <div class="section-title">已完成的任务</div>
+            
+            <div class="task-item">
+                <div class="task-checkbox checked"></div>
+                <div class="task-content">
+                    <div class="task-name done">需求调研与评估</div>
+                    <div class="task-meta">完成于：2026-05-05</div>
+                </div>
+            </div>
+            
+            <div class="task-item">
+                <div class="task-checkbox checked"></div>
+                <div class="task-content">
+                    <div class="task-name done">方案设计文档</div>
+                    <div class="task-meta">完成于：2026-05-08</div>
+                </div>
+            </div>
+            
+            <div class="footer">
+                PM系统自动生成 · 共5项任务
+            </div>
+        </div>
+        
+        <!-- 风格2：现代彩色 -->
+        <div class="style-modern" id="style-modern" style="display:none">
+            <div class="header">
+                <h2>任务清单</h2>
+                <div class="subtitle">数据治理项目 · 第一阶段</div>
+            </div>
+            
+            <div class="summary-box">
+                <div class="summary-item">
+                    <div class="summary-num">5</div>
+                    <div class="summary-label">总任务</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-num">2</div>
+                    <div class="summary-label">进行中</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-num">2</div>
+                    <div class="summary-label">已完成</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-num">45%</div>
+                    <div class="summary-label">总进度</div>
+                </div>
+            </div>
+            
+            <div class="task-card">
+                <div class="task-icon doing">▶</div>
+                <div class="task-content">
+                    <div class="task-name">高层问数试点</div>
+                    <div class="task-desc">完成至少一个和两个场景的高层问数场景</div>
+                </div>
+                <div class="task-right">
+                    <div class="task-date">2026-06-30</div>
+                    <div class="priority-dot high"></div>
+                </div>
+            </div>
+            
+            <div class="task-card">
+                <div class="task-icon doing">▶</div>
+                <div class="task-content">
+                    <div class="task-name">RPA数据治理场景探索</div>
+                    <div class="task-desc">探索RPA，辅助数据治理和数据管理应用场景试点设计</div>
+                </div>
+                <div class="task-right">
+                    <div class="task-date">2026-05-31</div>
+                    <div class="priority-dot medium"></div>
+                </div>
+            </div>
+            
+            <div class="task-card">
+                <div class="task-icon todo">○</div>
+                <div class="task-content">
+                    <div class="task-name">底层数据架构重构</div>
+                    <div class="task-desc">完成1951数据分离方案，推广到营销中心、财务</div>
+                </div>
+                <div class="task-right">
+                    <div class="task-date">2026-05-31</div>
+                    <div class="priority-dot medium"></div>
+                </div>
+            </div>
+            
+            <div class="task-card">
+                <div class="task-icon done">✓</div>
+                <div class="task-content">
+                    <div class="task-name">需求调研与评估</div>
+                    <div class="task-desc">已完成第一轮需求评估</div>
+                </div>
+                <div class="task-right">
+                    <div class="task-date" style="color:#4caf50">已完成</div>
+                    <div class="priority-dot low"></div>
+                </div>
+            </div>
+            
+            <div class="task-card">
+                <div class="task-icon done">✓</div>
+                <div class="task-content">
+                    <div class="task-name">方案设计文档</div>
+                    <div class="task-desc">技术方案文档编写完成</div>
+                </div>
+                <div class="task-right">
+                    <div class="task-date" style="color:#4caf50">已完成</div>
+                    <div class="priority-dot low"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 风格3：极简清单 -->
+        <div class="style-minimal" id="style-minimal" style="display:none">
+            <div class="header">
+                <h2>TASK LIST</h2>
+                <div class="date-line">2026.05.11</div>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <div class="task-row">
+                <div class="task-num">01.</div>
+                <div class="task-name">高层问数试点</div>
+                <div class="task-status">进行中</div>
+            </div>
+            
+            <div class="task-row">
+                <div class="task-num">02.</div>
+                <div class="task-name">RPA数据治理场景探索</div>
+                <div class="task-status">进行中</div>
+            </div>
+            
+            <div class="task-row">
+                <div class="task-num">03.</div>
+                <div class="task-name">底层数据架构重构</div>
+                <div class="task-status">待开始</div>
+            </div>
+            
+            <div class="task-row">
+                <div class="task-num">04.</div>
+                <div class="task-name">需求调研与评估</div>
+                <div class="task-status completed">已完成</div>
+            </div>
+            
+            <div class="task-row">
+                <div class="task-num">05.</div>
+                <div class="task-name">方案设计文档</div>
+                <div class="task-status completed">已完成</div>
+            </div>
+            
+            <div class="footer-note">数据治理项目 · 第一阶段</div>
+        </div>
+        
+        <!-- 风格4：专业表格 -->
+        <div class="style-table" id="style-table" style="display:none">
+            <div class="header">
+                <div class="header-left">
+                    <h2>任务清单</h2>
+                    <div class="project-name">项目：数据治理项目</div>
+                </div>
+                <div class="header-right">
+                    <div class="label">生成日期</div>
+                    <div class="value">2026-05-11</div>
+                </div>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:40px">#</th>
+                        <th style="width:180px">任务名称</th>
+                        <th style="width:80px">状态</th>
+                        <th style="width:60px">优先级</th>
+                        <th style="width:70px">截止日期</th>
+                        <th style="width:50px">进度</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1</td>
+                        <td>高层问数试点</td>
+                        <td><span class="status-badge status-progress">进行中</span></td>
+                        <td class="priority-high">高</td>
+                        <td>2026-06-30</td>
+                        <td><span class="progress-mini"><span class="progress-mini-fill" style="width:26%"></span></span> 26%</td>
+                    </tr>
+                    <tr>
+                        <td>2</td>
+                        <td>RPA数据治理场景探索</td>
+                        <td><span class="status-badge status-progress">进行中</span></td>
+                        <td class="priority-medium">中</td>
+                        <td>2026-05-31</td>
+                        <td><span class="progress-mini"><span class="progress-mini-fill" style="width:5%"></span></span> 5%</td>
+                    </tr>
+                    <tr>
+                        <td>3</td>
+                        <td>底层数据架构重构</td>
+                        <td><span class="status-badge status-pending">待开始</span></td>
+                        <td class="priority-medium">中</td>
+                        <td>2026-05-31</td>
+                        <td><span class="progress-mini"><span class="progress-mini-fill" style="width:0%"></span></span> 0%</td>
+                    </tr>
+                    <tr>
+                        <td>4</td>
+                        <td>需求调研与评估</td>
+                        <td><span class="status-badge status-completed">已完成</span></td>
+                        <td class="priority-low">低</td>
+                        <td>2026-05-05</td>
+                        <td>100%</td>
+                    </tr>
+                    <tr>
+                        <td>5</td>
+                        <td>方案设计文档</td>
+                        <td><span class="status-badge status-completed">已完成</span></td>
+                        <td class="priority-low">低</td>
+                        <td>2026-05-08</td>
+                        <td>100%</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div class="signature-area">
+                <div class="signature-box">
+                    <div class="signature-line">编制人签字</div>
+                </div>
+                <div class="signature-box">
+                    <div class="signature-line">审核人签字</div>
+                </div>
+                <div class="signature-box">
+                    <div class="signature-line">日期</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 风格5：卡片式 -->
+        <div class="style-card" id="style-card" style="display:none">
+            <div class="header">
+                <div class="logo-box">📋</div>
+                <div class="header-info">
+                    <h2>任务清单</h2>
+                    <div class="subtitle">数据治理项目 · 第一阶段</div>
+                </div>
+            </div>
+            
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-num">5</div>
+                    <div class="stat-label">总任务</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-num" style="color:#2196F3">2</div>
+                    <div class="stat-label">进行中</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-num" style="color:#9E9E9E">1</div>
+                    <div class="stat-label">待开始</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-num" style="color:#4CAF50">2</div>
+                    <div class="stat-label">已完成</div>
+                </div>
+            </div>
+            
+            <div class="task-card">
+                <div class="task-header">
+                    <div class="task-name">高层问数试点</div>
+                    <div class="task-id">#001</div>
+                </div>
+                <div class="task-desc">完成至少一个和两个场景的高层问数场景</div>
+                <div class="task-footer">
+                    <div class="task-tags">
+                        <span class="tag tag-priority">高优先级</span>
+                        <span class="tag tag-status">进行中</span>
+                    </div>
+                    <div class="task-progress">截止：2026-06-30 · 26%</div>
+                </div>
+            </div>
+            
+            <div class="task-card">
+                <div class="task-header">
+                    <div class="task-name">RPA数据治理场景探索</div>
+                    <div class="task-id">#002</div>
+                </div>
+                <div class="task-desc">探索RPA，辅助数据治理和数据管理应用场景试点设计</div>
+                <div class="task-footer">
+                    <div class="task-tags">
+                        <span class="tag tag-priority" style="background:#fff8e1;color:#f57c00">中优先级</span>
+                        <span class="tag tag-status">进行中</span>
+                    </div>
+                    <div class="task-progress">截止：2026-05-31 · 5%</div>
+                </div>
+            </div>
+            
+            <div class="task-card">
+                <div class="task-header">
+                    <div class="task-name">底层数据架构重构</div>
+                    <div class="task-id">#003</div>
+                </div>
+                <div class="task-desc">完成1951数据分离方案，推广到营销中心、财务、营销中台</div>
+                <div class="task-footer">
+                    <div class="task-tags">
+                        <span class="tag tag-priority" style="background:#fff8e1;color:#f57c00">中优先级</span>
+                        <span class="tag tag-status" style="background:#fff3e0;color:#e65100">待开始</span>
+                    </div>
+                    <div class="task-progress">截止：2026-05-31 · 0%</div>
+                </div>
+            </div>
+            
+            <div class="task-card" style="border-color:#4CAF50">
+                <div class="task-header">
+                    <div class="task-name" style="color:#4CAF50">需求调研与评估 ✓</div>
+                    <div class="task-id">#004</div>
+                </div>
+                <div class="task-desc" style="color:#888">已完成第一轮需求评估</div>
+                <div class="task-footer">
+                    <div class="task-tags">
+                        <span class="tag tag-status" style="background:#e8f5e9;color:#2e7d32">已完成</span>
+                    </div>
+                    <div class="task-progress" style="color:#4CAF50">完成于：2026-05-05</div>
+                </div>
+            </div>
+            
+            <div class="task-card" style="border-color:#4CAF50">
+                <div class="task-header">
+                    <div class="task-name" style="color:#4CAF50">方案设计文档 ✓</div>
+                    <div class="task-id">#005</div>
+                </div>
+                <div class="task-desc" style="color:#888">技术方案文档编写完成</div>
+                <div class="task-footer">
+                    <div class="task-tags">
+                        <span class="tag tag-status" style="background:#e8f5e9;color:#2e7d32">已完成</span>
+                    </div>
+                    <div class="task-progress" style="color:#4CAF50">完成于：2026-05-08</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div style="max-width:800px;margin:30px auto 0;padding:20px;background:white;border-radius:8px;">
+        <h3 style="margin-bottom:15px">风格特点说明</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <tr style="background:#f5f5f5">
+                <th style="padding:10px;border:1px solid #ddd">风格</th>
+                <th style="padding:10px;border:1px solid #ddd">特点</th>
+                <th style="padding:10px;border:1px solid #ddd">适用场景</th>
+            </tr>
+            <tr>
+                <td style="padding:10px;border:1px solid #ddd">简约商务</td>
+                <td style="padding:10px;border:1px solid #ddd">黑白配色，勾选框风格，进度条清晰</td>
+                <td style="padding:10px;border:1px solid #ddd">正式汇报、会议材料、存档</td>
+            </tr>
+            <tr>
+                <td style="padding:10px;border:1px solid #ddd">现代彩色</td>
+                <td style="padding:10px;border:1px solid #ddd">渐变色边框，统计卡片，图标化状态</td>
+                <td style="padding:10px;border:1px solid #ddd">团队分享、演示展示、年轻化团队</td>
+            </tr>
+            <tr>
+                <td style="padding:10px;border:1px solid #ddd">极简清单</td>
+                <td style="padding:10px;border:1px solid #ddd">序号+任务+状态，无多余元素</td>
+                <td style="padding:10px;border:1px solid #ddd">快速打印、随身携带、简单记录</td>
+            </tr>
+            <tr>
+                <td style="padding:10px;border:1px solid #ddd">专业表格</td>
+                <td style="padding:10px;border:1px solid #ddd">完整表格结构，签字区域，正式文档</td>
+                <td style="padding:10px;border:1px solid #ddd">项目验收、合同附件、审批流程</td>
+            </tr>
+            <tr>
+                <td style="padding:10px;border:1px solid #ddd">卡片式</td>
+                <td style="padding:10px;border:1px solid #ddd">任务卡片化，统计头部，标签清晰</td>
+                <td style="padding:10px;border:1px solid #ddd">周报月报、进度汇报、客户展示</td>
+            </tr>
+        </table>
+    </div>
+    
+    <script>
+        function showStyle(style) {
+            // 隐藏所有风格
+            document.querySelectorAll('.style-business, .style-modern, .style-minimal, .style-table, .style-card').forEach(el => {
+                el.style.display = 'none';
+            });
+            // 显示选中的风格
+            document.getElementById('style-' + style).style.display = 'block';
+            // 更新按钮状态
+            document.querySelectorAll('.style-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+    </script>
+    <script src="dark-mode.js"></script>
+</body>
+</html>

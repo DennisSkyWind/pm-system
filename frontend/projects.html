@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>项目列表 - 项目管理系统</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+        
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; }
+        header h1 { font-size: 24px; }
+        nav { display: flex; gap: 15px; margin-top: 15px; }
+        nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; background: rgba(255,255,255,0.2); }
+        nav a:hover { background: rgba(255,255,255,0.3); }
+        nav a.active { background: rgba(255,255,255,0.4); }
+        
+        main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+        
+        .toolbar { display: flex; gap: 10px; margin-bottom: 20px; }
+        .filter-btn { padding: 8px 16px; background: #e0e0e0; border: none; border-radius: 6px; cursor: pointer; }
+        .filter-btn.active { background: #667eea; color: white; }
+        
+        .projects-table { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #e0e0e0; }
+        th { background: #f9f9f9; font-weight: 600; color: #666; }
+        tr:hover { background: #f5f5f5; }
+        
+        .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; }
+        .status-in_progress { background: #fff3e0; color: #e65100; }
+        .status-completed { background: #e8f5e9; color: #2e7d32; }
+        .status-pending { background: #f5f5f5; color: #666; }
+        
+        .priority-high { color: #f44336; }
+        .priority-medium { color: #ff9800; }
+        .priority-low { color: #4caf50; }
+        
+        .progress-bar { height: 8px; background: #e0e0e0; border-radius: 4px; width: 100px; }
+        .progress-fill { height: 100%; border-radius: 4px; }
+        
+        .action-btn { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; margin-right: 5px; }
+        .btn-view { background: #667eea; color: white; }
+        .btn-edit { background: #ff9800; color: white; }
+        .btn-delete { background: #f44336; color: white; }
+        
+        .new-btn { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 50%; font-size: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .modal.show { display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; }
+        .modal-title { font-size: 20px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-size: 14px; color: #666; }
+        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .btn-primary { background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+        .btn-secondary { background: #e0e0e0; color: #333; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+        
+        /* 延期警告 */
+        .overdue { color: #f44336; font-weight: bold; }
+        .overdue-badge { background: #f44336; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 5px; }
+        
+        /* 可搜索下拉框 */
+        .search-select { position: relative; }
+        .search-select input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; cursor: pointer; }
+        .search-select input:focus { border-color: #667eea; outline: none; }
+        .search-select-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-radius: 6px; max-height: 200px; overflow-y: auto; z-index: 100; display: none; }
+        .search-select-dropdown.show { display: block; }
+        .search-select-option { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; }
+        .search-select-option:last-child { border-bottom: none; }
+        .search-select-option:hover { background: #f5f5f5; }
+        .search-select-option.selected { background: #667eea; color: white; }
+        .search-select-option.no-match { color: #999; cursor: default; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <link rel="stylesheet" href="common.css">
+    <link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+    <header>
+        <h1>📊 项目管理系统</h1>
+        <nav>
+            <a href="index.html">Dashboard</a>
+            <a href="projects.html" class="active">项目列表</a>
+            <a href="phases.html">阶段管理</a>
+            <a href="tasks.html">任务管理</a>
+            <a href="issues.html">问题追踪</a>
+            <a href="gantt.html">📊 甘特图</a>
+            <a href="reminders.html">提醒管理</a>
+            <a href="persons.html">人员名册</a>
+            <a href="admin.html">🔐 管理后台</a>
+        <a href="settings.html">⚙️ 个人设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span></nav>
+    </header>
+    
+
+    <!-- 全局搜索弹窗 -->
+    <div id="global-search-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;backdrop-filter:blur(2px);" onclick="hideGlobalSearch()">
+        <div style="max-width:600px;margin:80px auto 0;background:white;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;" onclick="event.stopPropagation()">
+            <div style="display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid #eee;gap:10px;">
+                <span style="font-size:20px">🔍</span>
+                <input type="text" id="global-search-input" placeholder="搜索项目、任务、人员..." 
+                    style="flex:1;border:none;font-size:16px;outline:none;" 
+                    oninput="doGlobalSearch()" onkeydown="handleSearchKey(event)">
+                <kbd style="background:#f0f0f0;padding:2px 8px;border-radius:4px;font-size:12px;color:#888">ESC</kbd>
+            </div>
+            <div id="global-search-results" style="max-height:400px;overflow-y:auto;padding:8px;"></div>
+        </div>
+    </div>
+
+
+    <!-- 通知面板 -->
+    <div id="notification-panel" style="display:none;position:fixed;top:60px;right:20px;width:360px;max-height:500px;background:white;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.15);z-index:9998;overflow:hidden;">
+        <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="font-size:15px;margin:0;">🔔 通知</h3>
+            <div>
+                <a onclick="markAllNotificationsRead()" style="font-size:12px;color:#667eea;cursor:pointer;margin-right:10px;">全部已读</a>
+                <a onclick="toggleNotificationPanel()" style="cursor:pointer;font-size:16px;">✕</a>
+            </div>
+        </div>
+        <div id="notification-list" style="max-height:420px;overflow-y:auto;"></div>
+    </div>
+
+    <main>
+        <div class="toolbar">
+            <button class="filter-btn active" onclick="filterProjects('')">全部</button>
+            <button class="filter-btn" onclick="filterProjects('in_progress')">进行中</button>
+            <button class="filter-btn" onclick="filterProjects('completed')">已完成</button>
+            <button class="filter-btn" onclick="filterProjects('pending')">待开始</button>
+            <button class="filter-btn" onclick="filterProjects('archived')" style="background: #e8e8e8;">📦 已结项</button>
+            <button class="btn btn-secondary" onclick="showArchivedModal()" style="margin-left: 10px;">📋 结项管理</button>
+            <button onclick="showNewProjectModal()" style="margin-left: auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">📁 新增项目</button>
+            <button class="btn btn-secondary" onclick="exportProjects()" style="margin-left: 10px;">📤 导出</button>
+        </div>
+        
+        <div class="projects-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>项目名称</th>
+                        <th>状态</th>
+                        <th>进度</th>
+                        <th>优先级</th>
+                        <th>负责人</th>
+                        <th>目标截止</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="projects-body"></tbody>
+            </table>
+        </div>
+    </main>
+    
+    <div class="new-btn" onclick="showNewProjectModal()">+</div>
+    
+    <!-- 创建项目模态框 -->
+    <div class="modal" id="new-project-modal">
+        <div class="modal-content">
+            <h2 class="modal-title">创建新项目</h2>
+            <div class="form-group">
+                <label>项目名称</label>
+                <input type="text" id="project-name" required>
+            </div>
+            <div class="form-group">
+                <label>项目描述</label>
+                <textarea id="project-desc" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label>优先级</label>
+                <select id="project-priority">
+                    <option value="high">高</option>
+                    <option value="medium" selected>中</option>
+                    <option value="low">低</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>项目状态</label>
+                <select id="new-project-status">
+                    <option value="pending">⬜ 待处理</option>
+                    <option value="in_progress" selected>🔄 进行中</option>
+                    <option value="completed">✅ 已完成</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>负责人</label>
+                <div class="search-select">
+                    <input type="text" id="new-project-owner-search" placeholder="搜索选择负责人..." onclick="toggleOwnerDropdown('new')" oninput="filterOwnerDropdown('new')">
+                    <input type="hidden" id="new-project-owner">
+                    <div class="search-select-dropdown" id="new-owner-dropdown"></div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>目标完成日期</label>
+                <input type="date" id="project-end-date">
+            </div>
+            <div class="form-actions">
+                <button class="btn-secondary" onclick="hideModal('new-project-modal')">取消</button>
+                <button class="btn btn-primary" onclick="createProject()">创建</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 编辑项目模态框 -->
+    <div class="modal" id="edit-project-modal">
+        <div class="modal-content">
+            <h2 class="modal-title">编辑项目</h2>
+            <input type="hidden" id="edit-project-id">
+            <div class="form-group">
+                <label>项目名称</label>
+                <input type="text" id="edit-project-name" required>
+            </div>
+            <div class="form-group">
+                <label>项目描述</label>
+                <textarea id="edit-project-desc" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label>状态</label>
+                <select id="edit-project-status">
+                    <option value="pending">待开始</option>
+                    <option value="in_progress">进行中</option>
+                    <option value="completed">已完成</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>优先级</label>
+                <select id="edit-project-priority">
+                    <option value="high">高</option>
+                    <option value="medium">中</option>
+                    <option value="low">低</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>目标完成日期</label>
+                <input type="date" id="edit-project-end-date">
+            </div>
+            <div class="form-group">
+                <label>负责人</label>
+                <div class="search-select">
+                    <input type="text" id="edit-project-owner-search" placeholder="搜索选择负责人..." onclick="toggleOwnerDropdown('edit')" oninput="filterOwnerDropdown('edit')">
+                    <input type="hidden" id="edit-project-owner">
+                    <div class="search-select-dropdown" id="edit-owner-dropdown"></div>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button class="btn-secondary" onclick="hideModal('edit-project-modal')">取消</button>
+                <button class="btn-primary" onclick="updateProject()">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 结项模态框 -->
+    <div class="modal" id="archive-modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <h2 class="modal-title">📦 项目结项</h2>
+            <input type="hidden" id="archive-project-id">
+            <div class="form-group">
+                <label>项目名称</label>
+                <input type="text" id="archive-project-name" readonly style="background: #f5f5f5;">
+            </div>
+            <div id="archive-stats" style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <div style="font-size: 14px; color: #666;">项目统计信息加载中...</div>
+            </div>
+            <div class="form-group">
+                <label>实际完成日期</label>
+                <input type="date" id="archive-end-date">
+            </div>
+            <div class="form-group">
+                <label>结项备注</label>
+                <textarea id="archive-notes" rows="4" placeholder="记录项目总结、成果、经验教训等..."></textarea>
+            </div>
+            <div style="background: #fff3e0; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 13px;">
+                ⚠️ 结项后项目将进入归档状态，所有相关任务和问题将保留记录。
+            </div>
+            <div class="form-actions">
+                <button class="btn-secondary" onclick="hideModal('archive-modal')">取消</button>
+                <button class="btn-primary" onclick="archiveProject()">确认结项</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 结项管理模态框 -->
+    <div class="modal" id="archived-modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <h2 class="modal-title">📋 已结项项目管理</h2>
+            
+            <!-- 搜索和排序工具栏 -->
+            <div style="display: flex; gap: 10px; margin-bottom: 15px; align-items: center;">
+                <input type="text" id="archive-search" placeholder="搜索项目名称..." 
+                       style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; width: 250px;"
+                       onkeyup="filterArchivedProjects()">
+                <select id="archive-sort" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px;"
+                        onchange="filterArchivedProjects()">
+                    <option value="date_desc">结项时间 ↓</option>
+                    <option value="date_asc">结项时间 ↑</option>
+                    <option value="name_asc">项目名称 A-Z</option>
+                    <option value="name_desc">项目名称 Z-A</option>
+                    <option value="progress_desc">进度 ↓</option>
+                    <option value="progress_asc">进度 ↑</option>
+                </select>
+                <span id="archive-count" style="color: #666; font-size: 13px;"></span>
+            </div>
+            
+            <div id="archived-list" style="max-height: 400px; overflow-y: auto;">
+                <div style="text-align: center; padding: 20px; color: #999;">加载中...</div>
+            </div>
+            <div class="form-actions">
+                <button class="btn-secondary" onclick="hideModal('archived-modal')">关闭</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="auth.js"></script>
+    <script>
+        
+        // ========== 全局搜索 ==========
+        let _gsData = { projects: [], tasks: [], persons: [] };
+        function showGlobalSearch() {
+            document.getElementById('global-search-overlay').style.display = 'block';
+            const input = document.getElementById('global-search-input');
+            input.value = ''; input.focus();
+            document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>';
+        }
+        function hideGlobalSearch() { document.getElementById('global-search-overlay').style.display = 'none'; }
+        async function doGlobalSearch() {
+            const q = document.getElementById('global-search-input').value.trim().toLowerCase();
+            if (!q) { document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>'; return; }
+            if (_gsData.projects.length === 0) {
+                try {
+                    const [pR, tR, peR] = await Promise.all([authFetch(`${API}/projects`), authFetch(`${API}/tasks`), authFetch(`${API}/persons`)]);
+                    _gsData.projects = (await pR.json()).projects || [];
+                    _gsData.tasks = (await tR.json()).tasks || [];
+                    _gsData.persons = (await peR.json()).persons || [];
+                } catch(e) {}
+            }
+            const res = [];
+            _gsData.projects.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'project',i:'📁',n:p.name,d:`进度 ${p.progress||0}%`,l:`project.html?id=${p.id}`}));
+            _gsData.tasks.filter(t => (t.name||'').toLowerCase().includes(q)).slice(0,8).forEach(t => res.push({t:'task',i:'📋',n:t.name,d:`${t.project_name||''} · ${t.assignee_name||'未分配'}`,l:'tasks.html'}));
+            _gsData.persons.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'person',i:'👤',n:p.name,d:`${p.line||''} ${p.position||''}`,l:'persons.html'}));
+            const c = document.getElementById('global-search-results');
+            if (!res.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#999">未找到相关结果</div>'; return; }
+            c.innerHTML = res.map(r => `<a href="${r.l}" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;text-decoration:none;color:#333" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background=''"><span style="font-size:18px">${r.i}</span><div style="flex:1"><div style="font-weight:500">${r.n}</div><div style="font-size:12px;color:#888">${r.d}</div></div><span style="font-size:11px;color:#bbb;background:#f5f5f5;padding:2px 6px;border-radius:3px">${r.t==='project'?'项目':r.t==='task'?'任务':'人员'}</span></a>`).join('');
+        }
+        function handleSearchKey(e) { if (e.key === 'Escape') hideGlobalSearch(); }
+        document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); showGlobalSearch(); } });
+
+        
+        // ========== 通知中心 ==========
+        let _notifPanelOpen = false;
+        function toggleNotificationPanel() {
+            _notifPanelOpen = !_notifPanelOpen;
+            const panel = document.getElementById('notification-panel');
+            if (!panel) return;
+            panel.style.display = _notifPanelOpen ? 'block' : 'none';
+            if (_notifPanelOpen) loadNotifications();
+        }
+        async function loadNotifications() {
+            try {
+                const res = await authFetch(`${API}/notifications`);
+                const data = await res.json();
+                const badge = document.getElementById('notification-badge');
+                const list = document.getElementById('notification-list');
+                if (!list) return;
+                const unread = data.unread_count || 0;
+                if (badge) { badge.textContent = unread; badge.style.display = unread > 0 ? 'inline' : 'none'; }
+                const notifs = data.notifications || [];
+                if (!notifs.length) { list.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">暂无通知</div>'; return; }
+                const typeIcons = { task_assign: '📋', task_complete: '✅', comment: '💬', info: 'ℹ️', warning: '⚠️' };
+                list.innerHTML = notifs.map(n => `<div style="padding:10px 16px;border-bottom:1px solid #f5f5f5;${n.is_read?'':'background:#f0f4ff;'}cursor:pointer;" onclick="handleNotificationClick(${n.id}, '${n.entity_type||''}', ${n.entity_id||0})"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:16px;">${typeIcons[n.type]||'🔔'}</span><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:${n.is_read?'400':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.title||''}</div><div style="font-size:12px;color:#888;margin-top:2px;">${n.content||''}</div><div style="font-size:11px;color:#bbb;margin-top:3px;">${(n.created_at||'').replace('T',' ').substring(0,16)}</div></div></div></div>`).join('');
+            } catch(e) { console.error('加载通知失败', e); }
+        }
+        async function handleNotificationClick(nid, entityType, entityId) {
+            await authFetch(`${API}/notifications/${nid}/read`, { method: 'POST' });
+            loadNotifications();
+            if (entityType === 'task' && entityId) location.href = 'tasks.html';
+        }
+        async function markAllNotificationsRead() {
+            await authFetch(`${API}/notifications/read-all`, { method: 'POST' });
+            loadNotifications();
+        }
+        setInterval(() => { if (!_notifPanelOpen) loadNotifications(); }, 60000);
+        setTimeout(loadNotifications, 2000);
+
+        const API = '/api';
+
+
+        let currentFilter = '';
+        let archivedProjects = []; // 缓存已结项项目数据
+        let editingProjectId = null;
+        let personsList = []; // 缓存人员列表
+        
+        async function loadProjects() {
+            const url = currentFilter ? `${API}/projects?status=${currentFilter}` : `${API}/projects`;
+            const res = await authFetch(url);
+            const data = await res.json();
+            renderProjects(data.projects);
+        }
+        
+        function renderProjects(projects) {
+            const tbody = document.getElementById('projects-body');
+            const today = new Date().toISOString().split('T')[0];
+            
+            tbody.innerHTML = projects.map(p => {
+                const progressColor = p.progress >= 80 ? '#4CAF50' : p.progress >= 50 ? '#FF9800' : '#F44336';
+                const priorityClass = `priority-${p.priority}`;
+                const statusClass = `status-${p.status}`;
+                const statusText = p.status === 'in_progress' ? '进行中' : p.status === 'completed' ? '已完成' : p.status === 'archived' ? '已结项' : '待开始';
+                const priorityText = p.priority === 'high' ? '高' : p.priority === 'medium' ? '中' : '低';
+                
+                // 延期警告
+                const isOverdue = p.target_end_date && p.target_end_date < today && p.status !== 'completed' && p.status !== 'archived';
+                const overdueWarning = isOverdue ? '<span class="overdue-badge">延期</span>' : '';
+                const endDateClass = isOverdue ? 'overdue' : '';
+                
+                return `
+                    <tr>
+                        <td>${p.id}</td>
+                        <td><strong>${p.name}</strong></td>
+                        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                        <td>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${p.progress}%; background: ${progressColor}"></div>
+                            </div>
+                            <span style="font-size:12px">${p.progress}%</span>
+                        </td>
+                        <td><span class="${priorityClass}">${priorityText}</span></td>
+                        <td>${p.owner_name || '-'}</td>
+                        <td class="${endDateClass}">${p.target_end_date || '-'}${overdueWarning}</td>
+                        <td>
+                            <a href="project.html?id=${p.id}" class="action-btn btn-view">查看</a>
+                            <button class="action-btn btn-edit" onclick="showEditProjectModal(${p.id})">编辑</button>
+                            ${p.status !== 'archived' ? `<button class="action-btn" style="background: #9c27b0; color: white;" onclick="showArchiveModal(${p.id})">结项</button>` : '<span style="color: #9e9e9e; font-size: 12px;">已结项</span>'}
+                            <button class="action-btn btn-delete" onclick="deleteProject(${p.id})">删除</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            if (projects.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#999">暂无项目</td></tr>';
+            }
+        }
+        
+        function filterProjects(status) {
+            currentFilter = status;
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            loadProjects();
+        }
+        
+        function showNewProjectModal() {
+            document.getElementById('new-project-modal').classList.add('show');
+        }
+        
+        function showEditProjectModal(id) {
+            editingProjectId = id;
+            // 获取项目数据填充表单
+            authFetch(`${API}/projects/${id}`)
+                .then(res => res.json())
+                .then(data => {
+                    const p = data.project;
+                    if (!p) {
+                        alert('获取项目信息失败');
+                        return;
+                    }
+                    document.getElementById('edit-project-id').value = p.id;
+                    document.getElementById('edit-project-name').value = p.name;
+                    document.getElementById('edit-project-desc').value = p.description || '';
+                    document.getElementById('edit-project-status').value = p.status;
+                    document.getElementById('edit-project-priority').value = p.priority;
+                    document.getElementById('edit-project-end-date').value = p.target_end_date || '';
+                    // 填充负责人搜索框
+                    document.getElementById('edit-project-owner').value = p.owner_id || '';
+                    document.getElementById('edit-project-owner-search').value = p.owner_name || '';
+                    document.getElementById('edit-project-modal').classList.add('show');
+                });
+        }
+        
+        function hideModal(id) {
+            document.getElementById(id).classList.remove('show');
+        }
+        
+        async function loadPersons() {
+            const res = await authFetch(`${API}/persons?status=active`);
+            const data = await res.json();
+            personsList = data.persons || [];
+            // 填充可搜索下拉框
+            renderOwnerDropdown('new', '');
+            renderOwnerDropdown('edit', '');
+        }
+        
+        // 渲染负责人下拉列表
+        function renderOwnerDropdown(type, filter) {
+            const dropdown = document.getElementById(`${type}-owner-dropdown`);
+            const keyword = filter ? filter.toLowerCase() : '';
+            const filtered = personsList.filter(p => !keyword || p.name.toLowerCase().includes(keyword));
+            
+            let html = '<div class="search-select-option" onclick="selectOwner(\''+type+'\', \'\', \'未指定\')">未指定</div>';
+            filtered.forEach(p => {
+                html += `<div class="search-select-option" onclick="selectOwner('${type}', '${p.id}', '${p.name}')">${p.name}</div>`;
+            });
+            dropdown.innerHTML = html;
+        }
+        
+        // 切换下拉框显示
+        function toggleOwnerDropdown(type) {
+            const dropdown = document.getElementById(`${type}-owner-dropdown`);
+            const allDropdowns = document.querySelectorAll('.search-select-dropdown');
+            // 先关闭其他下拉框
+            allDropdowns.forEach(d => { if (d.id !== `${type}-owner-dropdown`) d.classList.remove('show'); });
+            dropdown.classList.toggle('show');
+            if (dropdown.classList.contains('show')) {
+                renderOwnerDropdown(type, '');
+            }
+        }
+        
+        // 过滤下拉框
+        function filterOwnerDropdown(type) {
+            const input = document.getElementById(`${type}-project-owner-search`);
+            renderOwnerDropdown(type, input.value);
+            document.getElementById(`${type}-owner-dropdown`).classList.add('show');
+        }
+        
+        // 选择负责人
+        function selectOwner(type, id, name) {
+            document.getElementById(`${type}-project-owner`).value = id;
+            document.getElementById(`${type}-project-owner-search`).value = id ? name : '';
+            document.getElementById(`${type}-owner-dropdown`).classList.remove('show');
+        }
+        
+        // 点击外部关闭下拉框
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.search-select')) {
+                document.querySelectorAll('.search-select-dropdown').forEach(d => d.classList.remove('show'));
+            }
+        });
+        
+        async function createProject() {
+            const name = document.getElementById('project-name').value;
+            const desc = document.getElementById('project-desc').value;
+            const priority = document.getElementById('project-priority').value;
+            const status = document.getElementById('new-project-status').value;
+            const endDate = document.getElementById('project-end-date').value;
+            const ownerId = document.getElementById('new-project-owner').value;
+            
+            if (!name) { alert('请输入项目名称'); return; }
+            
+            await authFetch(`${API}/projects`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description: desc, priority, status, target_end_date: endDate, owner_id: ownerId || null })
+            });
+            
+            hideModal('new-project-modal');
+            loadProjects();
+        }
+        
+        async function updateProject() {
+            const id = document.getElementById('edit-project-id').value;
+            const name = document.getElementById('edit-project-name').value;
+            const desc = document.getElementById('edit-project-desc').value;
+            const status = document.getElementById('edit-project-status').value;
+            const priority = document.getElementById('edit-project-priority').value;
+            const endDate = document.getElementById('edit-project-end-date').value;
+            const ownerId = document.getElementById('edit-project-owner').value;
+            
+            if (!name) { alert('请输入项目名称'); return; }
+            
+            await authFetch(`${API}/projects/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description: desc, status, priority, target_end_date: endDate, owner_id: ownerId || null })
+            });
+            
+            hideModal('edit-project-modal');
+            loadProjects();
+        }
+        
+        async function deleteProject(id) {
+            if (!confirm('确定删除此项目？')) return;
+            await authFetch(`${API}/projects/${id}`, { method: 'DELETE' });
+            loadProjects();
+        }
+        
+        // ========== 结项功能 ==========
+        
+        async function showArchiveModal(id) {
+            // 获取项目信息
+            const res = await authFetch(`${API}/projects/${id}`);
+            const data = await res.json();
+            const p = data.project;
+            
+            if (!p) {
+                alert('获取项目信息失败');
+                return;
+            }
+            
+            if (p.status === 'archived') {
+                alert('该项目已结项');
+                return;
+            }
+            
+            document.getElementById('archive-project-id').value = id;
+            document.getElementById('archive-project-name').value = p.name;
+            document.getElementById('archive-end-date').value = p.actual_end_date || new Date().toISOString().split('T')[0];
+            document.getElementById('archive-notes').value = '';
+            
+            // 显示统计信息
+            const completedTasks = p.tasks ? p.tasks.filter(t => t.status === 'completed').length : 0;
+            const totalTasks = p.tasks ? p.tasks.length : 0;
+            const resolvedIssues = p.issues ? p.issues.filter(i => i.status === 'resolved').length : 0;
+            const totalIssues = p.issues ? p.issues.length : 0;
+            
+            document.getElementById('archive-stats').innerHTML = `
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div>
+                        <div style="font-size: 20px; font-weight: bold; color: #4caf50;">${completedTasks}/${totalTasks}</div>
+                        <div style="font-size: 13px; color: #666;">任务完成</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 20px; font-weight: bold; color: #2196f3;">${resolvedIssues}/${totalIssues}</div>
+                        <div style="font-size: 13px; color: #666;">问题解决</div>
+                    </div>
+                </div>
+                <div style="margin-top: 10px; font-size: 13px; color: #666;">
+                    项目进度: ${p.progress}% | 阶段数: ${p.phases ? p.phases.length : 0}
+                </div>
+            `;
+            
+            document.getElementById('archive-modal').classList.add('show');
+        }
+        
+        async function archiveProject() {
+            const id = document.getElementById('archive-project-id').value;
+            const endDate = document.getElementById('archive-end-date').value;
+            const notes = document.getElementById('archive-notes').value;
+            
+            try {
+                const res = await authFetch(`${API}/projects/${id}/archive`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        actual_end_date: endDate,
+                        archive_notes: notes
+                    })
+                });
+                
+                const result = await res.json();
+                if (result.success) {
+                    hideModal('archive-modal');
+                    loadProjects();
+                    alert(`项目已结项！\n完成任务: ${result.stats.completed_tasks}/${result.stats.total_tasks}\n解决问题: ${result.stats.resolved_issues}/${result.stats.total_issues}`);
+                } else {
+                    alert(result.error || '结项失败');
+                }
+            } catch (e) {
+                alert('结项失败: ' + e.message);
+            }
+        }
+        
+        async function showArchivedModal() {
+            document.getElementById('archived-modal').classList.add('show');
+            document.getElementById('archive-search').value = '';
+            document.getElementById('archive-sort').value = 'date_desc';
+            
+            try {
+                const res = await authFetch(`${API}/projects/archived`);
+                const data = await res.json();
+                archivedProjects = data.projects || [];
+                
+                filterArchivedProjects();
+            } catch (e) {
+                document.getElementById('archived-list').innerHTML = `<div style="text-align: center; padding: 20px; color: #f44336;">加载失败: ${e.message}</div>`;
+            }
+        }
+        
+        function filterArchivedProjects() {
+            const searchText = document.getElementById('archive-search').value.toLowerCase();
+            const sortBy = document.getElementById('archive-sort').value;
+            
+            // 搜索过滤
+            let filtered = archivedProjects.filter(p => 
+                p.name.toLowerCase().includes(searchText)
+            );
+            
+            // 排序
+            filtered.sort((a, b) => {
+                switch (sortBy) {
+                    case 'date_desc':
+                        return new Date(b.archived_at || 0) - new Date(a.archived_at || 0);
+                    case 'date_asc':
+                        return new Date(a.archived_at || 0) - new Date(b.archived_at || 0);
+                    case 'name_asc':
+                        return a.name.localeCompare(b.name, 'zh');
+                    case 'name_desc':
+                        return b.name.localeCompare(a.name, 'zh');
+                    case 'progress_desc':
+                        return (b.progress || 0) - (a.progress || 0);
+                    case 'progress_asc':
+                        return (a.progress || 0) - (b.progress || 0);
+                    default:
+                        return 0;
+                }
+            });
+            
+            // 更新计数
+            document.getElementById('archive-count').textContent = 
+                `共 ${filtered.length} 条 (总计 ${archivedProjects.length} 条)`;
+            
+            if (filtered.length === 0) {
+                if (archivedProjects.length === 0) {
+                    document.getElementById('archived-list').innerHTML = 
+                        '<div style="text-align: center; padding: 20px; color: #999;">暂无已结项项目</div>';
+                } else {
+                    document.getElementById('archived-list').innerHTML = 
+                        '<div style="text-align: center; padding: 20px; color: #999;">未找到匹配的项目</div>';
+                }
+                return;
+            }
+            
+            document.getElementById('archived-list').innerHTML = filtered.map(p => `
+                <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; font-size: 16px;">📦 ${p.name}</div>
+                            <div style="font-size: 13px; color: #666; margin-top: 5px;">
+                                结项时间: ${p.archived_at ? new Date(p.archived_at).toLocaleDateString() : '-'} |
+                                进度: ${p.progress || 100}% |
+                                任务完成: ${p.completed_tasks || 0}/${p.total_tasks || 0} |
+                                负责人: ${p.owner_name || '未指定'}
+                            </div>
+                            ${p.archive_notes ? `<div style="font-size: 13px; color: #333; margin-top: 5px; padding: 8px; background: white; border-radius: 4px;">📝 ${p.archive_notes}</div>` : ''}
+                        </div>
+                        <div style="display: flex; gap: 5px; margin-left: 10px;">
+                            <button class="btn btn-secondary" onclick="viewArchivedProject(${p.id})">查看详情</button>
+                            <button class="btn btn-secondary" onclick="unarchiveProject(${p.id})">撤销结项</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function viewArchivedProject(id) {
+            hideModal('archived-modal');
+            window.location.href = `project.html?id=${id}`;
+        }
+        
+        async function unarchiveProject(id) {
+            if (!confirm('确定撤销结项？项目将恢复为已完成状态。')) return;
+            
+            try {
+                const res = await authFetch(`${API}/projects/${id}/unarchive`, {
+                    method: 'POST'
+                });
+                
+                const result = await res.json();
+                if (result.success) {
+                    showArchivedModal();
+                    loadProjects();
+                    alert('已撤销结项');
+                } else {
+                    alert(result.error || '撤销失败');
+                }
+            } catch (e) {
+                alert('撤销失败: ' + e.message);
+            }
+        }
+        
+        async function exportProjects() {
+            const res = await authFetch(`${API}/projects`);
+            const data = await res.json();
+            const projects = data.projects || [];
+            
+            if (projects.length === 0) {
+                alert('暂无项目数据可导出');
+                return;
+            }
+            
+            // 导出JSON
+            const json = JSON.stringify(projects.map(p => ({
+                id: p.id,
+                name: p.name,
+                description: p.description,
+                status: p.status,
+                priority: p.priority,
+                progress: p.progress,
+                owner: p.owner_name,
+                start_date: p.start_date,
+                target_end_date: p.target_end_date
+            })), null, 2);
+            
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'projects_export.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            // 同时导出CSV
+            const csvHeader = 'ID,项目名称,描述,状态,优先级,进度,负责人,开始日期,目标截止';
+            const csvRows = projects.map(p => 
+                `${p.id},"${p.name}","${p.description || ''}",${p.status},${p.priority},${p.progress},"${p.owner_name || ''}",${p.start_date || ''},${p.target_end_date || ''}`
+            );
+            const csv = csvHeader + '\n' + csvRows.join('\n');
+            
+            const csvBlob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+            const csvUrl = URL.createObjectURL(csvBlob);
+            const csvA = document.createElement('a');
+            csvA.href = csvUrl;
+            csvA.download = 'projects_export.csv';
+            csvA.click();
+            URL.revokeObjectURL(csvUrl);
+        }
+        
+        document.addEventListener('DOMContentLoaded', async () => { const u = await initAuthPage(); if (u) { loadProjects(); loadPersons(); } });
+    </script>
+    <script src="dark-mode.js"></script>
+</body>
+</html>

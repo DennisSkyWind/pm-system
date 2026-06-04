@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>提醒管理 - 项目管理系统</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+        
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; }
+        header h1 { font-size: 24px; }
+        nav { display: flex; gap: 15px; margin-top: 15px; }
+        nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; background: rgba(255,255,255,0.2); }
+        nav a:hover { background: rgba(255,255,255,0.3); }
+        nav a.active { background: rgba(255,255,255,0.4); }
+        
+        main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+        
+        .section { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .section-title { font-size: 18px; font-weight: 600; margin-bottom: 15px; color: #333; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+        .stat-card { background: #f9f9f9; border-radius: 10px; padding: 20px; text-align: center; }
+        .stat-card .number { font-size: 32px; font-weight: bold; margin-bottom: 5px; }
+        .stat-card .label { font-size: 14px; color: #666; }
+        .stat-card.danger .number { color: #f44336; }
+        .stat-card.warning .number { color: #ff9800; }
+        .stat-card.success .number { color: #4caf50; }
+        
+        .task-list { margin-top: 15px; }
+        .task-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #f9f9f9; border-radius: 8px; margin-bottom: 10px; }
+        .task-info { flex: 1; }
+        .task-name { font-weight: 600; color: #333; }
+        .task-meta { font-size: 13px; color: #666; margin-top: 5px; }
+        .task-date { color: #667eea; }
+        .task-date.overdue { color: #f44336; font-weight: bold; }
+        
+        .badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; }
+        .badge-overdue { background: #ffebee; color: #f44336; }
+        .badge-today { background: #fff3e0; color: #ff9800; }
+        .badge-upcoming { background: #e3f2fd; color: #2196f3; }
+        
+        .btn { padding: 8px 16px; border-radius: 6px; cursor: pointer; border: none; font-size: 14px; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-secondary { background: #e0e0e0; color: #333; }
+        
+        .empty-state { text-align: center; padding: 40px; color: #999; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <link rel="stylesheet" href="common.css">
+    <link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+    <header>
+        <h1>📊 提醒管理</h1>
+        <nav>
+            <a href="index.html">Dashboard</a>
+            <a href="projects.html">项目列表</a>
+            <a href="phases.html">阶段管理</a>
+            <a href="tasks.html">任务管理</a>
+            <a href="issues.html">问题追踪</a>
+            <a href="reminders.html" class="active">提醒管理</a>
+            <a href="persons.html">人员名册</a>
+        <span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:auto;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span></nav>
+    </header>
+    
+
+    <!-- 全局搜索弹窗 -->
+    <div id="global-search-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;backdrop-filter:blur(2px);" onclick="hideGlobalSearch()">
+        <div style="max-width:600px;margin:80px auto 0;background:white;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;" onclick="event.stopPropagation()">
+            <div style="display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid #eee;gap:10px;">
+                <span style="font-size:20px">🔍</span>
+                <input type="text" id="global-search-input" placeholder="搜索项目、任务、人员..." 
+                    style="flex:1;border:none;font-size:16px;outline:none;" 
+                    oninput="doGlobalSearch()" onkeydown="handleSearchKey(event)">
+                <kbd style="background:#f0f0f0;padding:2px 8px;border-radius:4px;font-size:12px;color:#888">ESC</kbd>
+            </div>
+            <div id="global-search-results" style="max-height:400px;overflow-y:auto;padding:8px;"></div>
+        </div>
+    </div>
+
+
+    <!-- 通知面板 -->
+    <div id="notification-panel" style="display:none;position:fixed;top:60px;right:20px;width:360px;max-height:500px;background:white;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.15);z-index:9998;overflow:hidden;">
+        <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="font-size:15px;margin:0;">🔔 通知</h3>
+            <div>
+                <a onclick="markAllNotificationsRead()" style="font-size:12px;color:#667eea;cursor:pointer;margin-right:10px;">全部已读</a>
+                <a onclick="toggleNotificationPanel()" style="cursor:pointer;font-size:16px;">✕</a>
+            </div>
+        </div>
+        <div id="notification-list" style="max-height:420px;overflow-y:auto;"></div>
+    </div>
+
+    <main>
+        <!-- 统计概览 -->
+        <div class="section">
+            <div class="section-title">📋 任务到期统计</div>
+            <div class="stats-grid">
+                <div class="stat-card danger">
+                    <div class="number" id="overdue-count">0</div>
+                    <div class="label">已延期</div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="number" id="today-count">0</div>
+                    <div class="label">今日到期</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number" id="upcoming-count">0</div>
+                    <div class="label">一周内到期</div>
+                </div>
+                <div class="stat-card success">
+                    <div class="number" id="completed-count">0</div>
+                    <div class="label">已完成</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 已延期任务 -->
+        <div class="section">
+            <div class="section-title">⚠️ 已延期任务</div>
+            <div class="task-list" id="overdue-list">
+                <div class="empty-state">加载中...</div>
+            </div>
+        </div>
+        
+        <!-- 今日到期 -->
+        <div class="section">
+            <div class="section-title">📅 今日到期</div>
+            <div class="task-list" id="today-list">
+                <div class="empty-state">加载中...</div>
+            </div>
+        </div>
+        
+        <!-- 一周内到期 -->
+        <div class="section">
+            <div class="section-title">📆 一周内到期</div>
+            <div class="task-list" id="upcoming-list">
+                <div class="empty-state">加载中...</div>
+            </div>
+        </div>
+        
+        <!-- 发送提醒 -->
+        <div class="section">
+            <div class="section-title">🔔 发送提醒</div>
+            <button class="btn btn-primary" onclick="sendReminder()">发送钉钉提醒</button>
+            <span id="reminder-status" style="margin-left: 10px; color: #666;"></span>
+        </div>
+    </main>
+    
+    <script src="auth.js"></script>
+    <script>
+        
+        // ========== 全局搜索 ==========
+        let _gsData = { projects: [], tasks: [], persons: [] };
+        function showGlobalSearch() {
+            document.getElementById('global-search-overlay').style.display = 'block';
+            const input = document.getElementById('global-search-input');
+            input.value = ''; input.focus();
+            document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>';
+        }
+        function hideGlobalSearch() { document.getElementById('global-search-overlay').style.display = 'none'; }
+        async function doGlobalSearch() {
+            const q = document.getElementById('global-search-input').value.trim().toLowerCase();
+            if (!q) { document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>'; return; }
+            if (_gsData.projects.length === 0) {
+                try {
+                    const [pR, tR, peR] = await Promise.all([authFetch(`${API}/projects`), authFetch(`${API}/tasks`), authFetch(`${API}/persons`)]);
+                    _gsData.projects = (await pR.json()).projects || [];
+                    _gsData.tasks = (await tR.json()).tasks || [];
+                    _gsData.persons = (await peR.json()).persons || [];
+                } catch(e) {}
+            }
+            const res = [];
+            _gsData.projects.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'project',i:'📁',n:p.name,d:`进度 ${p.progress||0}%`,l:`project.html?id=${p.id}`}));
+            _gsData.tasks.filter(t => (t.name||'').toLowerCase().includes(q)).slice(0,8).forEach(t => res.push({t:'task',i:'📋',n:t.name,d:`${t.project_name||''} · ${t.assignee_name||'未分配'}`,l:'tasks.html'}));
+            _gsData.persons.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'person',i:'👤',n:p.name,d:`${p.line||''} ${p.position||''}`,l:'persons.html'}));
+            const c = document.getElementById('global-search-results');
+            if (!res.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#999">未找到相关结果</div>'; return; }
+            c.innerHTML = res.map(r => `<a href="${r.l}" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;text-decoration:none;color:#333" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background=''"><span style="font-size:18px">${r.i}</span><div style="flex:1"><div style="font-weight:500">${r.n}</div><div style="font-size:12px;color:#888">${r.d}</div></div><span style="font-size:11px;color:#bbb;background:#f5f5f5;padding:2px 6px;border-radius:3px">${r.t==='project'?'项目':r.t==='task'?'任务':'人员'}</span></a>`).join('');
+        }
+        function handleSearchKey(e) { if (e.key === 'Escape') hideGlobalSearch(); }
+        document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); showGlobalSearch(); } });
+
+        
+        // ========== 通知中心 ==========
+        let _notifPanelOpen = false;
+        function toggleNotificationPanel() {
+            _notifPanelOpen = !_notifPanelOpen;
+            const panel = document.getElementById('notification-panel');
+            if (!panel) return;
+            panel.style.display = _notifPanelOpen ? 'block' : 'none';
+            if (_notifPanelOpen) loadNotifications();
+        }
+        async function loadNotifications() {
+            try {
+                const res = await authFetch(`${API}/notifications`);
+                const data = await res.json();
+                const badge = document.getElementById('notification-badge');
+                const list = document.getElementById('notification-list');
+                if (!list) return;
+                const unread = data.unread_count || 0;
+                if (badge) { badge.textContent = unread; badge.style.display = unread > 0 ? 'inline' : 'none'; }
+                const notifs = data.notifications || [];
+                if (!notifs.length) { list.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">暂无通知</div>'; return; }
+                const typeIcons = { task_assign: '📋', task_complete: '✅', comment: '💬', info: 'ℹ️', warning: '⚠️' };
+                list.innerHTML = notifs.map(n => `<div style="padding:10px 16px;border-bottom:1px solid #f5f5f5;${n.is_read?'':'background:#f0f4ff;'}cursor:pointer;" onclick="handleNotificationClick(${n.id}, '${n.entity_type||''}', ${n.entity_id||0})"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:16px;">${typeIcons[n.type]||'🔔'}</span><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:${n.is_read?'400':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.title||''}</div><div style="font-size:12px;color:#888;margin-top:2px;">${n.content||''}</div><div style="font-size:11px;color:#bbb;margin-top:3px;">${(n.created_at||'').replace('T',' ').substring(0,16)}</div></div></div></div>`).join('');
+            } catch(e) { console.error('加载通知失败', e); }
+        }
+        async function handleNotificationClick(nid, entityType, entityId) {
+            await authFetch(`${API}/notifications/${nid}/read`, { method: 'POST' });
+            loadNotifications();
+            if (entityType === 'task' && entityId) location.href = 'tasks.html';
+        }
+        async function markAllNotificationsRead() {
+            await authFetch(`${API}/notifications/read-all`, { method: 'POST' });
+            loadNotifications();
+        }
+        setInterval(() => { if (!_notifPanelOpen) loadNotifications(); }, 60000);
+        setTimeout(loadNotifications, 2000);
+
+        const API = '/api';
+
+
+        
+        async function loadDueTasks() {
+            try {
+                const res = await authFetch(`${API}/tasks/due-check`);
+                const data = await res.json();
+                
+                // 更新统计
+                document.getElementById('overdue-count').textContent = data.stats.overdue_count || 0;
+                document.getElementById('today-count').textContent = data.stats.today_count || 0;
+                document.getElementById('upcoming-count').textContent = data.stats.upcoming_count || 0;
+                
+                // 渲染列表
+                renderTaskList('overdue-list', data.overdue, 'badge-overdue', '已延期');
+                renderTaskList('today-list', data.today, 'badge-today', '今日');
+                renderTaskList('upcoming-list', data.upcoming, 'badge-upcoming', '即将到期');
+                
+                // 获取已完成数量
+                const statsRes = await authFetch(`${API}/stats`);
+                const statsData = await statsRes.json();
+                document.getElementById('completed-count').textContent = statsData.stats.tasks.completed || 0;
+                
+            } catch (e) {
+                console.error('加载失败:', e);
+            }
+        }
+        
+        function renderTaskList(containerId, tasks, badgeClass, badgeText) {
+            const container = document.getElementById(containerId);
+            
+            if (!tasks || tasks.length === 0) {
+                container.innerHTML = '<div class="empty-state">暂无任务</div>';
+                return;
+            }
+            
+            container.innerHTML = tasks.map(t => `
+                <div class="task-item">
+                    <div class="task-info">
+                        <div class="task-name">${t.name}</div>
+                        <div class="task-meta">
+                            项目: ${t.project_name || '未知'} | 
+                            <span class="task-date ${t.due_date < new Date().toISOString().split('T')[0] ? 'overdue' : ''}">
+                                截止: ${t.due_date || '未设置'}
+                            </span>
+                        </div>
+                    </div>
+                    <span class="badge ${badgeClass}">${badgeText}</span>
+                    <a href="tasks.html" class="btn btn-secondary" style="margin-left: 10px;">查看</a>
+                </div>
+            `).join('');
+        }
+        
+        async function sendReminder() {
+            const statusEl = document.getElementById('reminder-status');
+            statusEl.textContent = '发送中...';
+            
+            try {
+                const res = await authFetch(`${API}/notify/due-tasks`, { method: 'POST' });
+                const data = await res.json();
+                
+                if (data.success && data.sent) {
+                    statusEl.textContent = '✅ 已发送钉钉提醒';
+                    statusEl.style.color = '#4caf50';
+                } else {
+                    statusEl.textContent = data.message || '暂无需要提醒的任务';
+                    statusEl.style.color = '#666';
+                }
+            } catch (e) {
+                statusEl.textContent = '发送失败: ' + e.message;
+                statusEl.style.color = '#f44336';
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', async () => { const u = await initAuthPage(); if (u) loadDueTasks(); });
+    </script>
+    <script src="dark-mode.js"></script>
+</body>
+</html>

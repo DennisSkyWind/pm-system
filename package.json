@@ -1,0 +1,16 @@
+{
+  "name": "pm-system",
+  "version": "2.0.0",
+  "description": "项目管理系统 - 任务追踪、甘特图、看板、权限管理、PDF导出",
+  "main": "pm_server.py",
+  "scripts": {
+    "start": "python3 pm_server.py",
+    "setup": "python3 -c \"import os; os.makedirs('data', exist_ok=True); os.makedirs('data/attachments', exist_ok=True); print('✅ 目录已创建')\""
+  },
+  "keywords": ["project-management", "task-tracking", "gantt", "kanban", "team-collaboration"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DennisSkyWind/pm-system.git"
+  }
+}

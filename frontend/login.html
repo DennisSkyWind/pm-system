@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>项目管理系统 - 登录</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-container {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            width: 400px;
+            max-width: 90%;
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .login-header h1 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        .login-header p {
+            color: #666;
+            font-size: 14px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102,126,234,0.4);
+        }
+        .login-btn:active {
+            transform: translateY(0);
+        }
+        .login-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        .error-msg {
+            color: #e74c3c;
+            font-size: 14px;
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+            background: #fdf2f2;
+            border-radius: 6px;
+            display: none;
+        }
+        .success-msg {
+            color: #27ae60;
+            font-size: 14px;
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+            background: #f0fff4;
+            border-radius: 6px;
+            display: none;
+        }
+        .user-info {
+            text-align: center;
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .user-info p {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .user-info .name {
+            color: #333;
+            font-size: 18px;
+            font-weight: 500;
+        }
+        .logout-btn {
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: #f1f3f5;
+            color: #333;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .tips {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff3cd;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #856404;
+        }
+        .tips h3 {
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .tips ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        .tips li {
+            margin-bottom: 5px;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #fff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+    <link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>📋 项目管理系统</h1>
+            <p>智能与数字化中心 · 数据智能</p>
+        </div>
+        
+        <!-- 登录表单 -->
+        <div id="login-form">
+            <div class="form-group">
+                <label for="username">用户名</label>
+                <input type="text" id="username" placeholder="请输入用户名（姓名拼音缩写）" autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input type="password" id="password" placeholder="请输入密码" autocomplete="current-password">
+            </div>
+            <button class="login-btn" onclick="login()">登录</button>
+            <div class="error-msg" id="error-msg"></div>
+        </div>
+        
+        <!-- 登录成功显示 -->
+        <div id="login-success" style="display:none;">
+            <div class="success-msg">登录成功！</div>
+            <div class="user-info">
+                <p>欢迎您</p>
+                <p class="name" id="user-name"></p>
+                <p id="user-role"></p>
+                <button class="logout-btn" onclick="logout()">退出登录</button>
+            </div>
+        </div>
+        
+        <!-- 使用提示 -->
+        <div class="tips">
+            <h3>💡 使用提示</h3>
+            <ul>
+                <li>• 用户名：姓名拼音缩写（如：张三 → zhangsan）</li>
+                <li>• 默认密码：pm2026</li>
+                <li>• 首次登录后请修改密码</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script src="auth.js"></script>
+    <script>
+        const API_BASE = '/api';
+        
+        // 检查是否已登录（已登录则跳转）
+        async function checkAlreadyLogin() {
+            const token = localStorage.getItem('pm_token');
+            if (token) {
+                const res = await fetch(`${API_BASE}/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    // 已登录，直接跳转
+                    redirectAfterLogin();
+                }
+            }
+        }
+        
+        // 登录
+        async function login() {
+            const username = document.getElementById('username').value.trim().toLowerCase();
+            const password = document.getElementById('password').value;
+            const errorMsg = document.getElementById('error-msg');
+            
+            if (!username || !password) {
+                errorMsg.textContent = '请输入用户名和密码';
+                errorMsg.style.display = 'block';
+                return;
+            }
+            
+            const btn = document.querySelector('.login-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span>登录中...';
+            errorMsg.style.display = 'none';
+            
+            try {
+                const res = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    localStorage.setItem('pm_token', data.token);
+                    showLoggedIn(data.user);
+                    // 2秒后跳转
+                    setTimeout(() => redirectAfterLogin(), 2000);
+                } else {
+                    errorMsg.textContent = data.error || '登录失败';
+                    errorMsg.style.display = 'block';
+                }
+            } catch (e) {
+                errorMsg.textContent = '网络错误，请稍后重试';
+                errorMsg.style.display = 'block';
+            }
+            
+            btn.disabled = false;
+            btn.textContent = '登录';
+        }
+        
+        // 显示已登录状态
+        function showLoggedIn(user) {
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('login-success').style.display = 'block';
+            document.getElementById('user-name').textContent = user.person_name || user.username;
+            document.getElementById('user-role').textContent = `角色: ${user.role === 'admin' ? '管理员' : '普通用户'}`;
+        }
+        
+        // 回车登录
+        document.getElementById('password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') login();
+        });
+        
+        // 页面加载检查登录状态
+        checkAlreadyLogin();
+    </script>
+</body>
+</html>

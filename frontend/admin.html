@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>项目管理系统 - 管理后台</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+        
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; }
+        header h1 { font-size: 24px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; }
+        .user-area { display: flex; align-items: center; gap: 10px; }
+        .user-area .user-name { font-size: 14px; padding: 6px 12px; background: rgba(255,255,255,0.2); border-radius: 6px; }
+        .logout-btn { font-size: 13px; padding: 6px 12px; background: rgba(255,255,255,0.3); border-radius: 6px; color: white; cursor: pointer; border: none; }
+        nav { display: flex; gap: 15px; margin-top: 15px; }
+        nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; background: rgba(255,255,255,0.2); }
+        nav a:hover { background: rgba(255,255,255,0.3); }
+        nav a.active { background: rgba(255,255,255,0.4); }
+        
+        main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; margin-bottom: 30px; }
+        .stat-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }
+        .stat-card h3 { color: #666; font-size: 14px; margin-bottom: 8px; }
+        .stat-card .number { font-size: 32px; font-weight: bold; }
+        .stat-card.projects .number { color: #667eea; }
+        .stat-card.tasks .number { color: #4CAF50; }
+        .stat-card.users .number { color: #FF9800; }
+        .stat-card.admins .number { color: #9C27B0; }
+        .stat-card.issues .number { color: #f44336; }
+        
+        .section { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .section h2 { font-size: 18px; margin-bottom: 15px; color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
+        
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e0e0e0; }
+        th { background: #f5f5f5; font-weight: 500; }
+        tr:hover { background: #fafafa; }
+        
+        .badge { padding: 4px 10px; border-radius: 4px; font-size: 12px; }
+        .badge.admin { background: #9C27B0; color: white; }
+        .badge.user { background: #e0e0e0; color: #666; }
+        
+        .btn { padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-danger { background: #f44336; color: white; }
+        .btn:hover { opacity: 0.9; }
+        
+        .error-msg { color: #e74c3c; padding: 15px; background: #fdf2f2; border-radius: 8px; margin-bottom: 20px; }
+        .loading { text-align: center; padding: 40px; color: #666; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .modal.show { display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: white; padding: 30px; border-radius: 12px; max-width: 400px; }
+        .modal-content h3 { margin-bottom: 20px; }
+        .modal-content select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 15px; }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <link rel="stylesheet" href="common.css">
+    <link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+    <header>
+        <div class="header-top">
+            <h1>🔐 管理后台</h1>
+            <div id="user-area" class="user-area">
+                <span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-right:10px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span>
+                <span class="user-name" id="user-name"></span>
+                <button class="logout-btn" onclick="logout()">退出</button>
+            </div>
+        </div>
+        <nav>
+            <a href="index.html">Dashboard</a>
+            <a href="admin.html" class="active">管理后台</a>
+            <a href="persons.html">人员名册</a>
+        <a href="settings.html">⚙️ 个人设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span></nav>
+    </header>
+    
+
+    <!-- 全局搜索弹窗 -->
+    <div id="global-search-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;backdrop-filter:blur(2px);" onclick="hideGlobalSearch()">
+        <div style="max-width:600px;margin:80px auto 0;background:white;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;" onclick="event.stopPropagation()">
+            <div style="display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid #eee;gap:10px;">
+                <span style="font-size:20px">🔍</span>
+                <input type="text" id="global-search-input" placeholder="搜索项目、任务、人员..." 
+                    style="flex:1;border:none;font-size:16px;outline:none;" 
+                    oninput="doGlobalSearch()" onkeydown="handleSearchKey(event)">
+                <kbd style="background:#f0f0f0;padding:2px 8px;border-radius:4px;font-size:12px;color:#888">ESC</kbd>
+            </div>
+            <div id="global-search-results" style="max-height:400px;overflow-y:auto;padding:8px;"></div>
+        </div>
+    </div>
+
+
+    <!-- 通知面板 -->
+    <div id="notification-panel" style="display:none;position:fixed;top:60px;right:20px;width:360px;max-height:500px;background:white;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.15);z-index:9998;overflow:hidden;">
+        <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="font-size:15px;margin:0;">🔔 通知</h3>
+            <div>
+                <a onclick="markAllNotificationsRead()" style="font-size:12px;color:#667eea;cursor:pointer;margin-right:10px;">全部已读</a>
+                <a onclick="toggleNotificationPanel()" style="cursor:pointer;font-size:16px;">✕</a>
+            </div>
+        </div>
+        <div id="notification-list" style="max-height:420px;overflow-y:auto;"></div>
+    </div>
+
+    <main>
+        <div id="error-box" class="error-msg" style="display:none;"></div>
+        
+        <!-- 统计卡片 -->
+        <div class="stats-grid" id="stats-grid">
+            <div class="loading">加载中...</div>
+        </div>
+        
+        <!-- 用户管理 -->
+        <div class="section">
+            <h2>👥 用户管理</h2>
+            <table id="users-table">
+                <thead>
+                    <tr>
+                        <th>用户名</th>
+                        <th>姓名</th>
+                        <th>角色</th>
+                        <th>最后登录</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="users-body">
+                    <tr><td colspan="5" class="loading">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 最近登录 -->
+        <div class="section">
+            <h2>📅 最近登录</h2>
+            <table id="logins-table">
+                <thead>
+                    <tr><th>用户</th><th>姓名</th><th>登录时间</th></tr>
+                </thead>
+                <tbody id="logins-body"></tbody>
+            </table>
+        </div>
+        
+        <!-- 操作日志 -->
+        <div class="section">
+            <h2>📋 操作日志</h2>
+            <div style="display:flex;gap:10px;margin-bottom:15px;flex-wrap:wrap;">
+                <select id="log-entity-type" style="padding:8px;border:1px solid #ddd;border-radius:6px;">
+                    <option value="">全部类型</option>
+                    <option value="project">项目</option>
+                    <option value="task">任务</option>
+                    <option value="issue">问题</option>
+                    <option value="comment">评论</option>
+                    <option value="attachment">附件</option>
+                </select>
+                <select id="log-action" style="padding:8px;border:1px solid #ddd;border-radius:6px;">
+                    <option value="">全部操作</option>
+                    <option value="create">创建</option>
+                    <option value="update">更新</option>
+                    <option value="delete">删除</option>
+                    <option value="complete">完成</option>
+                    <option value="archive">结项</option>
+                </select>
+                <input type="text" id="log-operator" placeholder="操作人" style="padding:8px;border:1px solid #ddd;border-radius:6px;width:120px;">
+                <button class="btn btn-primary" onclick="loadLogs()">筛选</button>
+                <button class="btn" onclick="document.getElementById('log-entity-type').value='';document.getElementById('log-action').value='';document.getElementById('log-operator').value='';loadLogs()">重置</button>
+            </div>
+            <table id="logs-table">
+                <thead>
+                    <tr><th>时间</th><th>类型</th><th>操作</th><th>对象ID</th><th>详情</th><th>操作人</th></tr>
+                </thead>
+                <tbody id="logs-body">
+                    <tr><td colspan="6" class="loading">加载中...</td></tr>
+                </tbody>
+            </table>
+            <div style="margin-top:10px;text-align:center;">
+                <button class="btn" id="load-more-logs" onclick="loadMoreLogs()" style="display:none;">加载更多</button>
+            </div>
+        </div>
+    </main>
+    
+    <!-- 角色修改模态框 -->
+    <div class="modal" id="role-modal">
+        <div class="modal-content">
+            <h3>修改用户角色</h3>
+            <select id="new-role">
+                <option value="user">普通用户</option>
+                <option value="admin">管理员</option>
+            </select>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeRoleModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveRole()">保存</button>
+            </div>
+        </div>
+    </div>
+    
+        <script src="auth.js"></script>
+<script>
+        
+        // ========== 全局搜索 ==========
+        let _gsData = { projects: [], tasks: [], persons: [] };
+        function showGlobalSearch() {
+            document.getElementById('global-search-overlay').style.display = 'block';
+            const input = document.getElementById('global-search-input');
+            input.value = ''; input.focus();
+            document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>';
+        }
+        function hideGlobalSearch() { document.getElementById('global-search-overlay').style.display = 'none'; }
+        async function doGlobalSearch() {
+            const q = document.getElementById('global-search-input').value.trim().toLowerCase();
+            if (!q) { document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>'; return; }
+            if (_gsData.projects.length === 0) {
+                try {
+                    const [pR, tR, peR] = await Promise.all([authFetch(`${API}/projects`), authFetch(`${API}/tasks`), authFetch(`${API}/persons`)]);
+                    _gsData.projects = (await pR.json()).projects || [];
+                    _gsData.tasks = (await tR.json()).tasks || [];
+                    _gsData.persons = (await peR.json()).persons || [];
+                } catch(e) {}
+            }
+            const res = [];
+            _gsData.projects.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'project',i:'📁',n:p.name,d:`进度 ${p.progress||0}%`,l:`project.html?id=${p.id}`}));
+            _gsData.tasks.filter(t => (t.name||'').toLowerCase().includes(q)).slice(0,8).forEach(t => res.push({t:'task',i:'📋',n:t.name,d:`${t.project_name||''} · ${t.assignee_name||'未分配'}`,l:'tasks.html'}));
+            _gsData.persons.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'person',i:'👤',n:p.name,d:`${p.line||''} ${p.position||''}`,l:'persons.html'}));
+            const c = document.getElementById('global-search-results');
+            if (!res.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#999">未找到相关结果</div>'; return; }
+            c.innerHTML = res.map(r => `<a href="${r.l}" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;text-decoration:none;color:#333" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background=''"><span style="font-size:18px">${r.i}</span><div style="flex:1"><div style="font-weight:500">${r.n}</div><div style="font-size:12px;color:#888">${r.d}</div></div><span style="font-size:11px;color:#bbb;background:#f5f5f5;padding:2px 6px;border-radius:3px">${r.t==='project'?'项目':r.t==='task'?'任务':'人员'}</span></a>`).join('');
+        }
+        function handleSearchKey(e) { if (e.key === 'Escape') hideGlobalSearch(); }
+        document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); showGlobalSearch(); } });
+
+        
+        // ========== 通知中心 ==========
+        let _notifPanelOpen = false;
+        function toggleNotificationPanel() {
+            _notifPanelOpen = !_notifPanelOpen;
+            const panel = document.getElementById('notification-panel');
+            if (!panel) return;
+            panel.style.display = _notifPanelOpen ? 'block' : 'none';
+            if (_notifPanelOpen) loadNotifications();
+        }
+        async function loadNotifications() {
+            try {
+                const res = await authFetch(`${API}/notifications`);
+                const data = await res.json();
+                const badge = document.getElementById('notification-badge');
+                const list = document.getElementById('notification-list');
+                if (!list) return;
+                
+                const unread = data.unread_count || 0;
+                if (badge) {
+                    badge.textContent = unread;
+                    badge.style.display = unread > 0 ? 'inline' : 'none';
+                }
+                
+                const notifs = data.notifications || [];
+                if (!notifs.length) {
+                    list.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">暂无通知</div>';
+                    return;
+                }
+                
+                const typeIcons = { task_assign: '📋', task_complete: '✅', comment: '💬', info: 'ℹ️', warning: '⚠️' };
+                list.innerHTML = notifs.map(n => `
+                    <div style="padding:10px 16px;border-bottom:1px solid #f5f5f5;${n.is_read?'':'background:#f0f4ff;'}cursor:pointer;" onclick="handleNotificationClick(${n.id}, '${n.entity_type||''}', ${n.entity_id||0})">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span style="font-size:16px;">${typeIcons[n.type]||'🔔'}</span>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:13px;font-weight:${n.is_read?'400':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.title||''}</div>
+                                <div style="font-size:12px;color:#888;margin-top:2px;">${n.content||''}</div>
+                                <div style="font-size:11px;color:#bbb;margin-top:3px;">${(n.created_at||'').replace('T',' ').substring(0,16)}</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch(e) { console.error('加载通知失败', e); }
+        }
+        async function handleNotificationClick(nid, entityType, entityId) {
+            // 标记已读
+            await authFetch(`${API}/notifications/${nid}/read`, { method: 'POST' });
+            loadNotifications();
+            // 跳转
+            if (entityType === 'task' && entityId) location.href = 'tasks.html';
+        }
+        async function markAllNotificationsRead() {
+            await authFetch(`${API}/notifications/read-all`, { method: 'POST' });
+            loadNotifications();
+        }
+        // 定时刷新通知
+        setInterval(() => { if (!_notifPanelOpen) loadNotifications(); }, 60000);
+        // 初始加载
+        setTimeout(loadNotifications, 2000);
+
+        const API = '/api';
+        let currentUserId = null;
+        
+        // 检查管理员权限
+        async function checkAdmin() {
+            const token = localStorage.getItem('pm_token');
+            if (!token) {
+                window.location.href = 'login.html';
+                return false;
+            }
+            
+            const res = await authFetch(API + '/auth/me', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            const data = await res.json();
+            
+            if (!data.success || data.user.role !== 'admin') {
+                showError('需要管理员权限');
+                setTimeout(() => window.location.href = 'index.html', 2000);
+                return false;
+            }
+            
+            document.getElementById('user-name').textContent = '👤 ' + data.user.person_name;
+            return true;
+        }
+        
+        // 加载统计数据
+        async function loadStats() {
+            const token = localStorage.getItem('pm_token');
+            const res = await authFetch(API + '/admin/stats', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            const data = await res.json();
+            
+            if (!data.success) {
+                showError(data.error || '加载失败');
+                return;
+            }
+            
+            const stats = data.stats;
+            document.getElementById('stats-grid').innerHTML = `
+                <div class="stat-card projects"><h3>项目总数</h3><div class="number">${stats.projects}</div></div>
+                <div class="stat-card tasks"><h3>任务总数</h3><div class="number">${stats.tasks}</div></div>
+                <div class="stat-card users"><h3>用户总数</h3><div class="number">${stats.users}</div></div>
+                <div class="stat-card admins"><h3>管理员</h3><div class="number">${stats.admins}</div></div>
+                <div class="stat-card issues"><h3>待解决问题</h3><div class="number">${stats.pending_issues}</div></div>
+            `;
+            
+            // 最近登录
+            const loginsBody = document.getElementById('logins-body');
+            if (data.recent_logins.length === 0) {
+                loginsBody.innerHTML = '<tr><td colspan="3">暂无登录记录</td></tr>';
+            } else {
+                loginsBody.innerHTML = data.recent_logins.map(l => `
+                    <tr><td>${l.username}</td><td>${l.name}</td><td>${l.last_login}</td></tr>
+                `).join('');
+            }
+        }
+        
+        // 加载用户列表
+        async function loadUsers() {
+            const token = localStorage.getItem('pm_token');
+            const res = await authFetch(API + '/users', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            const data = await res.json();
+            
+            if (!data.success) return;
+            
+            const tbody = document.getElementById('users-body');
+            tbody.innerHTML = data.users.map(u => `
+                <tr>
+                    <td>${u.username}</td>
+                    <td>${u.person_name || '-'}</td>
+                    <td><span class="badge ${u.role}">${u.role === 'admin' ? '管理员' : '普通用户'}</span></td>
+                    <td>${u.last_login || '从未登录'}</td>
+                    <td>
+                        <button class="btn btn-primary" onclick="openRoleModal(${u.id}, '${u.role}')">改角色</button>
+                        <button class="btn btn-danger" onclick="resetPassword(${u.id}, '${u.username}')">重置密码</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        // 角色模态框
+        function openRoleModal(userId, currentRole) {
+            currentUserId = userId;
+            document.getElementById('new-role').value = currentRole;
+            document.getElementById('role-modal').classList.add('show');
+        }
+        
+        function closeRoleModal() {
+            document.getElementById('role-modal').classList.remove('show');
+            currentUserId = null;
+        }
+        
+        async function saveRole() {
+            const newRole = document.getElementById('new-role').value;
+            const token = localStorage.getItem('pm_token');
+            
+            const res = await authFetch(API + '/admin/users/' + currentUserId + '/role', {
+                method: 'PUT',
+                headers: { 
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ role: newRole })
+            });
+            
+            const data = await res.json();
+            if (data.success) {
+                closeRoleModal();
+                loadUsers();
+                loadStats();
+            } else {
+                alert(data.error);
+            }
+        }
+        
+        // 重置密码
+        async function resetPassword(userId, username) {
+            if (!confirm(`确定要重置 ${username} 的密码吗？`)) return;
+            
+            const token = localStorage.getItem('pm_token');
+            const res = await authFetch(API + '/admin/users/' + userId + '/reset-password', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            
+            const data = await res.json();
+            if (data.success) {
+                alert('密码已重置为: pm2026');
+            } else {
+                alert(data.error);
+            }
+        }
+        
+        // 退出登录
+        function logout() {
+            localStorage.removeItem('pm_token');
+            window.location.href = 'login.html';
+        }
+        
+        // 显示错误
+        function showError(msg) {
+            const box = document.getElementById('error-box');
+            box.textContent = msg;
+            box.style.display = 'block';
+        }
+        
+        // 页面加载
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (await checkAdmin()) {
+                loadStats();
+                loadUsers();
+                loadLogs();
+            }
+        });
+        
+        // 操作日志
+        let logLimit = 50;
+        const entityTypeMap = {project:'项目',task:'任务',issue:'问题',comment:'评论',attachment:'附件'};
+        const actionMap = {create:'创建',update:'更新',delete:'删除',complete:'完成',archive:'结项',unarchive:'撤销结项',comment_added:'评论',attachment_added:'附件'};
+        
+        async function loadLogs() {
+            const entityType = document.getElementById('log-entity-type').value;
+            const action = document.getElementById('log-action').value;
+            const operator = document.getElementById('log-operator').value.trim();
+            
+            let url = `${API}/logs?limit=${logLimit}`;
+            if (entityType) url += `&entity_type=${entityType}`;
+            if (action) url += `&action=${action}`;
+            if (operator) url += `&operator_name=${operator}`;
+            
+            const res = await authFetch(url);
+            const data = await res.json();
+            
+            const tbody = document.getElementById('logs-body');
+            if (data.success && data.logs.length > 0) {
+                tbody.innerHTML = data.logs.map(log => {
+                    const et = entityTypeMap[log.entity_type] || log.entity_type;
+                    const act = actionMap[log.action] || log.action;
+                    const detail = log.new_value ? (log.new_value.length > 80 ? log.new_value.substring(0,80)+'...' : log.new_value) : (log.old_value || '');
+                    const time = log.created_at ? log.created_at.substring(0,19).replace('T',' ') : '';
+                    const actionBadge = log.action === 'delete' ? 'background:#f44336;color:white' : 
+                                       log.action === 'create' ? 'background:#4CAF50;color:white' :
+                                       log.action === 'complete' ? 'background:#2196F3;color:white' : 'background:#e0e0e0;color:#666';
+                    return `<tr>
+                        <td>${time}</td>
+                        <td>${et}</td>
+                        <td><span class="badge" style="${actionBadge}">${act}</span></td>
+                        <td>#${log.entity_id}</td>
+                        <td style="font-size:12px;color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis">${detail}</td>
+                        <td>${log.operator_name || '-'}</td>
+                    </tr>`;
+                }).join('');
+                
+                document.getElementById('load-more-logs').style.display = data.logs.length >= logLimit ? 'inline-block' : 'none';
+            } else {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#888">暂无日志</td></tr>';
+                document.getElementById('load-more-logs').style.display = 'none';
+            }
+        }
+        
+        function loadMoreLogs() {
+            logLimit += 50;
+            loadLogs();
+        }
+    </script>
+    <script src="dark-mode.js"></script>
+</body>
+</html>

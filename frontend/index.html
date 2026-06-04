@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>项目管理系统 - Dashboard</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+        
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; }
+        header h1 { font-size: 24px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; }
+        .user-area { display: flex; align-items: center; gap: 10px; }
+        .user-area .user-name { font-size: 14px; padding: 6px 12px; background: rgba(255,255,255,0.2); border-radius: 6px; }
+        .user-area .logout-btn { font-size: 13px; padding: 6px 12px; background: rgba(255,255,255,0.3); border-radius: 6px; color: white; cursor: pointer; border: none; }
+        .login-link { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; background: rgba(255,255,255,0.2); }
+        .login-link:hover { background: rgba(255,255,255,0.3); }
+        nav { display: flex; gap: 15px; margin-top: 15px; }
+        nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; background: rgba(255,255,255,0.2); }
+        nav a:hover { background: rgba(255,255,255,0.3); }
+        nav a.active { background: rgba(255,255,255,0.4); }
+        
+        main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+        
+        .stats-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }
+        .card h3 { color: #666; font-size: 14px; margin-bottom: 10px; }
+        .card .number { font-size: 36px; font-weight: bold; color: #333; }
+        .card.active .number { color: #4CAF50; }
+        .card.completed .number { color: #2196F3; }
+        .card.issues .number { color: #f44336; }
+        
+        .section { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .section h2 { font-size: 18px; margin-bottom: 15px; color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
+        
+        .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
+        .project-card { background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #e0e0e0; }
+        .project-card h3 { font-size: 16px; margin-bottom: 8px; }
+        .project-card p { color: #666; font-size: 13px; margin-bottom: 10px; }
+        .progress-bar { height: 8px; background: #e0e0e0; border-radius: 4px; margin-bottom: 5px; }
+        .progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+        .progress-text { font-size: 12px; color: #666; }
+        .btn { display: inline-block; padding: 8px 16px; background: #667eea; color: white; border-radius: 6px; text-decoration: none; font-size: 13px; margin-top: 10px; }
+        .btn:hover { background: #764ba2; }
+        
+        .task-item { padding: 12px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; }
+        .task-item:last-child { border-bottom: none; }
+        .task-name { font-size: 14px; }
+        .task-due { color: #666; font-size: 12px; }
+        .delayed-badge { background: #f44336; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+        .warning-badge { background: #ff9800; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+        
+        .issue-item { padding: 12px; display: flex; align-items: center; gap: 10px; }
+        .severity-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .issue-title { font-size: 14px; }
+        
+        .empty { color: #999; text-align: center; padding: 20px; }
+        
+        /* 到期预警 */
+        .alert-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; margin-bottom: 6px; font-size: 13px; }
+        .alert-item.overdue { background: #ffebee; border-left: 3px solid #f44336; }
+        .alert-item.soon { background: #fff3e0; border-left: 3px solid #ff9800; }
+        .alert-item.normal { background: #e3f2fd; border-left: 3px solid #2196f3; }
+        .alert-item .alert-icon { font-size: 16px; }
+        .alert-item .alert-info { flex: 1; }
+        .alert-item .alert-task { font-weight: 600; }
+        .alert-item .alert-meta { font-size: 11px; color: #888; }
+        
+        /* 工作量统计 */
+        .workload-item { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 8px 12px; background: #f9f9f9; border-radius: 8px; }
+        .workload-item .wl-name { width: 80px; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .workload-item .wl-bar { flex: 1; height: 20px; background: #e0e0e0; border-radius: 10px; overflow: hidden; position: relative; }
+        .workload-item .wl-bar-fill { height: 100%; border-radius: 10px; transition: width 0.3s; display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; font-size: 11px; color: white; font-weight: 600; }
+        .workload-item .wl-count { font-size: 12px; color: #666; width: 50px; text-align: right; }
+        
+        .new-btn { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 50%; font-size: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .new-btn:hover { transform: scale(1.1); }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .modal.show { display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; }
+        .modal-title { font-size: 20px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-size: 14px; color: #666; }
+        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .form-actions button { padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+        .btn-primary { background: #667eea; color: white; border: none; }
+        .btn-secondary { background: #e0e0e0; color: #333; border: none; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <link rel="stylesheet" href="common.css">
+    <link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+    <header>
+        <div class="header-top">
+            <h1>📊 项目管理系统</h1>
+            <div id="user-area" class="user-area">
+                <span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-right:10px;" onclick="toggleNotificationPanel()" title="通知">
+                    🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span>
+                </span>
+                <a href="login.html" class="login-link">登录</a>
+            </div>
+        </div>
+        <nav>
+            <a href="index.html" class="active">Dashboard</a>
+            <a href="projects.html">项目列表</a>
+            <a href="phases.html">阶段管理</a>
+            <a href="tasks.html">任务管理</a>
+            <a href="issues.html">问题追踪</a>
+            <a href="gantt.html">📊 甘特图</a>
+            <a href="reminders.html">提醒管理</a>
+            <a href="persons.html">人员名册</a>
+            <a href="admin.html">🔐 管理后台</a>
+        <a href="settings.html">⚙️ 个人设置</a>
+            <span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span>
+        <span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span></nav>
+    </header>
+    
+    <!-- 全局搜索弹窗 -->
+    <div id="global-search-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;backdrop-filter:blur(2px);" onclick="hideGlobalSearch()">
+        <div style="max-width:600px;margin:80px auto 0;background:white;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;" onclick="event.stopPropagation()">
+            <div style="display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid #eee;gap:10px;">
+                <span style="font-size:20px">🔍</span>
+                <input type="text" id="global-search-input" placeholder="搜索项目、任务、人员..." 
+                    style="flex:1;border:none;font-size:16px;outline:none;" 
+                    oninput="doGlobalSearch()" onkeydown="handleSearchKey(event)">
+                <kbd style="background:#f0f0f0;padding:2px 8px;border-radius:4px;font-size:12px;color:#888">ESC</kbd>
+            </div>
+            <div id="global-search-results" style="max-height:400px;overflow-y:auto;padding:8px;"></div>
+        </div>
+    </div>
+    
+
+    <!-- 通知面板 -->
+    <div id="notification-panel" style="display:none;position:fixed;top:60px;right:20px;width:360px;max-height:500px;background:white;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.15);z-index:9998;overflow:hidden;">
+        <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="font-size:15px;margin:0;">🔔 通知</h3>
+            <div>
+                <a onclick="markAllNotificationsRead()" style="font-size:12px;color:#667eea;cursor:pointer;margin-right:10px;">全部已读</a>
+                <a onclick="toggleNotificationPanel()" style="cursor:pointer;font-size:16px;">✕</a>
+            </div>
+        </div>
+        <div id="notification-list" style="max-height:420px;overflow-y:auto;"></div>
+    </div>
+
+    <main>
+        <!-- 统计卡片 -->
+        <section class="stats-cards" style="grid-template-columns: repeat(6, 1fr);">
+            <div class="card active">
+                <h3>进行中项目</h3>
+                <span class="number" id="active-count">0</span>
+            </div>
+            <div class="card completed">
+                <h3>已完成项目</h3>
+                <span class="number" id="completed-count">0</span>
+            </div>
+            <div class="card issues">
+                <h3>待处理问题</h3>
+                <span class="number" id="issues-count">0</span>
+            </div>
+            <div class="card" style="background: #fff3e0;">
+                <h3>处理中问题</h3>
+                <span class="number" id="in-progress-issues">0</span>
+            </div>
+            <div class="card" style="background: #e8f5e9;">
+                <h3>✅ 任务完成率</h3>
+                <span class="number" id="task-rate">0%</span>
+            </div>
+            <div class="card" style="background: #e3f2fd;">
+                <h3>👥 人员数量</h3>
+                <span class="number" id="persons-count">0</span>
+            </div>
+        </section>
+        
+        <!-- 快速操作区 -->
+        <section class="section" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 style="color: white; margin-bottom: 5px;">⚡ 快速操作</h2>
+                    <p style="color: rgba(255,255,255,0.8); font-size: 13px;">点击下方按钮快速开始</p>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="showNewProjectModal()" style="background: white; color: #667eea; padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;">📁 新增项目</button>
+                    <button onclick="location.href='tasks.html'" style="background: rgba(255,255,255,0.2); color: white; padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer;">📋 任务管理</button>
+                    <button onclick="location.href='persons.html'" style="background: rgba(255,255,255,0.2); color: white; padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer;">👥 人员管理</button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 图表区域 -->
+        <section class="section" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+            <div>
+                <h2 style="font-size:16px;">📊 项目进度分布</h2>
+                <div id="progress-chart" style="height:200px;display:flex;align-items:center;justify-content:center;"></div>
+            </div>
+            <div>
+                <h2 style="font-size:16px;">📋 任务状态分布</h2>
+                <div id="task-chart" style="height:200px;"></div>
+            </div>
+            <div>
+                <h2 style="font-size:16px;">⚠️ 问题严重程度</h2>
+                <div id="issue-chart" style="height:200px;"></div>
+            </div>
+        </section>
+        
+        <!-- 到期预警 + 工作量统计 -->
+        <section class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
+            <div>
+                <h2 style="font-size:16px;">🔔 到期预警</h2>
+                <div id="overdue-alerts" style="max-height:300px; overflow-y:auto;"></div>
+            </div>
+            <div>
+                <h2 style="font-size:16px;">👥 人员工作量</h2>
+                <div id="workload-chart" style="max-height:300px; overflow-y:auto;"></div>
+            </div>
+        </section>
+        
+        <!-- 项目列表 -->
+        <section class="section">
+            <h2>📁 项目列表</h2>
+            <div class="projects-grid" id="projects-list"></div>
+        </section>
+        
+        <!-- 即将到期 -->
+        <section class="section">
+            <h2>⏰ 即将到期任务</h2>
+            <div id="reminders-list"></div>
+        </section>
+        
+        <!-- 待解决问题 -->
+        <section class="section">
+            <h2>🔴 待解决问题</h2>
+            <div id="issues-list"></div>
+        </section>
+    </main>
+    
+    <!-- 新增按钮 -->
+    <div class="new-btn" onclick="showNewProjectModal()">+</div>
+    
+    <!-- 新项目模态框 -->
+    <div class="modal" id="new-project-modal">
+        <div class="modal-content">
+            <h2 class="modal-title">创建新项目</h2>
+            <div class="form-group">
+                <label>项目名称</label>
+                <input type="text" id="project-name" required>
+            </div>
+            <div class="form-group">
+                <label>项目描述</label>
+                <textarea id="project-desc" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label>优先级</label>
+                <select id="project-priority">
+                    <option value="high">高</option>
+                    <option value="medium" selected>中</option>
+                    <option value="low">低</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>目标完成日期</label>
+                <input type="date" id="project-end-date">
+            </div>
+            <div class="form-actions">
+                <button class="btn-secondary" onclick="hideModal()">取消</button>
+                <button class="btn-primary" onclick="createProject()">创建</button>
+            </div>
+        </div>
+    </div>
+    
+        <script src="auth.js"></script>
+<script>
+        
+        // ========== 通知中心 ==========
+        let _notifPanelOpen = false;
+        function toggleNotificationPanel() {
+            _notifPanelOpen = !_notifPanelOpen;
+            const panel = document.getElementById('notification-panel');
+            if (!panel) return;
+            panel.style.display = _notifPanelOpen ? 'block' : 'none';
+            if (_notifPanelOpen) loadNotifications();
+        }
+        async function loadNotifications() {
+            try {
+                const res = await authFetch(`${API}/notifications`);
+                const data = await res.json();
+                const badge = document.getElementById('notification-badge');
+                const list = document.getElementById('notification-list');
+                if (!list) return;
+                
+                const unread = data.unread_count || 0;
+                if (badge) {
+                    badge.textContent = unread;
+                    badge.style.display = unread > 0 ? 'inline' : 'none';
+                }
+                
+                const notifs = data.notifications || [];
+                if (!notifs.length) {
+                    list.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">暂无通知</div>';
+                    return;
+                }
+                
+                const typeIcons = { task_assign: '📋', task_complete: '✅', comment: '💬', info: 'ℹ️', warning: '⚠️' };
+                list.innerHTML = notifs.map(n => `
+                    <div style="padding:10px 16px;border-bottom:1px solid #f5f5f5;${n.is_read?'':'background:#f0f4ff;'}cursor:pointer;" onclick="handleNotificationClick(${n.id}, '${n.entity_type||''}', ${n.entity_id||0})">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span style="font-size:16px;">${typeIcons[n.type]||'🔔'}</span>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:13px;font-weight:${n.is_read?'400':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.title||''}</div>
+                                <div style="font-size:12px;color:#888;margin-top:2px;">${n.content||''}</div>
+                                <div style="font-size:11px;color:#bbb;margin-top:3px;">${(n.created_at||'').replace('T',' ').substring(0,16)}</div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch(e) { console.error('加载通知失败', e); }
+        }
+        async function handleNotificationClick(nid, entityType, entityId) {
+            // 标记已读
+            await authFetch(`${API}/notifications/${nid}/read`, { method: 'POST' });
+            loadNotifications();
+            // 跳转
+            if (entityType === 'task' && entityId) location.href = 'tasks.html';
+        }
+        async function markAllNotificationsRead() {
+            await authFetch(`${API}/notifications/read-all`, { method: 'POST' });
+            loadNotifications();
+        }
+        // 定时刷新通知
+        setInterval(() => { if (!_notifPanelOpen) loadNotifications(); }, 60000);
+        // 初始加载
+        setTimeout(loadNotifications, 2000);
+
+        const API = '/api';
+
+        // ========== 全局搜索 ==========
+        let searchData = { projects: [], tasks: [], persons: [] };
+        
+        function showGlobalSearch() {
+            document.getElementById('global-search-overlay').style.display = 'block';
+            const input = document.getElementById('global-search-input');
+            input.value = '';
+            input.focus();
+            document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>';
+        }
+        
+        function hideGlobalSearch() {
+            document.getElementById('global-search-overlay').style.display = 'none';
+        }
+        
+        async function doGlobalSearch() {
+            const query = document.getElementById('global-search-input').value.trim().toLowerCase();
+            if (!query) {
+                document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>';
+                return;
+            }
+            
+            // 懒加载搜索数据
+            if (searchData.projects.length === 0) {
+                try {
+                    const [pRes, tRes, personRes] = await Promise.all([
+                        authFetch(`${API}/projects`),
+                        authFetch(`${API}/tasks`),
+                        authFetch(`${API}/persons`)
+                    ]);
+                    searchData.projects = (await pRes.json()).projects || [];
+                    searchData.tasks = (await tRes.json()).tasks || [];
+                    searchData.persons = (await personRes.json()).persons || [];
+                } catch(e) { console.error('搜索数据加载失败', e); }
+            }
+            
+            const results = [];
+            
+            // 搜索项目
+            searchData.projects.filter(p => p.name.toLowerCase().includes(query)).slice(0, 5).forEach(p => {
+                results.push({ type: 'project', icon: '📁', name: p.name, detail: `进度 ${p.progress || 0}%`, link: `project.html?id=${p.id}` });
+            });
+            
+            // 搜索任务
+            searchData.tasks.filter(t => (t.name || '').toLowerCase().includes(query)).slice(0, 8).forEach(t => {
+                const statusIcons = { pending: '⬜', in_progress: '🔄', completed: '✅', cancelled: '❌' };
+                results.push({ type: 'task', icon: statusIcons[t.status] || '📋', name: t.name, detail: `${t.project_name || ''} · ${t.assignee_name || '未分配'}`, link: `tasks.html` });
+            });
+            
+            // 搜索人员
+            searchData.persons.filter(p => p.name.toLowerCase().includes(query)).slice(0, 5).forEach(p => {
+                results.push({ type: 'person', icon: '👤', name: p.name, detail: `${p.line || ''} ${p.position || ''}`, link: `persons.html` });
+            });
+            
+            const container = document.getElementById('global-search-results');
+            if (results.length === 0) {
+                container.innerHTML = '<div style="padding:20px;text-align:center;color:#999">未找到相关结果</div>';
+                return;
+            }
+            
+            container.innerHTML = results.map(r => `
+                <a href="${r.link}" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;text-decoration:none;color:#333;transition:background 0.15s" 
+                   onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background=''">
+                    <span style="font-size:18px">${r.icon}</span>
+                    <div style="flex:1">
+                        <div style="font-weight:500">${r.name}</div>
+                        <div style="font-size:12px;color:#888">${r.detail}</div>
+                    </div>
+                    <span style="font-size:11px;color:#bbb;background:#f5f5f5;padding:2px 6px;border-radius:3px">${r.type === 'project' ? '项目' : r.type === 'task' ? '任务' : '人员'}</span>
+                </a>
+            `).join('');
+        }
+        
+        function handleSearchKey(e) {
+            if (e.key === 'Escape') hideGlobalSearch();
+        }
+        
+        // Ctrl+K 快捷键
+        document.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                showGlobalSearch();
+            }
+        });
+
+        // 加载Dashboard数据
+        async function loadDashboard() {
+            try {
+                // 统计数据
+                const statsRes = await authFetch(API + '/stats');
+                const statsData = await statsRes.json();
+                document.getElementById('active-count').textContent = statsData.stats.projects.active;
+                document.getElementById('completed-count').textContent = statsData.stats.projects.completed;
+                document.getElementById('issues-count').textContent = statsData.stats.issues.open || 0;
+                document.getElementById('in-progress-issues').textContent = statsData.stats.issues.in_progress || 0;
+                document.getElementById('task-rate').textContent = statsData.stats.tasks.completion_rate + '%';
+                
+                // 人员数量
+                const personsRes = await authFetch(API + '/persons?status=active');
+                const personsData = await personsRes.json();
+                document.getElementById('persons-count').textContent = personsData.persons.length;
+                
+                // 项目列表
+                const projectsRes = await authFetch(API + '/projects');
+                const projectsData = await projectsRes.json();
+                renderProjects(projectsData.projects);
+                
+                // 渲染图表
+                renderCharts(statsData.stats, projectsData.projects);
+                
+                // 加载任务（用于到期预警和工作量统计）
+                const tasksRes = await authFetch(API + '/tasks');
+                const tasksData = await tasksRes.json();
+                const allTasks = tasksData.tasks || [];
+                renderOverdueAlerts(allTasks);
+                renderWorkload(allTasks, personsData.persons);
+                
+                // 提醒
+                const remindersRes = await authFetch(API + '/reminders');
+                const remindersData = await remindersRes.json();
+                renderReminders(remindersData.reminders);
+                
+                // 问题
+                const issuesRes = await authFetch(API + '/issues');
+                const issuesData = await issuesRes.json();
+                renderIssues(issuesData.issues);
+            } catch (e) {
+                console.error('加载失败:', e);
+            }
+        }
+        
+        // 渲染图表（纯CSS实现）
+        function renderCharts(stats, projects) {
+            // 项目进度环形图
+            const progressChart = document.getElementById('progress-chart');
+            const avgProgress = projects.length > 0 
+                ? Math.round(projects.reduce((sum, p) => sum + (p.progress || 0), 0) / projects.length)
+                : 0;
+            progressChart.innerHTML = renderDonutChart(avgProgress, '平均进度');
+            
+            // 任务状态分布
+            const taskChart = document.getElementById('task-chart');
+            const completed = stats.tasks.completed || 0;
+            const total = stats.tasks.total || 0;
+            const pending = total - completed;
+            taskChart.innerHTML = renderBarChart([
+                { label: '已完成', value: completed, color: '#4CAF50' },
+                { label: '未完成', value: pending, color: '#FF9800' }
+            ]);
+            
+            // 问题严重程度
+            const issueChart = document.getElementById('issue-chart');
+            issueChart.innerHTML = renderBarChart([
+                { label: '高优先级', value: stats.issues.high_priority_open || 0, color: '#F44336' },
+                { label: '处理中', value: stats.issues.in_progress || 0, color: '#FF9800' },
+                { label: '已解决', value: stats.issues.resolved || 0, color: '#4CAF50' }
+            ]);
+        }
+        
+        // 到期预警
+        function renderOverdueAlerts(tasks) {
+            const container = document.getElementById('overdue-alerts');
+            const today = new Date().toISOString().split('T')[0];
+            const threeDaysLater = new Date(Date.now() + 3*86400000).toISOString().split('T')[0];
+            
+            const alerts = [];
+            tasks.forEach(t => {
+                if (!t.due_date || t.status === 'completed' || t.status === 'cancelled') return;
+                let level = 'normal';
+                if (t.due_date < today) level = 'overdue';
+                else if (t.due_date <= threeDaysLater) level = 'soon';
+                else return; // 不显示还有很久的任务
+                
+                alerts.push({ ...t, alertLevel: level });
+            });
+            
+            // 按紧急程度排序：overdue > soon
+            alerts.sort((a, b) => {
+                if (a.alertLevel === 'overdue' && b.alertLevel !== 'overdue') return -1;
+                if (a.alertLevel !== 'overdue' && b.alertLevel === 'overdue') return 1;
+                return a.due_date.localeCompare(b.due_date);
+            });
+            
+            if (alerts.length === 0) {
+                container.innerHTML = '<div class="empty">✅ 暂无到期预警</div>';
+                return;
+            }
+            
+            container.innerHTML = alerts.slice(0, 15).map(t => {
+                const icon = t.alertLevel === 'overdue' ? '🔴' : '🟡';
+                const label = t.alertLevel === 'overdue' ? '已逾期' : '即将到期';
+                return `<div class="alert-item ${t.alertLevel}">
+                    <span class="alert-icon">${icon}</span>
+                    <div class="alert-info">
+                        <div class="alert-task">${t.name || '未命名'}</div>
+                        <div class="alert-meta">${t.project_name || ''} · 👤${t.assignee_name || '未分配'} · 📅${t.due_date} · ${label}</div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        
+        // 人员工作量统计
+        function renderWorkload(tasks, persons) {
+            const container = document.getElementById('workload-chart');
+            const workload = {};
+            
+            // 统计每个人未完成的任务数
+            tasks.forEach(t => {
+                if (t.status === 'completed' || t.status === 'cancelled') return;
+                const aid = t.assignee_id || 0;
+                if (!workload[aid]) workload[aid] = { total: 0, high: 0, in_progress: 0, pending: 0 };
+                workload[aid].total++;
+                if (t.priority === 'high') workload[aid].high++;
+                if (t.status === 'in_progress') workload[aid].in_progress++;
+                if (t.status === 'pending') workload[aid].pending++;
+            });
+            
+            // 排序：任务数多的在前
+            const sorted = Object.entries(workload).sort((a, b) => b[1].total - a[1].total);
+            const maxTasks = sorted.length > 0 ? sorted[0][1].total : 1;
+            
+            if (sorted.length === 0) {
+                container.innerHTML = '<div class="empty">📊 暂无工作量数据</div>';
+                return;
+            }
+            
+            container.innerHTML = sorted.slice(0, 10).map(([personId, data]) => {
+                const person = persons.find(p => p.id == personId);
+                const name = person ? person.name : '未分配';
+                const pct = Math.round((data.total / maxTasks) * 100);
+                const color = data.high > 0 ? '#f44336' : data.in_progress > 0 ? '#ff9800' : '#667eea';
+                return `<div class="workload-item">
+                    <span class="wl-name" title="${name}">${name}</span>
+                    <div class="wl-bar"><div class="wl-bar-fill" style="width:${pct}%;background:${color}">${data.total}</div></div>
+                    <span class="wl-count">🔥${data.high} ⏳${data.in_progress}</span>
+                </div>`;
+            }).join('');
+        }
+        
+        // 环形图（CSS实现）
+        function renderDonutChart(percent, title) {
+            const color = percent >= 80 ? '#4CAF50' : percent >= 50 ? '#FF9800' : '#F44336';
+            const deg = (percent / 100) * 360;
+            return `
+                <div style="position:relative;width:120px;height:120px;">
+                    <div style="width:120px;height:120px;border-radius:50%;background:conic-gradient(${color} 0deg ${deg}deg, #e0e0e0 ${deg}deg 360deg);"></div>
+                    <div style="position:absolute;top:20px;left:20px;width:80px;height:80px;border-radius:50%;background:white;display:flex;align-items:center;justify-content:center;flex-direction:column;">
+                        <span style="font-size:24px;font-weight:bold;color:${color}">${percent}%</span>
+                        <span style="font-size:11px;color:#666">${title}</span>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 条形图（CSS实现）
+        function renderBarChart(data) {
+            const max = Math.max(...data.map(d => d.value), 1);
+            return `
+                <div style="display:flex;flex-direction:column;gap:15px;padding:10px;">
+                    ${data.map(d => `
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="width:60px;font-size:12px;color:#666;">${d.label}</span>
+                            <div style="flex:1;height:20px;background:#e0e0e0;border-radius:4px;overflow:hidden;">
+                                <div style="width:${(d.value/max)*100}%;height:100%;background:${d.color};border-radius:4px;"></div>
+                            </div>
+                            <span style="width:30px;font-size:12px;font-weight:bold;color:${d.color};">${d.value}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        // 渲染项目
+        function renderProjects(projects) {
+            const container = document.getElementById('projects-list');
+            if (projects.length === 0) {
+                container.innerHTML = '<div class="empty">暂无项目，点击右下角按钮创建</div>';
+                return;
+            }
+            
+            container.innerHTML = projects.map(p => {
+                const progressColor = p.progress >= 80 ? '#4CAF50' : p.progress >= 50 ? '#FF9800' : '#F44336';
+                const statusBadge = p.status === 'in_progress' ? '🟢 进行中' : p.status === 'completed' ? '✅ 已完成' : '⏸️ 待开始';
+                return `
+                    <div class="project-card">
+                        <h3>📁 ${p.name}</h3>
+                        <p>${p.description || '暂无描述'}</p>
+                        <div style="margin: 10px 0; font-size: 13px; color: #666;">
+                            ${statusBadge} | 👤 负责人: ${p.owner_name || '未指定'}
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${p.progress}%; background: ${progressColor}"></div>
+                        </div>
+                        <span class="progress-text">${p.progress}%</span>
+                        <a href="project.html?id=${p.id}" class="btn">查看详情</a>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // 渲染提醒
+        function renderReminders(reminders) {
+            const container = document.getElementById('reminders-list');
+            if (reminders.length === 0) {
+                container.innerHTML = '<div class="empty">暂无即将到期任务</div>';
+                return;
+            }
+            
+            container.innerHTML = reminders.map(r => `
+                <div class="task-item">
+                    <span class="task-name">${r.name}</span>
+                    <span class="task-due">${r.due_date}</span>
+                    ${r.is_delayed ? '<span class="delayed-badge">延期</span>' : '<span class="warning-badge">即将到期</span>'}
+                </div>
+            `).join('');
+        }
+        
+        // 渲染问题
+        function renderIssues(issues) {
+            const container = document.getElementById('issues-list');
+            if (issues.length === 0) {
+                container.innerHTML = '<div class="empty">暂无待解决问题</div>';
+                return;
+            }
+            
+            container.innerHTML = issues.slice(0, 5).map(i => {
+                const color = i.severity === 'high' ? '#F44336' : i.severity === 'medium' ? '#FF9800' : '#4CAF50';
+                return `
+                    <div class="issue-item">
+                        <span class="severity-dot" style="background: ${color}"></span>
+                        <span class="issue-title">${i.title}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // 显示模态框
+        function showNewProjectModal() {
+            document.getElementById('new-project-modal').classList.add('show');
+        }
+        
+        // 隐藏模态框
+        function hideModal() {
+            document.getElementById('new-project-modal').classList.remove('show');
+        }
+        
+        // 创建项目
+        async function createProject() {
+            const name = document.getElementById('project-name').value;
+            const desc = document.getElementById('project-desc').value;
+            const priority = document.getElementById('project-priority').value;
+            const endDate = document.getElementById('project-end-date').value;
+            
+            if (!name) {
+                alert('请输入项目名称');
+                return;
+            }
+            
+            try {
+                const res = authFetch(API + '/projects', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, description: desc, priority, target_end_date: endDate })
+                });
+                
+                const data = await res.json();
+                if (data.success) {
+                    hideModal();
+                    loadDashboard();
+                }
+            } catch (e) {
+                alert('创建失败');
+            }
+        }
+        
+        // 页面加载
+        document.addEventListener('DOMContentLoaded', async () => {
+            const user = await initAuthPage();
+            if (!user) return; // 未登录会自动跳转
+            loadDashboard();
+        });
+    </script>
+        <script src="dark-mode.js"></script>
+</body>
+</html>

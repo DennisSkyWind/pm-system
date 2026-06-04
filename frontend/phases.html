@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>阶段管理 - 项目管理系统</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+        
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; }
+        header h1 { font-size: 24px; }
+        nav { display: flex; gap: 15px; margin-top: 15px; }
+        nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; background: rgba(255,255,255,0.2); }
+        nav a:hover { background: rgba(255,255,255,0.3); }
+        nav a.active { background: rgba(255,255,255,0.4); }
+        
+        main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+        
+        .toolbar { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; }
+        .project-select { padding: 10px; border-radius: 6px; border: 1px solid #ddd; min-width: 200px; }
+        
+        .phases-container { display: flex; flex-direction: column; gap: 15px; }
+        
+        .phase-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .phase-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .phase-title { font-size: 18px; font-weight: 600; }
+        .phase-status { padding: 4px 12px; border-radius: 20px; font-size: 12px; }
+        .status-pending { background: #f5f5f5; color: #666; }
+        .status-in_progress { background: #fff3e0; color: #e65100; }
+        .status-completed { background: #e8f5e9; color: #2e7d32; }
+        
+        .phase-meta { display: flex; gap: 20px; color: #666; font-size: 14px; }
+        
+        .phase-progress { margin-top: 15px; }
+        .progress-bar { height: 10px; background: #e0e0e0; border-radius: 5px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .progress-text { margin-top: 5px; font-size: 12px; color: #666; }
+        
+        .phase-actions { display: flex; gap: 10px; }
+        .btn-edit { background: #ff9800; color: white; padding: 6px 12px; border-radius: 4px; cursor: pointer; border: none; }
+        .btn-delete { background: #f44336; color: white; padding: 6px 12px; border-radius: 4px; cursor: pointer; border: none; }
+        
+        .new-btn { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 50%; font-size: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        
+        /* 模态框 */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .modal.show { display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; }
+        .modal-title { font-size: 20px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; color: #666; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
+        .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .btn-primary { background: #667eea; color: white; padding: 10px 20px; border-radius: 6px; cursor: pointer; border: none; }
+        .btn-secondary { background: #e0e0e0; color: #333; padding: 10px 20px; border-radius: 6px; cursor: pointer; border: none; }
+        
+        /* 时间线样式 */
+        .timeline { position: relative; padding-left: 30px; }
+        .timeline::before { content: ''; position: absolute; left: 10px; top: 0; bottom: 0; width: 2px; background: #e0e0e0; }
+        .phase-card.timeline-item { position: relative; }
+        .phase-card.timeline-item::before { content: ''; position: absolute; left: -25px; top: 20px; width: 12px; height: 12px; border-radius: 50%; background: #667eea; border: 2px solid white; }
+        .phase-card.completed.timeline-item::before { background: #4caf50; }
+        .phase-card.in_progress.timeline-item::before { background: #ff9800; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <link rel="stylesheet" href="common.css">
+    <link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+    <header>
+        <h1>📊 阶段管理</h1>
+        <nav>
+            <a href="index.html">Dashboard</a>
+            <a href="projects.html">项目列表</a>
+            <a href="phases.html" class="active">阶段管理</a>
+            <a href="tasks.html">任务管理</a>
+            <a href="issues.html">问题追踪</a>
+            <a href="reminders.html">提醒管理</a>
+            <a href="persons.html">人员名册</a>
+        <a href="settings.html">⚙️ 个人设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span></nav>
+    </header>
+    
+
+    <!-- 全局搜索弹窗 -->
+    <div id="global-search-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;backdrop-filter:blur(2px);" onclick="hideGlobalSearch()">
+        <div style="max-width:600px;margin:80px auto 0;background:white;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;" onclick="event.stopPropagation()">
+            <div style="display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid #eee;gap:10px;">
+                <span style="font-size:20px">🔍</span>
+                <input type="text" id="global-search-input" placeholder="搜索项目、任务、人员..." 
+                    style="flex:1;border:none;font-size:16px;outline:none;" 
+                    oninput="doGlobalSearch()" onkeydown="handleSearchKey(event)">
+                <kbd style="background:#f0f0f0;padding:2px 8px;border-radius:4px;font-size:12px;color:#888">ESC</kbd>
+            </div>
+            <div id="global-search-results" style="max-height:400px;overflow-y:auto;padding:8px;"></div>
+        </div>
+    </div>
+
+
+    <!-- 通知面板 -->
+    <div id="notification-panel" style="display:none;position:fixed;top:60px;right:20px;width:360px;max-height:500px;background:white;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.15);z-index:9998;overflow:hidden;">
+        <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="font-size:15px;margin:0;">🔔 通知</h3>
+            <div>
+                <a onclick="markAllNotificationsRead()" style="font-size:12px;color:#667eea;cursor:pointer;margin-right:10px;">全部已读</a>
+                <a onclick="toggleNotificationPanel()" style="cursor:pointer;font-size:16px;">✕</a>
+            </div>
+        </div>
+        <div id="notification-list" style="max-height:420px;overflow-y:auto;"></div>
+    </div>
+
+    <main>
+        <div class="toolbar">
+            <label>选择项目：</label>
+            <select class="project-select" id="project-filter" onchange="loadPhases()">
+                <option value="">全部项目</option>
+            </select>
+        </div>
+        
+        <div class="phases-container timeline" id="phases-list">
+            <!-- 阶段列表动态加载 -->
+        </div>
+    </main>
+    
+    <div class="new-btn" onclick="showCreateModal()">+</div>
+    
+    <!-- 创建阶段模态框 -->
+    <div class="modal" id="create-phase-modal">
+        <div class="modal-content">
+            <h2 class="modal-title">创建新阶段</h2>
+            <div class="form-group">
+                <label>所属项目</label>
+                <select id="phase-project" required></select>
+            </div>
+            <div class="form-group">
+                <label>阶段名称</label>
+                <input type="text" id="phase-name" required placeholder="如：需求分析、设计、开发、测试">
+            </div>
+            <div class="form-group">
+                <label>阶段描述</label>
+                <textarea id="phase-desc" rows="3" placeholder="描述本阶段的目标和内容"></textarea>
+            </div>
+            <div class="form-group">
+                <label>开始日期</label>
+                <input type="date" id="phase-start-date">
+            </div>
+            <div class="form-group">
+                <label>结束日期</label>
+                <input type="date" id="phase-end-date">
+            </div>
+            <div class="form-actions">
+                <button class="btn-secondary" onclick="hideModal('create-phase-modal')">取消</button>
+                <button class="btn-primary" onclick="createPhase()">创建</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 编辑阶段模态框 -->
+    <div class="modal" id="edit-phase-modal">
+        <div class="modal-content">
+            <h2 class="modal-title">编辑阶段</h2>
+            <input type="hidden" id="edit-phase-id">
+            <div class="form-group">
+                <label>阶段名称</label>
+                <input type="text" id="edit-phase-name" required>
+            </div>
+            <div class="form-group">
+                <label>阶段描述</label>
+                <textarea id="edit-phase-desc" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label>状态</label>
+                <select id="edit-phase-status">
+                    <option value="pending">待开始</option>
+                    <option value="in_progress">进行中</option>
+                    <option value="completed">已完成</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>开始日期</label>
+                <input type="date" id="edit-phase-start-date">
+            </div>
+            <div class="form-group">
+                <label>结束日期</label>
+                <input type="date" id="edit-phase-end-date">
+            </div>
+            <div class="form-actions">
+                <button class="btn-secondary" onclick="hideModal('edit-phase-modal')">取消</button>
+                <button class="btn-primary" onclick="updatePhase()">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="auth.js"></script>
+    <script>
+        
+        // ========== 全局搜索 ==========
+        let _gsData = { projects: [], tasks: [], persons: [] };
+        function showGlobalSearch() {
+            document.getElementById('global-search-overlay').style.display = 'block';
+            const input = document.getElementById('global-search-input');
+            input.value = ''; input.focus();
+            document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>';
+        }
+        function hideGlobalSearch() { document.getElementById('global-search-overlay').style.display = 'none'; }
+        async function doGlobalSearch() {
+            const q = document.getElementById('global-search-input').value.trim().toLowerCase();
+            if (!q) { document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>'; return; }
+            if (_gsData.projects.length === 0) {
+                try {
+                    const [pR, tR, peR] = await Promise.all([authFetch(`${API}/projects`), authFetch(`${API}/tasks`), authFetch(`${API}/persons`)]);
+                    _gsData.projects = (await pR.json()).projects || [];
+                    _gsData.tasks = (await tR.json()).tasks || [];
+                    _gsData.persons = (await peR.json()).persons || [];
+                } catch(e) {}
+            }
+            const res = [];
+            _gsData.projects.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'project',i:'📁',n:p.name,d:`进度 ${p.progress||0}%`,l:`project.html?id=${p.id}`}));
+            _gsData.tasks.filter(t => (t.name||'').toLowerCase().includes(q)).slice(0,8).forEach(t => res.push({t:'task',i:'📋',n:t.name,d:`${t.project_name||''} · ${t.assignee_name||'未分配'}`,l:'tasks.html'}));
+            _gsData.persons.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'person',i:'👤',n:p.name,d:`${p.line||''} ${p.position||''}`,l:'persons.html'}));
+            const c = document.getElementById('global-search-results');
+            if (!res.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#999">未找到相关结果</div>'; return; }
+            c.innerHTML = res.map(r => `<a href="${r.l}" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;text-decoration:none;color:#333" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background=''"><span style="font-size:18px">${r.i}</span><div style="flex:1"><div style="font-weight:500">${r.n}</div><div style="font-size:12px;color:#888">${r.d}</div></div><span style="font-size:11px;color:#bbb;background:#f5f5f5;padding:2px 6px;border-radius:3px">${r.t==='project'?'项目':r.t==='task'?'任务':'人员'}</span></a>`).join('');
+        }
+        function handleSearchKey(e) { if (e.key === 'Escape') hideGlobalSearch(); }
+        document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); showGlobalSearch(); } });
+
+        
+        // ========== 通知中心 ==========
+        let _notifPanelOpen = false;
+        function toggleNotificationPanel() {
+            _notifPanelOpen = !_notifPanelOpen;
+            const panel = document.getElementById('notification-panel');
+            if (!panel) return;
+            panel.style.display = _notifPanelOpen ? 'block' : 'none';
+            if (_notifPanelOpen) loadNotifications();
+        }
+        async function loadNotifications() {
+            try {
+                const res = await authFetch(`${API}/notifications`);
+                const data = await res.json();
+                const badge = document.getElementById('notification-badge');
+                const list = document.getElementById('notification-list');
+                if (!list) return;
+                const unread = data.unread_count || 0;
+                if (badge) { badge.textContent = unread; badge.style.display = unread > 0 ? 'inline' : 'none'; }
+                const notifs = data.notifications || [];
+                if (!notifs.length) { list.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">暂无通知</div>'; return; }
+                const typeIcons = { task_assign: '📋', task_complete: '✅', comment: '💬', info: 'ℹ️', warning: '⚠️' };
+                list.innerHTML = notifs.map(n => `<div style="padding:10px 16px;border-bottom:1px solid #f5f5f5;${n.is_read?'':'background:#f0f4ff;'}cursor:pointer;" onclick="handleNotificationClick(${n.id}, '${n.entity_type||''}', ${n.entity_id||0})"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:16px;">${typeIcons[n.type]||'🔔'}</span><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:${n.is_read?'400':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.title||''}</div><div style="font-size:12px;color:#888;margin-top:2px;">${n.content||''}</div><div style="font-size:11px;color:#bbb;margin-top:3px;">${(n.created_at||'').replace('T',' ').substring(0,16)}</div></div></div></div>`).join('');
+            } catch(e) { console.error('加载通知失败', e); }
+        }
+        async function handleNotificationClick(nid, entityType, entityId) {
+            await authFetch(`${API}/notifications/${nid}/read`, { method: 'POST' });
+            loadNotifications();
+            if (entityType === 'task' && entityId) location.href = 'tasks.html';
+        }
+        async function markAllNotificationsRead() {
+            await authFetch(`${API}/notifications/read-all`, { method: 'POST' });
+            loadNotifications();
+        }
+        setInterval(() => { if (!_notifPanelOpen) loadNotifications(); }, 60000);
+        setTimeout(loadNotifications, 2000);
+
+        const API = '/api';
+
+
+        let currentProjectFilter = '';
+        
+        async function loadProjects() {
+            const res = await authFetch(`${API}/projects`);
+            const data = await res.json();
+            
+            // 填充项目选择器
+            const projectFilter = document.getElementById('project-filter');
+            const phaseProject = document.getElementById('phase-project');
+            
+            projectFilter.innerHTML = '<option value="">全部项目</option>';
+            phaseProject.innerHTML = '';
+            
+            if (data.projects && data.projects.length > 0) {
+                data.projects.forEach(p => {
+                    projectFilter.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    phaseProject.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                });
+            }
+        }
+        
+        async function loadPhases() {
+            currentProjectFilter = document.getElementById('project-filter').value;
+            
+            let url = `${API}/phases`;
+            if (currentProjectFilter) {
+                url += `?project_id=${currentProjectFilter}`;
+            }
+            
+            const res = await authFetch(url);
+            const data = await res.json();
+            
+            const container = document.getElementById('phases-list');
+            container.innerHTML = '';
+            
+            if (data.phases && data.phases.length > 0) {
+                // 按顺序排序
+                const sortedPhases = data.phases.sort((a, b) => a.order_num - b.order_num);
+                
+                sortedPhases.forEach(phase => {
+                    const statusClass = phase.status || 'pending';
+                    const progressPercent = phase.progress || 0;
+                    
+                    const card = document.createElement('div');
+                    card.className = `phase-card timeline-item ${statusClass}`;
+                    card.innerHTML = `
+                        <div class="phase-header">
+                            <span class="phase-title">${phase.name}</span>
+                            <span class="phase-status status-${statusClass}">${getStatusText(statusClass)}</span>
+                        </div>
+                        <div class="phase-meta">
+                            <span>📅 ${phase.start_date || '未设置'} ~ ${phase.end_date || '未设置'}</span>
+                            <span>🔢 阶段 ${phase.order_num || 1}</span>
+                        </div>
+                        <div class="phase-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${progressPercent}%"></div>
+                            </div>
+                            <div class="progress-text">进度: ${progressPercent}%</div>
+                        </div>
+                        <div class="phase-actions">
+                            <button class="btn-edit" onclick="showEditModal(${phase.id})">编辑</button>
+                            <button class="btn-delete" onclick="deletePhase(${phase.id})">删除</button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            } else {
+                container.innerHTML = '<div style="text-align:center;padding:50px;color:#666;">暂无阶段，点击右下角+按钮创建</div>';
+            }
+        }
+        
+        function getStatusText(status) {
+            const texts = { pending: '待开始', in_progress: '进行中', completed: '已完成' };
+            return texts[status] || '待开始';
+        }
+        
+        function showCreateModal() {
+            document.getElementById('create-phase-modal').classList.add('show');
+        }
+        
+        function showEditModal(id) {
+            // 获取阶段详情
+            authFetch(`${API}/phases/${id}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.phase) {
+                        const p = data.phase;
+                        document.getElementById('edit-phase-id').value = p.id;
+                        document.getElementById('edit-phase-name').value = p.name;
+                        document.getElementById('edit-phase-desc').value = p.description || '';
+                        document.getElementById('edit-phase-status').value = p.status || 'pending';
+                        document.getElementById('edit-phase-start-date').value = p.start_date || '';
+                        document.getElementById('edit-phase-end-date').value = p.end_date || '';
+                        document.getElementById('edit-phase-modal').classList.add('show');
+                    }
+                });
+        }
+        
+        function hideModal(id) {
+            document.getElementById(id).classList.remove('show');
+        }
+        
+        async function createPhase() {
+            const phase = {
+                project_id: document.getElementById('phase-project').value,
+                name: document.getElementById('phase-name').value,
+                description: document.getElementById('phase-desc').value,
+                start_date: document.getElementById('phase-start-date').value,
+                end_date: document.getElementById('phase-end-date').value,
+                status: 'pending',
+                order_num: 1
+            };
+            
+            if (!phase.project_id || !phase.name) {
+                alert('请填写必填项');
+                return;
+            }
+            
+            await authFetch(`${API}/phases`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(phase)
+            });
+            
+            hideModal('create-phase-modal');
+            loadPhases();
+        }
+        
+        async function updatePhase() {
+            const id = document.getElementById('edit-phase-id').value;
+            const phase = {
+                name: document.getElementById('edit-phase-name').value,
+                description: document.getElementById('edit-phase-desc').value,
+                status: document.getElementById('edit-phase-status').value,
+                start_date: document.getElementById('edit-phase-start-date').value,
+                end_date: document.getElementById('edit-phase-end-date').value
+            };
+            
+            await authFetch(`${API}/phases/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(phase)
+            });
+            
+            hideModal('edit-phase-modal');
+            loadPhases();
+        }
+        
+        async function deletePhase(id) {
+            if (!confirm('确定删除此阶段？')) return;
+            
+            await authFetch(`${API}/phases/${id}`, {
+                method: 'DELETE'
+            });
+            
+            loadPhases();
+        }
+        
+        document.addEventListener('DOMContentLoaded', async () => { const u = await initAuthPage(); if (u) { loadProjects(); loadPhases(); } });
+    </script>
+    <script src="dark-mode.js"></script>
+</body>
+</html>

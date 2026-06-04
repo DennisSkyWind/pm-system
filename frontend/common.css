@@ -1,0 +1,71 @@
+/* PM系统公共样式 - 减少各页面重复代码 */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+
+/* 通用header */
+header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; }
+header h1 { font-size: 24px; }
+.header-top { display: flex; justify-content: space-between; align-items: center; }
+nav { display: flex; gap: 15px; margin-top: 15px; flex-wrap: wrap; }
+nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; background: rgba(255,255,255,0.2); }
+nav a:hover { background: rgba(255,255,255,0.3); }
+nav a.active { background: rgba(255,255,255,0.4); }
+
+/* 通用表单 */
+.form-group { margin-bottom: 15px; }
+.form-group label { display: block; margin-bottom: 5px; font-size: 14px; color: #666; }
+.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: #667eea; }
+.form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+.form-actions button { padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+.btn-primary { background: #667eea; color: white; border: none; }
+.btn-primary:hover { background: #5a6fd6; }
+.btn-secondary { background: #e0e0e0; color: #333; border: none; }
+.btn-secondary:hover { background: #d0d0d0; }
+.btn-danger { background: #f44336; color: white; border: none; }
+
+/* 通用弹窗 */
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+.modal.show { display: flex; align-items: center; justify-content: center; }
+.modal-content { background: white; padding: 30px; border-radius: 12px; max-width: 600px; width: 90%; max-height: 85vh; overflow-y: auto; }
+.modal-title { font-size: 20px; margin-bottom: 20px; }
+
+/* 通用按钮 */
+.new-btn { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 50%; font-size: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: none; }
+.new-btn:hover { transform: scale(1.1); }
+
+/* 通用卡片/区域 */
+.section { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+.card { padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+
+/* 通用搜索下拉框 */
+.search-select { position: relative; width: 100%; }
+.search-select > input[type="text"] { width: 100%; }
+.search-select > input[type="hidden"] { display: none; }
+.search-select-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-radius: 6px; max-height: 300px; overflow-y: auto; z-index: 100; display: none; }
+.search-select-dropdown.show { display: block; }
+.search-select-item { padding: 10px 12px; cursor: pointer; transition: background 0.15s; }
+.search-select-item:hover { background: #f0f0f0; }
+
+/* 通用表格 */
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e0e0e0; }
+th { background: #f9f9f9; font-weight: 600; color: #666; font-size: 13px; }
+tr:hover { background: #f5f5f5; }
+
+/* 用户区域 */
+.user-area { display: flex; align-items: center; gap: 10px; }
+.user-area .user-name { font-size: 14px; padding: 6px 12px; background: rgba(255,255,255,0.2); border-radius: 6px; }
+.user-area .logout-btn { font-size: 13px; padding: 6px 12px; background: rgba(255,255,255,0.3); border-radius: 6px; color: white; cursor: pointer; border: none; }
+.login-link { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; background: rgba(255,255,255,0.2); }
+.login-link:hover { background: rgba(255,255,255,0.3); }
+
+/* 状态徽章 */
+.status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+.status-pending { background: #fff3e0; color: #e65100; }
+.status-in_progress { background: #e3f2fd; color: #1565c0; }
+.status-completed { background: #e8f5e9; color: #2e7d32; }
+.status-cancelled { background: #fce4ec; color: #c62828; }
+
+/* 空状态 */
+.empty { color: #999; text-align: center; padding: 20px; }
