@@ -68,15 +68,7 @@
 <body>
     <header>
         <h1>📋 模板管理</h1>
-        <nav>
-            <a href="index.html">Dashboard</a>
-            <a href="projects.html">项目列表</a>
-            <a href="tasks.html">任务管理</a>
-            <a href="issues.html">问题追踪</a>
-            <a href="persons.html">人员管理</a>
-            <a href="gantt.html">📊 甘特图</a>
-            <a href="templates.html" class="active">📋 模板</a>
-        <a href="settings.html">⚙️ 个人设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span></nav>
+        <nav><a href="index.html">Dashboard</a><a href="projects.html">项目列表</a><a href="tasks.html">任务管理</a><a href="gantt.html">甘特图</a><a href="issues.html">问题追踪</a><a href="report.html">📊 报告</a><a href="persons.html">👥 人员</a><a href="phases.html">阶段管理</a><a href="templates.html" class="active">📋 模板</a><a href="reminders.html">🔔 提醒</a><a href="settings.html">⚙️ 设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span></nav>
     </header>
     
     <!-- 全局搜索 -->
@@ -275,6 +267,7 @@
         let currentFilter = '';
         let phaseCount = 0;
         let taskCount = 0;
+        let editingTemplateId = null;
         
         async function loadTemplates() {
             const res = await authFetch(`${API}/templates`);
@@ -361,14 +354,19 @@
         }
         
         function showNewTemplateModal() {
+            editingTemplateId = null;
             document.getElementById('template-name').value = '';
             document.getElementById('template-desc').value = '';
             document.getElementById('template-type').value = 'project';
+            document.getElementById('default-priority').value = 'medium';
             document.getElementById('phases-list').innerHTML = '';
             document.getElementById('tasks-list').innerHTML = '';
+            document.getElementById('task-template-desc').value = '';
+            document.getElementById('task-template-priority').value = 'medium';
             phaseCount = 0;
             taskCount = 0;
             toggleTemplateFields();
+            document.querySelector('.modal-title').textContent = '创建新模板';
             document.getElementById('new-template-modal').classList.add('show');
         }
         
@@ -458,12 +456,23 @@
                 content.priority = document.getElementById('task-template-priority').value;
             }
             
-            await authFetch(`${API}/templates`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, type, description, content: JSON.stringify(content) })
-            });
+            if (editingTemplateId) {
+                // 编辑模式：PUT更新
+                await authFetch(`${API}/templates/${editingTemplateId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, type, description, content: JSON.stringify(content) })
+                });
+            } else {
+                // 新建模式：POST创建
+                await authFetch(`${API}/templates`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, type, description, content: JSON.stringify(content) })
+                });
+            }
             
+            editingTemplateId = null;
             hideNewTemplateModal();
             await loadTemplates();
         }
@@ -522,20 +531,59 @@
         }
         
         async function editTemplate(id) {
-            // 简化：直接删除重建
             const template = allTemplates.find(t => t.id === id);
             if (!template) return;
             
-            const newName = prompt('新模板名称:', template.name);
-            if (!newName) return;
+            editingTemplateId = id;
             
-            await authFetch(`${API}/templates/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: newName })
-            });
+            // 回填基本信息
+            document.getElementById('template-name').value = template.name || '';
+            document.getElementById('template-type').value = template.type || 'project';
+            document.getElementById('template-desc').value = template.description || '';
             
-            await loadTemplates();
+            // 清空动态字段
+            document.getElementById('phases-list').innerHTML = '';
+            document.getElementById('tasks-list').innerHTML = '';
+            phaseCount = 0;
+            taskCount = 0;
+            
+            // 回填模板内容
+            try {
+                const content = JSON.parse(template.content || '{}');
+                if (template.type === 'project') {
+                    document.getElementById('default-priority').value = content.priority || 'medium';
+                    // 回填阶段
+                    if (content.phases && content.phases.length > 0) {
+                        content.phases.forEach(p => {
+                            addPhaseField();
+                            const lastPhase = document.querySelector('.phase-item:last-child');
+                            if (lastPhase) {
+                                lastPhase.querySelector('.phase-name').value = p.name || '';
+                                if (lastPhase.querySelector('.phase-start')) lastPhase.querySelector('.phase-start').value = p.start_date || '';
+                                if (lastPhase.querySelector('.phase-end')) lastPhase.querySelector('.phase-end').value = p.end_date || '';
+                            }
+                        });
+                    }
+                    // 回填任务
+                    if (content.tasks && content.tasks.length > 0) {
+                        content.tasks.forEach(tk => {
+                            addTaskField();
+                            const lastTask = document.querySelector('.task-item:last-child');
+                            if (lastTask) {
+                                lastTask.querySelector('.task-name').value = tk.name || '';
+                                lastTask.querySelector('.task-desc').value = tk.description || '';
+                            }
+                        });
+                    }
+                } else {
+                    document.getElementById('task-template-desc').value = content.description || '';
+                    document.getElementById('task-template-priority').value = content.priority || 'medium';
+                }
+            } catch (e) { console.warn('回填模板内容出错:', e); }
+            
+            toggleTemplateFields();
+            document.querySelector('.modal-title').textContent = '编辑模板';
+            document.getElementById('new-template-modal').classList.add('show');
         }
         
         async function deleteTemplate(id) {

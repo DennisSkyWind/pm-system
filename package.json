@@ -1,7 +1,7 @@
 {
   "name": "pm-system",
-  "version": "2.0.0",
-  "description": "项目管理系统 - 任务追踪、甘特图、看板、权限管理、PDF导出",
+  "version": "2.1.0",
+  "description": "项目管理系统 - 任务追踪、甘特图、看板、权限管理、报告导出、模板管理",
   "main": "pm_server.py",
   "scripts": {
     "start": "python3 pm_server.py",

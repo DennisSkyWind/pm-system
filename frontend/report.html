@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>项目报告 - 项目管理系统</title>
+    <script src="auth.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
@@ -17,9 +18,10 @@
         
         main { padding: 20px; max-width: 1000px; margin: 0 auto; }
         
-        .report-tabs { display: flex; gap: 10px; margin-bottom: 20px; }
-        .tab-btn { padding: 15px 30px; background: white; border: none; border-radius: 12px 12px 0 0; cursor: pointer; font-size: 16px; font-weight: 500; }
+        .report-tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab-btn { padding: 12px 24px; background: white; border: none; border-radius: 12px 12px 0 0; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
         .tab-btn.active { background: #667eea; color: white; }
+        .tab-btn:hover { background: #e8e8e8; }
         
         .report-container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         
@@ -51,14 +53,33 @@
         .person-card h4 { font-size: 15px; margin-bottom: 10px; }
         .person-card .stats { font-size: 13px; color: #666; }
         
-        .export-actions { display: flex; gap: 15px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; }
-        .export-btn { padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
+        .export-actions { display: flex; gap: 15px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; flex-wrap: wrap; }
+        .export-btn { padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; transition: background 0.2s; }
         .export-btn:hover { background: #764ba2; }
+        .export-btn.green { background: #00b894; }
+        .export-btn.green:hover { background: #00a381; }
+        .export-btn.orange { background: #e17055; }
+        .export-btn.orange:hover { background: #d35400; }
         
         .empty-state { text-align: center; padding: 40px; color: #999; }
+
+        /* 项目报告导出区域 */
+        .export-panel { background: #f0f4ff; padding: 25px; border-radius: 12px; margin-bottom: 20px; }
+        .export-panel h3 { font-size: 18px; color: #333; margin-bottom: 15px; }
+        .export-panel .desc { color: #666; font-size: 14px; margin-bottom: 15px; }
+        .form-row { display: flex; gap: 15px; align-items: center; margin-bottom: 15px; flex-wrap: wrap; }
+        .form-row label { font-weight: 500; font-size: 14px; min-width: 80px; }
+        .form-row select, .form-row input { padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+        .form-row select { min-width: 150px; }
+        .style-options { display: flex; gap: 10px; }
+        .style-option { padding: 10px 20px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; text-align: center; transition: all 0.2s; }
+        .style-option:hover { border-color: #667eea; }
+        .style-option.selected { border-color: #667eea; background: #f0f4ff; }
+        .style-option .preview { font-size: 12px; color: #888; margin-top: 4px; }
+        .time-radio:has(input:checked) { border-color: #667eea !important; background: #f0f4ff; }
         
         @media print {
-            header, .report-tabs, .export-actions { display: none; }
+            header, .report-tabs, .export-actions, .export-panel { display: none; }
             .report-container { box-shadow: none; }
         }
     </style>
@@ -69,13 +90,7 @@
 <body>
     <header>
         <h1>📊 项目报告</h1>
-        <nav>
-            <a href="index.html">Dashboard</a>
-            <a href="projects.html">项目列表</a>
-            <a href="tasks.html">任务管理</a>
-            <a href="gantt.html">甘特图</a>
-            <a href="report.html" class="active">📊 报告</a>
-        <a href="settings.html">⚙️ 个人设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span></nav>
+        <nav><a href="index.html">Dashboard</a><a href="projects.html">项目列表</a><a href="tasks.html">任务管理</a><a href="gantt.html">甘特图</a><a href="issues.html">问题追踪</a><a href="report.html" class="active">📊 报告</a><a href="persons.html">👥 人员</a><a href="phases.html">阶段管理</a><a href="templates.html">📋 模板</a><a href="reminders.html">🔔 提醒</a><a href="settings.html">⚙️ 设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span></nav>
     </header>
     
     <!-- 全局搜索 -->
@@ -84,318 +99,356 @@
             <div style="display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid #eee;gap:10px;">
                 <span style="font-size:20px">🔍</span>
                 <input type="text" id="global-search-input" placeholder="搜索项目、任务、人员..." style="flex:1;border:none;font-size:16px;outline:none;" oninput="doGlobalSearch()" onkeydown="handleSearchKey(event)">
-                <kbd style="background:#f0f0f0;padding:2px 8px;border-radius:4px;font-size:12px;color:#888">ESC</kbd>
+                <kbd style="background:#f0f0f0;padding:4px 8px;border-radius:4px;font-size:12px;cursor:pointer" onclick="hideGlobalSearch()">ESC</kbd>
             </div>
-            <div id="global-search-results" style="max-height:400px;overflow-y:auto;padding:8px;"></div>
+            <div id="global-search-results" style="padding:10px;max-height:400px;overflow-y:auto;"></div>
         </div>
     </div>
+
     <!-- 通知面板 -->
-    <div id="notification-panel" style="display:none;position:fixed;top:60px;right:20px;width:360px;max-height:500px;background:white;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.15);z-index:9998;overflow:hidden;">
-        <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">
-            <h3 style="font-size:15px;margin:0;">🔔 通知</h3>
-            <div><a onclick="markAllNotificationsRead()" style="font-size:12px;color:#667eea;cursor:pointer;margin-right:10px;">全部已读</a><a onclick="toggleNotificationPanel()" style="cursor:pointer;font-size:16px;">✕</a></div>
+    <div id="notification-panel" style="display:none;position:fixed;top:60px;right:20px;width:300px;background:white;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.2);z-index:9998;max-height:400px;overflow-y:auto;">
+        <div style="padding:15px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="font-size:16px;">🔔 通知</h3>
+            <button onclick="markAllRead()" style="background:none;border:none;color:#667eea;cursor:pointer;font-size:13px;">全部标记已读</button>
         </div>
-        <div id="notification-list" style="max-height:420px;overflow-y:auto;"></div>
+        <div id="notification-list" style="padding:10px;"></div>
     </div>
 
     <main>
-        <div class="report-tabs">
-            <button class="tab-btn active" onclick="showReport('weekly')">📅 周报</button>
-            <button class="tab-btn" onclick="showReport('monthly')">📆 月报</button>
+        <!-- 🆕 项目报告导出 -->
+        <div class="export-panel">
+            <h3>📦 项目报告导出</h3>
+            <div class="desc">一键导出完整项目报告，包含：任务清单、看板视图、甘特图、问题清单</div>
+            
+            <div class="form-row">
+                <label>选择项目</label>
+                <select id="export-project-select">
+                    <option value="">-- 请选择项目 --</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+                <label>报告风格</label>
+                <div class="style-options">
+                    <div class="style-option selected" data-style="classic" onclick="selectReportStyle('classic')">
+                        <div>🎨 经典商务</div>
+                        <div class="preview">蓝紫色调，适合正式汇报</div>
+                    </div>
+                    <div class="style-option" data-style="modern" onclick="selectReportStyle('modern')">
+                        <div>🌈 现代彩色</div>
+                        <div class="preview">深色+彩色条，适合演示</div>
+                    </div>
+                    <div class="style-option" data-style="minimal" onclick="selectReportStyle('minimal')">
+                        <div>✏️ 极简线框</div>
+                        <div class="preview">黑白线条，适合文档</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 🆕 甘特图时间维度 -->
+            <div class="form-row" style="margin-top:16px;">
+                <label>甘特图时间维度</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <label class="time-radio" style="display:flex;align-items:center;gap:4px;padding:8px 14px;border:2px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px;transition:all 0.2s;">
+                        <input type="radio" name="report-time" value="month" checked style="margin:0;"> 📆 本月
+                    </label>
+                    <label class="time-radio" style="display:flex;align-items:center;gap:4px;padding:8px 14px;border:2px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px;transition:all 0.2s;">
+                        <input type="radio" name="report-time" value="quarter" style="margin:0;"> 📊 本季度
+                    </label>
+                    <label class="time-radio" style="display:flex;align-items:center;gap:4px;padding:8px 14px;border:2px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px;transition:all 0.2s;">
+                        <input type="radio" name="report-time" value="year" style="margin:0;"> 🗓️ 本年度
+                    </label>
+                    <label class="time-radio" style="display:flex;align-items:center;gap:4px;padding:8px 14px;border:2px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px;transition:all 0.2s;">
+                        <input type="radio" name="report-time" value="custom" style="margin:0;"> ✏️ 自定义
+                    </label>
+                </div>
+            </div>
+            <!-- 自定义日期范围 -->
+            <div id="report-custom-range" style="display:none;margin-top:8px;padding:12px 16px;background:#f8f9fa;border-radius:8px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div><label style="font-size:12px;color:#666;">开始日期</label><input type="date" id="report-start-date" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;"></div>
+                    <div><label style="font-size:12px;color:#666;">结束日期</label><input type="date" id="report-end-date" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;"></div>
+                </div>
+                <div style="font-size:11px;color:#999;margin-top:6px;">💡 根据时间跨度自动选择合适的粒度（≤45天按天，≤180天按周，更长按月）</div>
+            </div>
+
+            <!-- 🆕 报告内容板块 -->
+            <div class="form-row" style="margin-top:16px;">
+                <label>报告内容板块</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <label style="display:flex;align-items:center;gap:4px;padding:6px 12px;border:1px solid #e0e0e0;border-radius:6px;cursor:pointer;font-size:13px;background:#f0f7ff;">
+                        <input type="checkbox" id="rpt-sec-tasks" checked style="margin:0;"> 📋 任务清单
+                    </label>
+                    <label style="display:flex;align-items:center;gap:4px;padding:6px 12px;border:1px solid #e0e0e0;border-radius:6px;cursor:pointer;font-size:13px;background:#f0fff4;">
+                        <input type="checkbox" id="rpt-sec-kanban" checked style="margin:0;"> 📌 看板视图
+                    </label>
+                    <label style="display:flex;align-items:center;gap:4px;padding:6px 12px;border:1px solid #e0e0e0;border-radius:6px;cursor:pointer;font-size:13px;background:#fff8f0;">
+                        <input type="checkbox" id="rpt-sec-gantt" checked style="margin:0;"> 📊 甘特图
+                    </label>
+                    <label style="display:flex;align-items:center;gap:4px;padding:6px 12px;border:1px solid #e0e0e0;border-radius:6px;cursor:pointer;font-size:13px;background:#fff0f0;">
+                        <input type="checkbox" id="rpt-sec-issues" checked style="margin:0;"> ⚠️ 问题清单
+                    </label>
+                </div>
+                <div style="font-size:11px;color:#999;margin-top:4px;">💡 取消勾选不需要的板块可以减少空白页，让PDF更紧凑</div>
+            </div>
+
+            <div class="form-row" style="margin-top:20px;">
+                <button class="export-btn green" onclick="exportProjectReport('html')">📄 导出 HTML</button>
+                <button class="export-btn orange" onclick="exportProjectReport('pdf')">📋 导出 PDF</button>
+            </div>
         </div>
-        
-        <div class="report-container" id="report-content">
-            <div class="empty-state">⏳ 加载中...</div>
+
+        <!-- 原有周报/月报内容 -->
+        <div class="report-tabs">
+            <button class="tab-btn active" onclick="switchTab('weekly')">周报</button>
+            <button class="tab-btn" onclick="switchTab('monthly')">月报</button>
+        </div>
+
+        <div class="report-container">
+            <div id="weekly-report">
+                <div class="report-header">
+                    <div class="report-title">周报</div>
+                    <div class="report-period" id="weekly-period"></div>
+                </div>
+                <div class="stats-grid" id="weekly-stats"></div>
+                <div class="section">
+                    <div class="section-title">📋 本周任务</div>
+                    <div class="task-list" id="weekly-tasks"></div>
+                </div>
+                <div class="section">
+                    <div class="section-title">📊 项目进度</div>
+                    <div id="weekly-projects"></div>
+                </div>
+                <div class="export-actions">
+                    <button class="export-btn" onclick="exportWeeklyReport()">📥 导出周报</button>
+                </div>
+            </div>
+
+            <div id="monthly-report" style="display:none">
+                <div class="report-header">
+                    <div class="report-title">月报</div>
+                    <div class="report-period" id="monthly-period"></div>
+                </div>
+                <div class="stats-grid" id="monthly-stats"></div>
+                <div class="section">
+                    <div class="section-title">📊 人员工作量统计</div>
+                    <div class="person-stats" id="monthly-person-stats"></div>
+                </div>
+                <div class="export-actions">
+                    <button class="export-btn" onclick="exportMonthlyReport()">📥 导出月报</button>
+                </div>
+            </div>
         </div>
     </main>
-    
-        <script src="auth.js"></script>
-<script>
+
+    <script src="dark-mode.js"></script>
+    <script src="kanban-export.js"></script>
+    <script src="gantt-export.js"></script>
+    <script src="pm-report-export.js"></script>
+    <script>
         const API = '/api';
-        let _gsData = {projects:[], tasks:[], persons:[]};
+        let currentTab = 'weekly';
+        let selectedReportStyle = 'classic';
 
-        // 通知功能
-        async function loadNotifications() {
-            try {
-                const res = await authFetch(`${API}/notifications`);
-                const data = await res.json();
-                const notifs = data.notifications || [];
-                const unread = notifs.filter(n => !n.is_read).length;
-                const badge = document.getElementById('notification-badge');
-                if (unread > 0) { badge.textContent = unread; badge.style.display = 'inline'; }
-                else { badge.style.display = 'none'; }
-                const list = document.getElementById('notification-list');
-                if (!notifs.length) { list.innerHTML = '<div style="padding:20px;text-align:center;color:#999">暂无通知</div>'; return; }
-                const typeIcons = {task_assigned:'📋',task_completed:'✅',task_updated:'🔄',comment_added:'💬',issue_created:'⚠️'};
-                list.innerHTML = notifs.slice(0,20).map(n => `<div style="padding:10px 16px;border-bottom:1px solid #f5f5f5;${n.is_read?'':'background:#f0f4ff;'}cursor:pointer;" onclick="handleNotificationClick(${n.id},'${n.entity_type||''}',${n.entity_id||0})"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:16px;">${typeIcons[n.type]||'🔔'}</span><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:${n.is_read?'400':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.title||''}</div><div style="font-size:12px;color:#888;margin-top:2px;">${n.content||''}</div></div></div></div>`).join('');
-            } catch(e) {}
-        }
-        function toggleNotificationPanel() {
-            const panel = document.getElementById('notification-panel');
-            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-            if (panel.style.display === 'block') loadNotifications();
-        }
-        async function handleNotificationClick(nid, entityType, entityId) {
-            await authFetch(`${API}/notifications/${nid}/read`, {method:'POST'});
-            toggleNotificationPanel();
-            if (entityType === 'task' && entityId) window.location.href = 'tasks.html';
-            else if (entityType === 'project' && entityId) window.location.href = `project.html?id=${entityId}`;
-        }
-        async function markAllNotificationsRead() {
-            try { await authFetch(`${API}/notifications/read-all`, {method:'POST'}); loadNotifications(); } catch(e) {}
-        }
-        loadNotifications();
+        // === 时间维度切换 ===
+        document.querySelectorAll('input[name="report-time"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const custom = document.getElementById('report-custom-range');
+                custom.style.display = this.value === 'custom' ? 'block' : 'none';
+            });
+        });
+        let allProjects = [];
 
-        // 全局搜索
-        function showGlobalSearch() {
-            document.getElementById('global-search-overlay').style.display = 'block';
-            const input = document.getElementById('global-search-input');
-            input.value = ''; input.focus();
-            document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>';
-        }
-        function hideGlobalSearch() { document.getElementById('global-search-overlay').style.display = 'none'; }
-        async function doGlobalSearch() {
-            const q = document.getElementById('global-search-input').value.trim().toLowerCase();
-            if (!q) { document.getElementById('global-search-results').innerHTML = '<div style="padding:20px;text-align:center;color:#999">输入关键词搜索项目、任务、人员</div>'; return; }
-            if (_gsData.projects.length === 0) {
-                try {
-                    const [pR, tR, peR] = await Promise.all([authFetch(`${API}/projects`), authFetch(`${API}/tasks`), authFetch(`${API}/persons`)]);
-                    _gsData.projects = (await pR.json()).projects || [];
-                    _gsData.tasks = (await tR.json()).tasks || [];
-                    _gsData.persons = (await peR.json()).persons || [];
-                } catch(e) {}
-            }
-            const res = [];
-            _gsData.projects.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'project',i:'📁',n:p.name,d:`进度 ${p.progress||0}%`,l:`project.html?id=${p.id}`}));
-            _gsData.tasks.filter(t => (t.name||'').toLowerCase().includes(q)).slice(0,8).forEach(t => res.push({t:'task',i:'📋',n:t.name,d:`${t.project_name||''} · ${t.assignee_name||'未分配'}`,l:'tasks.html'}));
-            _gsData.persons.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'person',i:'👤',n:p.name,d:`${p.line||''} ${p.position||''}`,l:'persons.html'}));
-            const c = document.getElementById('global-search-results');
-            if (!res.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#999">未找到相关结果</div>'; return; }
-            c.innerHTML = res.map(r => `<a href="${r.l}" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;text-decoration:none;color:#333" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background=''"><span style="font-size:18px">${r.i}</span><div style="flex:1"><div style="font-weight:500">${r.n}</div><div style="font-size:12px;color:#888">${r.d}</div></div><span style="font-size:11px;color:#bbb;background:#f5f5f5;padding:2px 6px;border-radius:3px">${r.t==='project'?'项目':r.t==='task'?'任务':'人员'}</span></a>`).join('');
-        }
-        function handleSearchKey(e) { if (e.key === 'Escape') hideGlobalSearch(); }
-        document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); showGlobalSearch(); } });
+        // === 登录检查 ===
+        initAuthPage();
 
+        // === 加载项目列表 ===
+        async function loadProjects() {
+            const res = await authFetch(`${API}/projects`);
+            if (!res) return;
+            const data = await res.json();
+            if (!data.success) return;
+            allProjects = data.projects || [];
+            const sel = document.getElementById('export-project-select');
+            allProjects.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.name + (p.status === 'completed' ? ' ✅' : p.status === 'in_progress' ? ' 🔄' : ' ⏳');
+                sel.appendChild(opt);
+            });
+        }
 
-        let currentReport = 'weekly';
-        
-        async function loadReport(type) {
-            currentReport = type;
-            const endpoint = type === 'weekly' ? '/report/weekly' : '/report/monthly';
-            
-            try {
-                const res = await authFetch(`${API}${endpoint}`);
-                const data = await res.json();
-                
-                if (data.success) {
-                    renderReport(data.report);
-                } else {
-                    document.getElementById('report-content').innerHTML = 
-                        '<div class="empty-state">❌ 加载失败</div>';
+        // === 报告风格选择 ===
+        function selectReportStyle(style) {
+            selectedReportStyle = style;
+            document.querySelectorAll('.style-option').forEach(el => {
+                el.classList.toggle('selected', el.dataset.style === style);
+            });
+        }
+
+        // === 项目报告导出 ===
+        function getReportOptions() {
+            const timeVal = document.querySelector('input[name="report-time"]:checked')?.value || 'month';
+            const opts = {
+                timeRange: timeVal,
+                startDate: document.getElementById('report-start-date')?.value || '',
+                endDate: document.getElementById('report-end-date')?.value || '',
+                sections: {
+                    tasks: document.getElementById('rpt-sec-tasks')?.checked ?? true,
+                    kanban: document.getElementById('rpt-sec-kanban')?.checked ?? true,
+                    gantt: document.getElementById('rpt-sec-gantt')?.checked ?? true,
+                    issues: document.getElementById('rpt-sec-issues')?.checked ?? true,
                 }
-            } catch (e) {
-                console.error('加载报告失败:', e);
-                document.getElementById('report-content').innerHTML = 
-                    '<div class="empty-state">❌ 加载失败，请检查服务是否重启</div>';
+            };
+            return opts;
+        }
+
+        async function exportProjectReport(format) {
+            const projectId = document.getElementById('export-project-select').value;
+            if (!projectId) { alert('请先选择项目'); return; }
+            
+            const project = await PM_REPORT_EXPORT.loadProjectData(projectId);
+            if (!project) return;
+
+            const opts = getReportOptions();
+            if (format === 'html') {
+                PM_REPORT_EXPORT.exportHTML(project, selectedReportStyle, opts);
+            } else if (format === 'pdf') {
+                await PM_REPORT_EXPORT.exportPDF(project, selectedReportStyle, opts);
             }
         }
-        
-        function renderReport(report) {
-            const container = document.getElementById('report-content');
-            
-            if (report.type === 'weekly') {
-                container.innerHTML = renderWeeklyReport(report);
-            } else {
-                container.innerHTML = renderMonthlyReport(report);
-            }
-        }
-        
-        function renderWeeklyReport(report) {
-            const stats = report.stats;
-            
-            return `
-                <div class="report-header">
-                    <div class="report-title">📊 项目管理周报</div>
-                    <div class="report-period">报告周期：${report.period}</div>
-                </div>
-                
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <h4>✅ 本周完成任务</h4>
-                        <div class="number">${stats.completed_tasks}</div>
-                    </div>
-                    <div class="stat-card">
-                        <h4>📝 新建任务</h4>
-                        <div class="number">${stats.new_tasks}</div>
-                    </div>
-                    <div class="stat-card">
-                        <h4>🔧 解决问题</h4>
-                        <div class="number">${stats.resolved_issues}</div>
-                    </div>
-                    <div class="stat-card">
-                        <h4>📁 进行中项目</h4>
-                        <div class="number">${stats.active_projects}</div>
-                    </div>
-                </div>
-                
-                <div class="section">
-                    <div class="section-title">✅ 本周完成的任务</div>
-                    <div class="task-list">
-                        ${report.completed_tasks.length > 0 
-                            ? report.completed_tasks.map(t => `
-                                <div class="task-item">
-                                    <div>
-                                        <div class="task-name">${t.name}</div>
-                                        <div class="task-meta">项目: ${t.project_name || '-'} | 完成: ${t.completed_date || '-'}</div>
-                                    </div>
-                                    <span style="color: #4caf50;">✅</span>
-                                </div>
-                            `).join('')
-                            : '<div class="empty-state">本周无完成任务</div>'
-                        }
-                    </div>
-                </div>
-                
-                <div class="section">
-                    <div class="section-title">📁 进行中的项目</div>
-                    <div class="task-list">
-                        ${report.active_projects.length > 0 
-                            ? report.active_projects.map(p => `
-                                <div class="project-item">
-                                    <h4>${p.name}</h4>
-                                    <div class="task-meta">负责人: ${p.owner_name || '-'} | 进度: ${p.progress}%</div>
-                                    <div class="progress-bar">
-                                        <div class="progress-fill" style="width: ${p.progress}%"></div>
-                                    </div>
-                                </div>
-                            `).join('')
-                            : '<div class="empty-state">无进行中项目</div>'
-                        }
-                    </div>
-                </div>
-                
-                <div class="section">
-                    <div class="section-title">📝 本周新建任务</div>
-                    <div class="task-list">
-                        ${report.new_tasks.length > 0 
-                            ? report.new_tasks.slice(0, 10).map(t => `
-                                <div class="task-item">
-                                    <div>
-                                        <div class="task-name">${t.name}</div>
-                                        <div class="task-meta">项目: ${t.project_name || '-'}</div>
-                                    </div>
-                                    <span style="color: #ff9800;">⏳</span>
-                                </div>
-                            `).join('')
-                            : '<div class="empty-state">本周无新建任务</div>'
-                        }
-                    </div>
-                </div>
-                
-                <div class="export-actions">
-                    <button class="export-btn" onclick="exportReport('html')">📥 导出HTML</button>
-                    <button class="export-btn" onclick="window.print()">🖨️ 打印报告</button>
-                </div>
-            `;
-        }
-        
-        function renderMonthlyReport(report) {
-            const stats = report.stats;
-            
-            return `
-                <div class="report-header">
-                    <div class="report-title">📊 项目管理月报</div>
-                    <div class="report-period">报告周期：${report.period}</div>
-                </div>
-                
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <h4>✅ 完成任务</h4>
-                        <div class="number">${stats.completed_tasks}</div>
-                    </div>
-                    <div class="stat-card">
-                        <h4>📁 完成项目</h4>
-                        <div class="number">${stats.completed_projects}</div>
-                    </div>
-                    <div class="stat-card">
-                        <h4>🔧 解决问题</h4>
-                        <div class="number">${stats.resolved_issues}</div>
-                    </div>
-                    <div class="stat-card">
-                        <h4>👥 参与人员</h4>
-                        <div class="number">${report.person_stats.length}</div>
-                    </div>
-                </div>
-                
-                <div class="section">
-                    <div class="section-title">👥 人员绩效统计</div>
-                    <div class="person-stats">
-                        ${report.person_stats.map(p => `
-                            <div class="person-card">
-                                <h4>${p.name || '未知'}</h4>
-                                <div class="stats">
-                                    总任务: ${p.task_count || 0}<br>
-                                    已完成: ${p.completed_count || 0}<br>
-                                    完成率: ${p.task_count > 0 ? Math.round(p.completed_count / p.task_count * 100) : 0}%
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-                
-                <div class="section">
-                    <div class="section-title">✅ 本月完成的任务</div>
-                    <div class="task-list">
-                        ${report.completed_tasks.length > 0 
-                            ? report.completed_tasks.slice(0, 20).map(t => `
-                                <div class="task-item">
-                                    <div>
-                                        <div class="task-name">${t.name}</div>
-                                        <div class="task-meta">项目: ${t.project_name || '-'} | 完成: ${t.completed_date || '-'}</div>
-                                    </div>
-                                    <span style="color: #4caf50;">✅</span>
-                                </div>
-                            `).join('')
-                            : '<div class="empty-state">本月无完成任务</div>'
-                        }
-                    </div>
-                </div>
-                
-                <div class="export-actions">
-                    <button class="export-btn" onclick="exportReport('html')">📥 导出HTML</button>
-                    <button class="export-btn" onclick="window.print()">🖨️ 打印报告</button>
-                </div>
-            `;
-        }
-        
-        function showReport(type) {
+
+        // === 原有周报/月报功能 ===
+        function switchTab(tab) {
+            currentTab = tab;
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             event.target.classList.add('active');
-            
-            document.getElementById('report-content').innerHTML = '<div class="empty-state">⏳ 加载中...</div>';
-            loadReport(type);
+            document.getElementById('weekly-report').style.display = tab === 'weekly' ? '' : 'none';
+            document.getElementById('monthly-report').style.display = tab === 'monthly' ? '' : 'none';
+            if (tab === 'weekly') loadWeeklyReport();
+            if (tab === 'monthly') loadMonthlyReport();
         }
-        
-        async function exportReport(format) {
-            const res = await authFetch(`${API}/report/export`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: currentReport, format })
-            });
+
+        async function loadWeeklyReport() {
+            const res = await authFetch(`${API}/report/weekly`);
+            if (!res) return;
+            const data = await res.json();
+            if (!data.success) return;
             
-            // 下载文件
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${currentReport}_report.html`;
-            a.click();
-            URL.revokeObjectURL(url);
+            document.getElementById('weekly-period').textContent = `${data.period.start} ~ ${data.period.end}`;
+            
+            const stats = data.stats;
+            document.getElementById('weekly-stats').innerHTML = `
+                <div class="stat-card"><h4>新增任务</h4><div class="number">${stats.new_tasks || 0}</div></div>
+                <div class="stat-card"><h4>完成任务</h4><div class="number">${stats.completed_tasks || 0}</div></div>
+                <div class="stat-card"><h4>待处理问题</h4><div class="number">${stats.pending_issues || 0}</div></div>
+                <div class="stat-card"><h4>活跃项目</h4><div class="number">${stats.active_projects || 0}</div></div>
+            `;
+            
+            const tasks = data.new_task_list || [];
+            document.getElementById('weekly-tasks').innerHTML = tasks.length > 0 
+                ? tasks.map(t => `<div class="task-item"><div><div class="task-name">${t.name}</div><div class="task-meta">${t.project_name || ''} · ${t.assignee_name || '未分配'}</div></div><div class="task-meta">${t.status}</div></div>`).join('')
+                : '<div class="empty-state">本周无新增任务</div>';
+
+            const projects = data.project_progress || [];
+            document.getElementById('weekly-projects').innerHTML = projects.length > 0
+                ? projects.map(p => `<div class="project-item"><h4>${p.name}</h4><div style="color:#666;font-size:13px">进度: ${p.progress}%</div><div class="progress-bar"><div class="progress-fill" style="width:${p.progress}%"></div></div></div>`).join('')
+                : '<div class="empty-state">暂无项目数据</div>';
         }
-        
-        // 初始化
-        (async () => { const u = await initAuthPage(); if (u) loadReport('weekly'); })();
+
+        async function loadMonthlyReport() {
+            const res = await authFetch(`${API}/report/monthly`);
+            if (!res) return;
+            const data = await res.json();
+            if (!data.success) return;
+            
+            document.getElementById('monthly-period').textContent = `${data.period.start} ~ ${data.period.end}`;
+            
+            const stats = data.stats;
+            document.getElementById('monthly-stats').innerHTML = `
+                <div class="stat-card"><h4>总任务</h4><div class="number">${stats.total_tasks || 0}</div></div>
+                <div class="stat-card"><h4>完成率</h4><div class="number">${stats.completion_rate || 0}%</div></div>
+                <div class="stat-card"><h4>解决问题</h4><div class="number">${stats.resolved_issues || 0}</div></div>
+                <div class="stat-card"><h4>活跃项目</h4><div class="number">${stats.active_projects || 0}</div></div>
+            `;
+
+            const persons = data.person_stats || [];
+            document.getElementById('monthly-person-stats').innerHTML = persons.length > 0
+                ? persons.map(p => `<div class="person-card"><h4>${p.name}</h4><div class="stats">任务: ${p.total_tasks} · 完成: ${p.completed} · 进度: ${p.avg_progress}%</div></div>`).join('')
+                : '<div class="empty-state">暂无人员数据</div>';
+        }
+
+        // === 导出原有周报/月报 ===
+        function exportWeeklyReport() { alert('周报导出功能开发中'); }
+        function exportMonthlyReport() { alert('月报导出功能开发中'); }
+
+        // === 通知功能 ===
+        async function loadNotifications() {
+            const token = getToken();
+            if (!token) return;
+            const res = await authFetch(`${API}/notifications`);
+            if (!res) return;
+            const data = await res.json();
+            if (!data.success) return;
+            const notifs = data.notifications || [];
+            const unread = notifs.filter(n => !n.is_read).length;
+            document.getElementById('notification-badge').textContent = unread;
+            document.getElementById('notification-badge').style.display = unread > 0 ? '' : 'none';
+        }
+
+        function toggleNotificationPanel() {
+            const panel = document.getElementById('notification-panel');
+            panel.style.display = panel.style.display === 'none' ? '' : 'none';
+            if (panel.style.display !== 'none') loadNotificationList();
+        }
+
+        async function loadNotificationList() {
+            const res = await authFetch(`${API}/notifications`);
+            if (!res) return;
+            const data = await res.json();
+            const notifs = data.notifications || [];
+            document.getElementById('notification-list').innerHTML = notifs.length > 0
+                ? notifs.map(n => `<div style="padding:10px;border-bottom:1px solid #eee;${n.is_read ? 'opacity:0.6' : ''}">
+                    <div style="font-size:14px;font-weight:${n.is_read ? 'normal' : '600'}">${n.title}</div>
+                    <div style="font-size:12px;color:#888">${n.content || ''} · ${n.created_at || ''}</div></div>`).join('')
+                : '<div style="text-align:center;padding:20px;color:#999">暂无通知</div>';
+        }
+
+        async function markAllRead() {
+            await authFetch(`${API}/notifications/read-all`, { method: 'POST' });
+            loadNotifications();
+            loadNotificationList();
+        }
+
+        // === 全局搜索 ===
+        function showGlobalSearch() { document.getElementById('global-search-overlay').style.display = ''; document.getElementById('global-search-input').focus(); }
+        function hideGlobalSearch() { document.getElementById('global-search-overlay').style.display = 'none'; }
+
+        async function doGlobalSearch() {
+            const q = document.getElementById('global-search-input').value.trim();
+            if (!q) { document.getElementById('global-search-results').innerHTML = ''; return; }
+            const res = await authFetch(`${API}/search?q=${encodeURIComponent(q)}`);
+            if (!res) return;
+            const data = await res.json();
+            const results = data.results || [];
+            document.getElementById('global-search-results').innerHTML = results.length > 0
+                ? results.map(r => `<div style="padding:12px;border-bottom:1px solid #eee;cursor:pointer" onclick="hideGlobalSearch();window.location.href='${r.link}'">
+                    <div style="font-size:14px">${r.icon || '📄'} ${r.title}</div>
+                    <div style="font-size:12px;color:#888">${r.type} · ${r.subtitle || ''}</div></div>`).join('')
+                : '<div style="text-align:center;padding:20px;color:#999">未找到结果</div>';
+        }
+
+        function handleSearchKey(e) {
+            if (e.key === 'Escape') hideGlobalSearch();
+            if (e.key === 'Enter') doGlobalSearch();
+        }
+
+        document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); showGlobalSearch(); } });
+
+        // === 初始化 ===
+        loadProjects();
+        loadWeeklyReport();
+        loadNotifications();
     </script>
-    <script src="dark-mode.js"></script>
 </body>
 </html>
