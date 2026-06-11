@@ -518,31 +518,48 @@ const PM_REPORT_EXPORT = {
      * @param {string} filename - 输出文件名
      */
     async htmlToPDF(htmlContent, filename) {
+        await this.loadDeps();
+        if (!window.html2canvas || !window.jspdf) {
+            alert('PDF导出库加载失败，请检查网络连接后重试');
+            return;
+        }
+
         const loadingEl = document.createElement('div');
         loadingEl.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000';
         loadingEl.innerHTML = '<div style="background:white;padding:30px;border-radius:12px;text-align:center"><div style="font-size:24px">📄</div><div>正在生成PDF...</div></div>';
         document.body.appendChild(loadingEl);
 
         try {
+            // 创建隐藏容器渲染HTML
             const container = document.createElement('div');
-            container.style.cssText = 'position:absolute;left:-9999px;top:0;width:900px;background:white;';
+            container.style.cssText = 'position:absolute;left:-9999px;top:0;width:900px;background:white;padding:30px;';
             document.body.appendChild(container);
 
-            const iframe = document.createElement('iframe');
-            iframe.style.cssText = 'width:900px;border:none;';
-            container.appendChild(iframe);
-            iframe.contentDocument.open();
-            iframe.contentDocument.write(htmlContent);
-            iframe.contentDocument.close();
+            // 使用shadow DOM避免样式冲突
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = 'width:840px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#333;';
+            container.appendChild(wrapper);
 
-            await new Promise(r => setTimeout(r, 500));
-            const h = iframe.contentDocument.body.scrollHeight;
-            iframe.style.height = h + 'px';
-            await new Promise(r => setTimeout(r, 300));
+            // 提取body内容
+            const bodyMatch = htmlContent.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+            const styleMatch = htmlContent.match(/<style[^>]*>([\s\S]*)<\/style>/gi);
+            if (styleMatch) {
+                const styleEl = document.createElement('style');
+                styleEl.textContent = styleMatch.map(s => s.replace(/<\/?style[^>]*>/gi, '')).join('\n');
+                wrapper.appendChild(styleEl);
+            }
+            if (bodyMatch) {
+                wrapper.innerHTML += bodyMatch[1];
+            } else {
+                wrapper.innerHTML = htmlContent;
+            }
 
-            const canvas = await html2canvas(iframe.contentDocument.body, {
+            // 等待渲染
+            await new Promise(r => setTimeout(r, 800));
+
+            const canvas = await html2canvas(wrapper, {
                 scale: 2, useCORS: true, logging: false,
-                width: 900, height: h
+                width: 840, backgroundColor: '#ffffff'
             });
 
             const { jsPDF } = window.jspdf;
@@ -572,6 +589,8 @@ const PM_REPORT_EXPORT = {
             console.error('PDF导出失败:', e);
             alert('PDF导出失败: ' + e.message);
         } finally {
+            // 清理临时元素
+            document.querySelectorAll('[style*="left:-9999px"]').forEach(el => el.remove());
             document.body.removeChild(loadingEl);
         }
     }
