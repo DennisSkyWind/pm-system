@@ -212,8 +212,12 @@
                 </div>
                 <div class="stats-grid" id="weekly-stats"></div>
                 <div class="section">
-                    <div class="section-title">📋 本周任务</div>
+                    <div class="section-title">📋 本周新增任务</div>
                     <div class="task-list" id="weekly-tasks"></div>
+                </div>
+                <div class="section">
+                    <div class="section-title">✅ 本周完成任务</div>
+                    <div class="task-list" id="weekly-completed-tasks"></div>
                 </div>
                 <div class="section">
                     <div class="section-title">📊 项目进度</div>
@@ -233,6 +237,10 @@
                 <div class="section">
                     <div class="section-title">📊 人员工作量统计</div>
                     <div class="person-stats" id="monthly-person-stats"></div>
+                </div>
+                <div class="section">
+                    <div class="section-title">✅ 本月完成任务</div>
+                    <div class="task-list" id="monthly-completed-tasks"></div>
                 </div>
                 <div class="export-actions">
                     <button class="export-btn" onclick="exportMonthlyReport()">📥 导出月报</button>
@@ -335,25 +343,37 @@
             const data = await res.json();
             if (!data.success) return;
             
-            document.getElementById('weekly-period').textContent = `${data.period.start} ~ ${data.period.end}`;
+            const report = data.report;
+            document.getElementById('weekly-period').textContent = report.period;
             
-            const stats = data.stats;
+            const stats = report.stats;
+            const completedTotal = stats.completed_total || 0;
+            const totalTasks = stats.total_tasks || 0;
+            const completionRate = totalTasks > 0 ? Math.round(completedTotal / totalTasks * 100) : 0;
             document.getElementById('weekly-stats').innerHTML = `
                 <div class="stat-card"><h4>新增任务</h4><div class="number">${stats.new_tasks || 0}</div></div>
                 <div class="stat-card"><h4>完成任务</h4><div class="number">${stats.completed_tasks || 0}</div></div>
-                <div class="stat-card"><h4>待处理问题</h4><div class="number">${stats.pending_issues || 0}</div></div>
+                <div class="stat-card"><h4>总完成率</h4><div class="number">${completionRate}%</div></div>
                 <div class="stat-card"><h4>活跃项目</h4><div class="number">${stats.active_projects || 0}</div></div>
             `;
             
-            const tasks = data.new_task_list || [];
-            document.getElementById('weekly-tasks').innerHTML = tasks.length > 0 
-                ? tasks.map(t => `<div class="task-item"><div><div class="task-name">${t.name}</div><div class="task-meta">${t.project_name || ''} · ${t.assignee_name || '未分配'}</div></div><div class="task-meta">${t.status}</div></div>`).join('')
+            // 本周新增任务
+            const newTasks = report.new_tasks || [];
+            document.getElementById('weekly-tasks').innerHTML = newTasks.length > 0 
+                ? newTasks.map(t => `<div class="task-item"><div><div class="task-name">${t.name}</div><div class="task-meta">${t.project_name || ''} · ${t.assignee_name || '未分配'} · 进度${t.progress || 0}%</div></div><div class="task-meta">${t.status === 'completed' ? '✅ 已完成' : t.status === 'in_progress' ? '🔄 进行中' : '⏳ 待处理'}</div></div>`).join('')
                 : '<div class="empty-state">本周无新增任务</div>';
 
-            const projects = data.project_progress || [];
+            // 本周完成任务
+            const completedTasks = report.completed_tasks || [];
+            document.getElementById('weekly-completed-tasks').innerHTML = completedTasks.length > 0
+                ? completedTasks.map(t => `<div class="task-item"><div><div class="task-name">${t.name}</div><div class="task-meta">${t.project_name || ''} · ${t.assignee_name || ''} · ${t.completed_date || ''}</div></div><div class="task-meta">✅ 已完成</div></div>`).join('')
+                : '<div class="empty-state">本周无完成任务</div>';
+
+            // 活跃项目
+            const projects = report.active_projects || [];
             document.getElementById('weekly-projects').innerHTML = projects.length > 0
-                ? projects.map(p => `<div class="project-item"><h4>${p.name}</h4><div style="color:#666;font-size:13px">进度: ${p.progress}%</div><div class="progress-bar"><div class="progress-fill" style="width:${p.progress}%"></div></div></div>`).join('')
-                : '<div class="empty-state">暂无项目数据</div>';
+                ? projects.map(p => `<div class="project-item"><h4>${p.name}</h4><div style="color:#666;font-size:13px">进度: ${p.progress}% · 负责人: ${p.owner_name || '未指定'}</div><div class="progress-bar"><div class="progress-fill" style="width:${p.progress}%;background:${p.progress>=80?'#4caf50':p.progress>=50?'#ff9800':'#2196f3'}"></div></div></div>`).join('')
+                : '<div class="empty-state">暂无进行中项目</div>';
         }
 
         async function loadMonthlyReport() {
@@ -362,25 +382,140 @@
             const data = await res.json();
             if (!data.success) return;
             
-            document.getElementById('monthly-period').textContent = `${data.period.start} ~ ${data.period.end}`;
+            const report = data.report;
+            document.getElementById('monthly-period').textContent = report.period;
             
-            const stats = data.stats;
+            const stats = report.stats;
             document.getElementById('monthly-stats').innerHTML = `
-                <div class="stat-card"><h4>总任务</h4><div class="number">${stats.total_tasks || 0}</div></div>
-                <div class="stat-card"><h4>完成率</h4><div class="number">${stats.completion_rate || 0}%</div></div>
+                <div class="stat-card"><h4>完成任务</h4><div class="number">${stats.completed_tasks || 0}</div></div>
+                <div class="stat-card"><h4>完成项目</h4><div class="number">${stats.completed_projects || 0}</div></div>
                 <div class="stat-card"><h4>解决问题</h4><div class="number">${stats.resolved_issues || 0}</div></div>
-                <div class="stat-card"><h4>活跃项目</h4><div class="number">${stats.active_projects || 0}</div></div>
+                <div class="stat-card"><h4>统计月份</h4><div class="number" style="font-size:18px">${stats.month || '-'}</div></div>
             `;
 
-            const persons = data.person_stats || [];
+            // 人员工作量统计
+            const persons = report.person_stats || [];
             document.getElementById('monthly-person-stats').innerHTML = persons.length > 0
-                ? persons.map(p => `<div class="person-card"><h4>${p.name}</h4><div class="stats">任务: ${p.total_tasks} · 完成: ${p.completed} · 进度: ${p.avg_progress}%</div></div>`).join('')
+                ? persons.map(p => {
+                    const total = p.task_count || 0;
+                    const done = p.completed_count || 0;
+                    const rate = total > 0 ? Math.round(done / total * 100) : 0;
+                    return `<div class="person-card"><h4>${p.name}</h4><div class="stats">总任务: ${total} · 完成: ${done} · 完成率: ${rate}%</div><div class="progress-bar" style="margin-top:8px"><div class="progress-fill" style="width:${rate}%;background:${rate>=80?'#4caf50':rate>=50?'#ff9800':'#2196f3'}"></div></div></div>`;
+                }).join('')
                 : '<div class="empty-state">暂无人员数据</div>';
+
+            // 本月完成任务
+            const completedTasks = report.completed_tasks || [];
+            document.getElementById('monthly-completed-tasks').innerHTML = completedTasks.length > 0
+                ? completedTasks.map(t => `<div class="task-item"><div><div class="task-name">${t.name}</div><div class="task-meta">${t.project_name || ''} · ${t.assignee_name || ''} · ${t.completed_date || ''}</div></div><div class="task-meta">✅ 已完成</div></div>`).join('')
+                : '<div class="empty-state">本月无完成任务</div>';
         }
 
-        // === 导出原有周报/月报 ===
-        function exportWeeklyReport() { alert('周报导出功能开发中'); }
-        function exportMonthlyReport() { alert('月报导出功能开发中'); }
+        // === 导出周报 ===
+        async function exportWeeklyReport() {
+            const res = await authFetch(`${API}/report/weekly`);
+            if (!res) return;
+            const data = await res.json();
+            if (!data.success) return;
+            const r = data.report;
+            const s = r.stats;
+            
+            const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>周报 - ${r.period}</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:900px;margin:0 auto;padding:30px;color:#333}
+h1{color:#667eea;border-bottom:3px solid #667eea;padding-bottom:10px}
+h2{color:#555;margin-top:30px}
+.stats{display:flex;gap:15px;margin:20px 0}
+.stat{flex:1;background:#f8f9fa;padding:15px;border-radius:8px;text-align:center}
+.stat .num{font-size:28px;font-weight:bold;color:#667eea}
+.stat .label{font-size:13px;color:#666;margin-top:5px}
+table{width:100%;border-collapse:collapse;margin:15px 0}
+th{background:#667eea;color:white;padding:10px;text-align:left}
+td{padding:10px;border-bottom:1px solid #eee}
+tr:hover td{background:#f8f9fa}
+.progress-bar{height:8px;background:#e0e0e0;border-radius:4px;margin-top:5px}
+.progress-fill{height:100%;border-radius:4px}
+.footer{margin-top:40px;color:#999;font-size:12px;border-top:1px solid #eee;padding-top:10px}
+</style></head><body>
+<h1>📊 项目管理周报</h1>
+<p style="color:#666">报告周期：${r.period}</p>
+<div class="stats">
+<div class="stat"><div class="num">${s.new_tasks||0}</div><div class="label">新增任务</div></div>
+<div class="stat"><div class="num">${s.completed_tasks||0}</div><div class="label">完成任务</div></div>
+<div class="stat"><div class="num">${s.resolved_issues||0}</div><div class="label">解决问题</div></div>
+<div class="stat"><div class="num">${s.active_projects||0}</div><div class="label">活跃项目</div></div>
+</div>
+<h2>📋 本周新增任务</h2>
+<table><tr><th>任务</th><th>项目</th><th>负责人</th><th>进度</th><th>状态</th></tr>
+${(r.new_tasks||[]).map(t=>`<tr><td>${t.name}</td><td>${t.project_name||'-'}</td><td>${t.assignee_name||'-'}</td><td>${t.progress||0}%</td><td>${t.status==='completed'?'✅已完成':t.status==='in_progress'?'🔄进行中':'⏳待处理'}</td></tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:#999">无新增任务</td></tr>'}
+</table>
+<h2>✅ 本周完成任务</h2>
+<table><tr><th>任务</th><th>项目</th><th>负责人</th><th>完成日期</th></tr>
+${(r.completed_tasks||[]).map(t=>`<tr><td>${t.name}</td><td>${t.project_name||'-'}</td><td>${t.assignee_name||'-'}</td><td>${t.completed_date||'-'}</td></tr>`).join('')||'<tr><td colspan="4" style="text-align:center;color:#999">无完成任务</td></tr>'}
+</table>
+<h2>📊 活跃项目进度</h2>
+${(r.active_projects||[]).map(p=>`<div style="margin:10px 0"><strong>${p.name}</strong> <span style="color:#666">· 负责人: ${p.owner_name||'-'}</span><div class="progress-bar"><div class="progress-fill" style="width:${p.progress}%;background:${p.progress>=80?'#4caf50':p.progress>=50?'#ff9800':'#2196f3'}"></div></div><span style="font-size:13px;color:#666">${p.progress}%</span></div>`).join('')||'<p style="color:#999">无活跃项目</p>'}
+<div class="footer">生成时间：${new Date().toLocaleString('zh-CN')}</div>
+</body></html>`;
+            
+            const blob = new Blob([html], {type: 'text/html;charset=utf-8'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `周报_${r.period.replace(/ ~ /,'_').replace(/-/g,'')}.html`;
+            a.click(); URL.revokeObjectURL(url);
+        }
+
+        // === 导出月报 ===
+        async function exportMonthlyReport() {
+            const res = await authFetch(`${API}/report/monthly`);
+            if (!res) return;
+            const data = await res.json();
+            if (!data.success) return;
+            const r = data.report;
+            const s = r.stats;
+            
+            const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>月报 - ${r.period}</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:900px;margin:0 auto;padding:30px;color:#333}
+h1{color:#764ba2;border-bottom:3px solid #764ba2;padding-bottom:10px}
+h2{color:#555;margin-top:30px}
+.stats{display:flex;gap:15px;margin:20px 0}
+.stat{flex:1;background:#f8f9fa;padding:15px;border-radius:8px;text-align:center}
+.stat .num{font-size:28px;font-weight:bold;color:#764ba2}
+.stat .label{font-size:13px;color:#666;margin-top:5px}
+table{width:100%;border-collapse:collapse;margin:15px 0}
+th{background:#764ba2;color:white;padding:10px;text-align:left}
+td{padding:10px;border-bottom:1px solid #eee}
+tr:hover td{background:#f8f9fa}
+.person-card{display:inline-block;width:45%;margin:8px;padding:15px;background:#f8f9fa;border-radius:8px;vertical-align:top}
+.progress-bar{height:8px;background:#e0e0e0;border-radius:4px;margin-top:5px}
+.progress-fill{height:100%;border-radius:4px}
+.footer{margin-top:40px;color:#999;font-size:12px;border-top:1px solid #eee;padding-top:10px}
+</style></head><body>
+<h1>📊 项目管理月报</h1>
+<p style="color:#666">统计月份：${r.period}</p>
+<div class="stats">
+<div class="stat"><div class="num">${s.completed_tasks||0}</div><div class="label">完成任务</div></div>
+<div class="stat"><div class="num">${s.completed_projects||0}</div><div class="label">完成项目</div></div>
+<div class="stat"><div class="num">${s.resolved_issues||0}</div><div class="label">解决问题</div></div>
+<div class="stat"><div class="num">${s.month||'-'}</div><div class="label" style="font-size:11px">统计月份</div></div>
+</div>
+<h2>📊 人员工作量统计</h2>
+<div>${(r.person_stats||[]).filter(p=>(p.task_count||0)>0).map(p=>{
+    const total=p.task_count||0;const done=p.completed_count||0;const rate=total>0?Math.round(done/total*100):0;
+    return `<div class="person-card"><strong>${p.name}</strong><div style="font-size:13px;color:#666;margin:5px 0">总任务:${total} · 完成:${done} · 完成率:${rate}%</div><div class="progress-bar"><div class="progress-fill" style="width:${rate}%;background:${rate>=80?'#4caf50':rate>=50?'#ff9800':'#2196f3'}"></div></div></div>`;
+}).join('')||'<p style="color:#999">暂无数据</p>'}</div>
+<h2>✅ 本月完成任务</h2>
+<table><tr><th>任务</th><th>项目</th><th>负责人</th><th>完成日期</th></tr>
+${(r.completed_tasks||[]).map(t=>`<tr><td>${t.name}</td><td>${t.project_name||'-'}</td><td>${t.assignee_name||'-'}</td><td>${t.completed_date||'-'}</td></tr>`).join('')||'<tr><td colspan="4" style="text-align:center;color:#999">无完成任务</td></tr>'}
+</table>
+<div class="footer">生成时间：${new Date().toLocaleString('zh-CN')}</div>
+</body></html>`;
+            
+            const blob = new Blob([html], {type: 'text/html;charset=utf-8'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `月报_${(s.month||'').replace('-','')}.html`;
+            a.click(); URL.revokeObjectURL(url);
+        }
 
         // === 通知功能 ===
         async function loadNotifications() {
