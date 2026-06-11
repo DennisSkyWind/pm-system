@@ -510,5 +510,69 @@ const PM_REPORT_EXPORT = {
         } finally {
             document.body.removeChild(loadingEl);
         }
+    },
+
+    /**
+     * 通用HTML转PDF导出（用于周报/月报）
+     * @param {string} htmlContent - 完整的HTML内容
+     * @param {string} filename - 输出文件名
+     */
+    async htmlToPDF(htmlContent, filename) {
+        const loadingEl = document.createElement('div');
+        loadingEl.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000';
+        loadingEl.innerHTML = '<div style="background:white;padding:30px;border-radius:12px;text-align:center"><div style="font-size:24px">📄</div><div>正在生成PDF...</div></div>';
+        document.body.appendChild(loadingEl);
+
+        try {
+            const container = document.createElement('div');
+            container.style.cssText = 'position:absolute;left:-9999px;top:0;width:900px;background:white;';
+            document.body.appendChild(container);
+
+            const iframe = document.createElement('iframe');
+            iframe.style.cssText = 'width:900px;border:none;';
+            container.appendChild(iframe);
+            iframe.contentDocument.open();
+            iframe.contentDocument.write(htmlContent);
+            iframe.contentDocument.close();
+
+            await new Promise(r => setTimeout(r, 500));
+            const h = iframe.contentDocument.body.scrollHeight;
+            iframe.style.height = h + 'px';
+            await new Promise(r => setTimeout(r, 300));
+
+            const canvas = await html2canvas(iframe.contentDocument.body, {
+                scale: 2, useCORS: true, logging: false,
+                width: 900, height: h
+            });
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pageW = 210, pageH = 297, margin = 10;
+            const imgW = pageW - margin * 2;
+            const imgH = canvas.height * imgW / canvas.width;
+            const maxH = pageH - margin * 2;
+            let y = 0;
+
+            while (y < imgH) {
+                const sliceH = Math.min(maxH, imgH - y);
+                const srcY = y * canvas.width / imgW;
+                const srcH = sliceH * canvas.width / imgW;
+
+                if (y > 0) pdf.addPage();
+                const sliceCanvas = document.createElement('canvas');
+                sliceCanvas.width = canvas.width;
+                sliceCanvas.height = Math.max(1, Math.round(srcH));
+                const ctx = sliceCanvas.getContext('2d');
+                ctx.drawImage(canvas, 0, Math.round(srcY), canvas.width, Math.round(srcH), 0, 0, canvas.width, Math.round(srcH));
+                pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, imgW, sliceH);
+                y += maxH;
+            }
+            pdf.save(filename);
+        } catch (e) {
+            console.error('PDF导出失败:', e);
+            alert('PDF导出失败: ' + e.message);
+        } finally {
+            document.body.removeChild(loadingEl);
+        }
     }
 };

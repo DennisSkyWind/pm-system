@@ -13,11 +13,11 @@ import json
 from functools import wraps
 
 # 前端文件目录
-FRONTEND_DIR = os.environ.get('PM_FRONTEND_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend'))
+FRONTEND_DIR = '/home/ubuntu/.openclaw/workspace/pm-system'
 
 app = Flask(__name__, static_folder=FRONTEND_DIR)
-DB_PATH = os.environ.get('PM_DB_PATH', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'pm.db'))
-MEMOS_SCRIPT = os.environ.get('MEMOS_SCRIPT', '')
+DB_PATH = '/home/ubuntu/.copaw/data/pm.db'
+MEMOS_SCRIPT = '/home/ubuntu/.copaw/scripts/write_to_memos.py'
 
 # 用户会话存储（简单实现）
 USER_SESSIONS = {}
@@ -1001,11 +1001,11 @@ def create_task():
     cursor = conn.cursor()
     
     cursor.execute('''
-        INSERT INTO task (project_id, phase_id, name, description, priority, due_date, assignee_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO task (project_id, phase_id, name, description, priority, due_date, start_date, assignee_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ''', (data['project_id'], data.get('phase_id'), data['name'],
           data.get('description', ''), data.get('priority', 'medium'), 
-          data.get('due_date'), data.get('assignee_id')))
+          data.get('due_date'), data.get('start_date'), data.get('assignee_id')))
     
     task_id = cursor.lastrowid
     conn.commit()
@@ -1093,6 +1093,7 @@ def update_task(task_id):
             status = COALESCE(?, status),
             priority = COALESCE(?, priority),
             due_date = COALESCE(?, due_date),
+            start_date = COALESCE(?, start_date),
             progress = COALESCE(?, progress),
             completed_date = COALESCE(?, completed_date),
             notes = COALESCE(?, notes),
@@ -1101,7 +1102,7 @@ def update_task(task_id):
             updated_at = ?
         WHERE id = ?
     ''', (data.get('name'), data.get('description'), data.get('status'),
-          data.get('priority'), data.get('due_date'), data.get('progress'),
+          data.get('priority'), data.get('due_date'), data.get('start_date'), data.get('progress'),
           data.get('completed_date'), data.get('notes'), data.get('assignee_id'),
           data.get('phase_id'),
           datetime.now().isoformat(), task_id))
@@ -2344,9 +2345,9 @@ def apply_template():
         # 创建预设任务
         for task in content.get('tasks', []):
             cursor.execute('''
-                INSERT INTO task (project_id, name, description, status, priority, due_date)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (project_id, task.get('name'), task.get('description', ''), 'pending', task.get('priority', 'medium'), task.get('due_date')))
+                INSERT INTO task (project_id, name, description, status, priority, due_date, start_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (project_id, task.get('name'), task.get('description', ''), 'pending', task.get('priority', 'medium'), task.get('due_date'), task.get('start_date')))
         
         conn.commit()
         conn.close()
@@ -2357,15 +2358,16 @@ def apply_template():
         # 创建任务
         project_id = data.get('project_id')
         cursor.execute('''
-            INSERT INTO task (project_id, name, description, status, priority, due_date)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO task (project_id, name, description, status, priority, due_date, start_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         ''', (
             project_id,
             name,
             content.get('description', ''),
             'pending',
             content.get('priority', 'medium'),
-            content.get('due_date')
+            content.get('due_date'),
+            content.get('start_date')
         ))
         task_id = cursor.lastrowid
         conn.commit()
@@ -2432,6 +2434,42 @@ def get_weekly_report():
     ''')
     active_projects = [dict(row) for row in cursor.fetchall()]
     
+    # 即将到期任务（3天内到期且未完成）
+    three_days_later = (today + timedelta(days=3)).strftime('%Y-%m-%d')
+    today_str = today.strftime('%Y-%m-%d')
+    cursor.execute('''
+        SELECT t.*, p.name as project_name, per.name as assignee_name
+        FROM task t
+        LEFT JOIN project p ON t.project_id = p.id
+        LEFT JOIN person per ON t.assignee_id = per.id
+        WHERE t.due_date >= ? AND t.due_date <= ? AND t.status != 'completed'
+        ORDER BY t.due_date ASC
+    ''', (today_str, three_days_later))
+    due_soon_tasks = [dict(row) for row in cursor.fetchall()]
+    
+    # 延期任务（已过截止日期且未完成）
+    cursor.execute('''
+        SELECT t.*, p.name as project_name, per.name as assignee_name
+        FROM task t
+        LEFT JOIN project p ON t.project_id = p.id
+        LEFT JOIN person per ON t.assignee_id = per.id
+        WHERE t.due_date < ? AND t.status != 'completed'
+        ORDER BY t.due_date ASC
+    ''', (today_str,))
+    overdue_tasks = [dict(row) for row in cursor.fetchall()]
+    
+    # 风险任务（进度<50%且7天内到期）
+    seven_days_later = (today + timedelta(days=7)).strftime('%Y-%m-%d')
+    cursor.execute('''
+        SELECT t.*, p.name as project_name, per.name as assignee_name
+        FROM task t
+        LEFT JOIN project p ON t.project_id = p.id
+        LEFT JOIN person per ON t.assignee_id = per.id
+        WHERE t.progress < 50 AND t.due_date <= ? AND t.status != 'completed'
+        ORDER BY t.progress ASC
+    ''', (seven_days_later,))
+    risk_tasks = [dict(row) for row in cursor.fetchall()]
+    
     # 统计数据
     stats = {
         'week_start': week_start.strftime('%Y-%m-%d'),
@@ -2440,6 +2478,9 @@ def get_weekly_report():
         'new_tasks': len(new_tasks),
         'resolved_issues': len(resolved_issues),
         'active_projects': len(active_projects),
+        'due_soon_tasks': len(due_soon_tasks),
+        'overdue_tasks': len(overdue_tasks),
+        'risk_tasks': len(risk_tasks),
         'total_tasks': cursor.execute('SELECT COUNT(*) FROM task').fetchone()[0],
         'completed_total': cursor.execute('SELECT COUNT(*) FROM task WHERE status="completed"').fetchone()[0],
     }
@@ -2455,7 +2496,10 @@ def get_weekly_report():
             'completed_tasks': completed_tasks,
             'new_tasks': new_tasks,
             'resolved_issues': resolved_issues,
-            'active_projects': active_projects
+            'active_projects': active_projects,
+            'due_soon_tasks': due_soon_tasks,
+            'overdue_tasks': overdue_tasks,
+            'risk_tasks': risk_tasks
         }
     })
 
@@ -2463,10 +2507,12 @@ def get_weekly_report():
 def get_monthly_report():
     """生成月报"""
     from datetime import datetime
+    import calendar
     
     today = datetime.now()
     month_start = today.replace(day=1)
-    month_end = today.replace(day=28)  # 简化处理
+    last_day = calendar.monthrange(today.year, today.month)[1]
+    month_end = today.replace(day=last_day)
     
     conn = get_db()
     cursor = conn.cursor()
@@ -2498,22 +2544,59 @@ def get_monthly_report():
     ''', (month_start.strftime('%Y-%m-%d') + ' 00:00:00',))
     resolved_count = cursor.fetchone()[0]
     
-    # 人员绩效
+    # 人员绩效（过滤无任务人员）
     cursor.execute('''
         SELECT per.name, COUNT(t.id) as task_count,
                SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) as completed_count
         FROM person per
         LEFT JOIN task t ON t.assignee_id = per.id
         GROUP BY per.id
+        HAVING task_count > 0
         ORDER BY completed_count DESC
     ''')
     person_stats = [dict(row) for row in cursor.fetchall()]
+    
+    # 延期任务统计
+    today_str = today.strftime('%Y-%m-%d')
+    cursor.execute('''
+        SELECT t.*, p.name as project_name, per.name as assignee_name
+        FROM task t
+        LEFT JOIN project p ON t.project_id = p.id
+        LEFT JOIN person per ON t.assignee_id = per.id
+        WHERE t.due_date < ? AND t.status != 'completed'
+        ORDER BY t.due_date ASC
+    ''', (today_str,))
+    overdue_tasks = [dict(row) for row in cursor.fetchall()]
+    
+    # 问题趋势
+    cursor.execute('''
+        SELECT 
+            COUNT(CASE WHEN i.created_at >= ? THEN 1 END) as new_issues,
+            COUNT(CASE WHEN i.resolved_at >= ? AND i.status = 'resolved' THEN 1 END) as resolved_issues,
+            COUNT(CASE WHEN i.status != 'resolved' AND i.status != 'closed' THEN 1 END) as pending_issues
+        FROM issue i
+    ''', (month_start.strftime('%Y-%m-%d') + ' 00:00:00', month_start.strftime('%Y-%m-%d') + ' 00:00:00'))
+    issue_trend = dict(cursor.fetchone())
+    
+    # 活跃项目（进行中的项目含进度）
+    cursor.execute('''
+        SELECT p.*, per.name as owner_name,
+               (SELECT COUNT(*) FROM task t WHERE t.project_id = p.id) as total_tasks,
+               (SELECT COUNT(*) FROM task t WHERE t.project_id = p.id AND t.status = 'completed') as done_tasks
+        FROM project p
+        LEFT JOIN person per ON p.owner_id = per.id
+        WHERE p.status = 'in_progress'
+        ORDER BY p.progress DESC
+    ''')
+    active_projects = [dict(row) for row in cursor.fetchall()]
     
     stats = {
         'month': today.strftime('%Y-%m'),
         'completed_tasks': len(completed_tasks),
         'completed_projects': len(completed_projects),
         'resolved_issues': resolved_count,
+        'overdue_tasks': len(overdue_tasks),
+        'active_projects': len(active_projects),
     }
     
     conn.close()
@@ -2526,21 +2609,26 @@ def get_monthly_report():
             'stats': stats,
             'completed_tasks': completed_tasks,
             'completed_projects': completed_projects,
-            'person_stats': person_stats
+            'person_stats': person_stats,
+            'overdue_tasks': overdue_tasks,
+            'issue_trend': issue_trend,
+            'active_projects': active_projects
         }
     })
 
 @app.route('/api/report/export', methods=['POST'])
 def export_report():
     """导出报告"""
+    from datetime import datetime, timedelta
+    import calendar
+    
     data = request.json
     report_type = data.get('type', 'weekly')
     format_type = data.get('format', 'html')
+    today = datetime.now()
     
     # 获取报告数据
     if report_type == 'weekly':
-        from datetime import datetime, timedelta
-        today = datetime.now()
         week_start = today - timedelta(days=today.weekday())
         week_end = week_start + timedelta(days=6)
         
@@ -2579,8 +2667,61 @@ def export_report():
         filename = f"weekly_report_{week_start.strftime('%Y%m%d')}.html"
         
     else:
-        content = "<html><body><h1>月报</h1></body></html>"
-        filename = "monthly_report.html"
+        # 月报导出 — 完整实现
+        import calendar
+        month_start_d = today.replace(day=1)
+        last_day = calendar.monthrange(today.year, today.month)[1]
+        month_end_d = today.replace(day=last_day)
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT t.*, p.name as project_name, per.name as assignee_name
+            FROM task t
+            LEFT JOIN project p ON t.project_id = p.id
+            LEFT JOIN person per ON t.assignee_id = per.id
+            WHERE t.completed_date >= ? AND t.completed_date <= ?
+            ORDER BY t.completed_date DESC
+        ''', (month_start_d.strftime('%Y-%m-%d'), month_end_d.strftime('%Y-%m-%d')))
+        completed_tasks = [dict(row) for row in cursor.fetchall()]
+        
+        cursor.execute('''
+            SELECT per.name, COUNT(t.id) as task_count,
+                   SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) as completed_count
+            FROM person per
+            LEFT JOIN task t ON t.assignee_id = per.id
+            GROUP BY per.id HAVING task_count > 0
+            ORDER BY completed_count DESC
+        ''')
+        person_stats = [dict(row) for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        content = f"""
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>月报 - {today.strftime('%Y-%m')}</title></head>
+<body style="font-family: sans-serif; padding: 20px;">
+<h1>📊 项目管理月报</h1>
+<h2>统计月份：{today.strftime('%Y年%m月')}</h2>
+<hr>
+<h3>✅ 本月完成任务 ({len(completed_tasks)}个)</h3>
+<table border="1" style="border-collapse: collapse; width: 100%;">
+<tr><th>任务名称</th><th>所属项目</th><th>负责人</th><th>完成日期</th></tr>
+{"".join([f"<tr><td>{t['name']}</td><td>{t['project_name'] or '-'}</td><td>{t['assignee_name'] or '-'}</td><td>{t['completed_date'] or '-'}</td></tr>" for t in completed_tasks])}
+</table>
+<h3>👥 人员工作量统计</h3>
+<table border="1" style="border-collapse: collapse; width: 100%;">
+<tr><th>姓名</th><th>总任务</th><th>已完成</th><th>完成率</th></tr>
+{"".join([f"<tr><td>{p['name']}</td><td>{p['task_count']}</td><td>{p['completed_count']}</td><td>{round(p['completed_count']/p['task_count']*100) if p['task_count']>0 else 0}%</td></tr>" for p in person_stats])}
+</table>
+<hr>
+<p style="color: #666;">生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+</body>
+</html>
+"""
+        filename = f"monthly_report_{today.strftime('%Y%m')}.html"
     
     import tempfile
     import os
@@ -2592,7 +2733,7 @@ def export_report():
 
 # ========== 附件管理 ==========
 
-UPLOAD_DIR = os.environ.get('PM_UPLOAD_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'attachments'))
+UPLOAD_DIR = '/home/ubuntu/.copaw/data/pm_attachments'
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def init_attachment_table():
@@ -2974,8 +3115,8 @@ def import_tasks():
                 if len(row) > 8 and row[8]:
                     due_date = str(row[8]).strip() or None
                 
-                cursor.execute('''INSERT INTO task (project_id, name, priority, status, progress, due_date, assignee_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)''', (project_id, name, priority, status, progress, due_date, assignee_id))
+                cursor.execute('''INSERT INTO task (project_id, name, priority, status, progress, due_date, start_date, assignee_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)''', (project_id, name, priority, status, progress, due_date, None, assignee_id))
                 imported += 1
             except Exception as e:
                 errors.append(f'第{i}行: {str(e)}')
