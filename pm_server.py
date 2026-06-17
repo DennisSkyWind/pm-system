@@ -833,10 +833,10 @@ def create_phase():
     cursor = conn.cursor()
     
     cursor.execute('''
-        INSERT INTO phase (project_id, name, order_num, start_date, end_date)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO phase (project_id, name, order_num, start_date, end_date, description)
+        VALUES (?, ?, ?, ?, ?, ?)
     ''', (data['project_id'], data['name'], data.get('order_num', 0),
-          data.get('start_date'), data.get('end_date')))
+          data.get('start_date'), data.get('end_date'), data.get('description')))
     
     phase_id = cursor.lastrowid
     conn.commit()
@@ -3700,7 +3700,24 @@ def export_tasks_pdf():
         print(f"PDF生成错误: {e}")
         return jsonify({'error': str(e)}), 500
 
+def upgrade_schema():
+    """数据库schema升级 - 确保phase表有description列"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("PRAGMA table_info(phase)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'description' not in columns:
+            cursor.execute("ALTER TABLE phase ADD COLUMN description TEXT")
+            conn.commit()
+            print("✅ phase表新增description列")
+    except Exception as e:
+        print(f"⚠️ schema升级检查: {e}")
+    conn.close()
+
 if __name__ == '__main__':
+    upgrade_schema()
+    create_users_from_persons()
     print("🚀 项目管理系统启动...")
     print(f"   数据库: {DB_PATH}")
     print(f"   端口: 5236")
