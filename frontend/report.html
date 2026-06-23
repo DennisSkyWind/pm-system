@@ -203,12 +203,50 @@
 
         <!-- 原有周报/月报内容 -->
         <div class="report-tabs">
-            <button class="tab-btn active" onclick="switchTab('weekly')">周报</button>
+            <button class="tab-btn active" onclick="switchTab('daily')">日报</button>
+            <button class="tab-btn" onclick="switchTab('weekly')">周报</button>
             <button class="tab-btn" onclick="switchTab('monthly')">月报</button>
         </div>
 
         <div class="report-container">
-            <div id="weekly-report">
+            <!-- 日报面板 -->
+            <div id="daily-report">
+                <div class="report-header">
+                    <div class="report-title">📊 每日任务报告</div>
+                    <div class="report-period" id="daily-period"></div>
+                </div>
+                <div class="stats-grid" id="daily-stats"></div>
+                <div class="section" id="daily-projects-section">
+                    <div class="section-title">📁 项目状态</div>
+                    <div id="daily-projects"></div>
+                </div>
+                <div class="section" id="daily-overdue-section">
+                    <div class="section-title" style="color:#f44336">🔴 已延期任务</div>
+                    <div class="task-list" id="daily-overdue-tasks"></div>
+                </div>
+                <div class="section" id="daily-due-3days-section">
+                    <div class="section-title" style="color:#ff9800">🟡 3天内到期任务</div>
+                    <div class="task-list" id="daily-due-3days-tasks"></div>
+                </div>
+                <div class="section" id="daily-due-week-section">
+                    <div class="section-title" style="color:#2196f3">🔵 一周内到期任务</div>
+                    <div class="task-list" id="daily-due-week-tasks"></div>
+                </div>
+                <div class="section">
+                    <div class="section-title">👥 人员工作量</div>
+                    <div id="daily-person-stats"></div>
+                </div>
+                <div class="section">
+                    <div class="section-title">📋 建议行动</div>
+                    <div id="daily-recommendations"></div>
+                </div>
+                <div class="export-actions">
+                    <button class="export-btn" onclick="exportDailyReport('html')">📥 导出HTML</button>
+                    <button class="export-btn" onclick="exportDailyReport('pdf')">📄 导出PDF</button>
+                </div>
+            </div>
+
+            <div id="weekly-report" style="display:none">
                 <div class="report-header">
                     <div class="report-title">周报</div>
                     <div class="report-period" id="weekly-period"></div>
@@ -284,7 +322,7 @@
     <script src="pm-report-export.js"></script>
     <script>
         const API = '/api';
-        let currentTab = 'weekly';
+        let currentTab = 'daily';
         let selectedReportStyle = 'classic';
 
         // === 时间维度切换 ===
@@ -360,10 +398,311 @@
             currentTab = tab;
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             event.target.classList.add('active');
+            document.getElementById('daily-report').style.display = tab === 'daily' ? '' : 'none';
             document.getElementById('weekly-report').style.display = tab === 'weekly' ? '' : 'none';
             document.getElementById('monthly-report').style.display = tab === 'monthly' ? '' : 'none';
+            if (tab === 'daily') loadDailyReport();
             if (tab === 'weekly') loadWeeklyReport();
             if (tab === 'monthly') loadMonthlyReport();
+        }
+
+        // === 日报功能 ===
+        let dailyReportData = null;
+
+        async function loadDailyReport() {
+            const res = await authFetch(`${API}/report/daily`);
+            if (!res) return;
+            const data = await res.json();
+            if (!data.success) return;
+            
+            dailyReportData = data;
+            document.getElementById('daily-period').textContent = data.date;
+            
+            // 统计卡片
+            const summary = data.summary;
+            document.getElementById('daily-stats').innerHTML = `
+                <div class="stat-card"><h4>总任务</h4><div class="number">${summary.total_tasks || 0}</div></div>
+                <div class="stat-card"><h4>已完成</h4><div class="number" style="color:#4caf50">${summary.completed_tasks || 0}</div></div>
+                <div class="stat-card"><h4>进行中</h4><div class="number" style="color:#2196f3">${summary.in_progress_tasks || 0}</div></div>
+                <div class="stat-card"><h4>已延期</h4><div class="number" style="color:#f44336">${summary.overdue_tasks || 0}</div></div>
+                <div class="stat-card"><h4>3天内到期</h4><div class="number" style="color:#ff9800">${summary.due_3days || 0}</div></div>
+                <div class="stat-card"><h4>一周内到期</h4><div class="number" style="color:#9c27b0">${summary.due_week || 0}</div></div>
+            `;
+            
+            // 项目状态
+            renderDailyProjects(data.projects || []);
+            
+            // 延期任务
+            renderDailyTaskList('daily-overdue-tasks', 'daily-overdue-section', data.overdue_tasks || [], 'overdue');
+            
+            // 3天内到期
+            renderDailyTaskList('daily-due-3days-tasks', 'daily-due-3days-section', data.due_3days_tasks || [], 'due-3days');
+            
+            // 一周内到期
+            renderDailyTaskList('daily-due-week-tasks', 'daily-due-week-section', data.due_week_tasks || [], 'due-week');
+            
+            // 人员工作量
+            renderDailyPersonStats(data.person_stats || []);
+            
+            // 建议行动
+            renderDailyRecommendations(data);
+        }
+
+        function renderDailyProjects(projects) {
+            if (projects.length === 0) {
+                document.getElementById('daily-projects').innerHTML = '<div class="empty-state">暂无项目</div>';
+                return;
+            }
+            let html = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f5f5f5">';
+            html += '<th style="padding:10px;text-align:left">状态</th><th style="padding:10px;text-align:left">项目</th><th style="padding:10px">进度</th><th style="padding:10px">任务</th><th style="padding:10px">已完成</th><th style="padding:10px">延期</th>';
+            html += '</tr></thead><tbody>';
+            for (const p of projects) {
+                const icon = p.overdue_tasks > 0 ? '🔴' : (p.completed_tasks === p.total_tasks ? '✅' : '🟢');
+                const color = p.progress >= 80 ? '#4caf50' : (p.progress >= 50 ? '#ff9800' : '#f44336');
+                html += `<tr style="border-bottom:1px solid #eee">
+                    <td style="padding:10px">${icon}</td>
+                    <td style="padding:10px">${p.name}</td>
+                    <td style="padding:10px;text-align:center">${p.progress}%</td>
+                    <td style="padding:10px;text-align:center">${p.total_tasks}</td>
+                    <td style="padding:10px;text-align:center">${p.completed_tasks}</td>
+                    <td style="padding:10px;text-align:center">${p.overdue_tasks || 0}</td>
+                </tr>`;
+            }
+            html += '</tbody></table>';
+            document.getElementById('daily-projects').innerHTML = html;
+        }
+
+        function renderDailyTaskList(containerId, sectionId, tasks, type) {
+            const section = document.getElementById(sectionId);
+            if (tasks.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+            section.style.display = '';
+            
+            let html = '';
+            for (const t of tasks) {
+                let badge = '', badgeColor = '';
+                if (t.progress === 100) { badge = '✅ 待关闭'; badgeColor = '#1565c0'; }
+                else if (t.progress < 70) { badge = '🔴 高风险'; badgeColor = '#c62828'; }
+                else if (t.progress < 90) { badge = '🟡 中风险'; badgeColor = '#e65100'; }
+                else { badge = '🟢 低风险'; badgeColor = '#2e7d32'; }
+                
+                const days = type === 'overdue' ? `延期${t.overdue_days || 0}天` : `剩余${t.remaining_days || 0}天`;
+                const borderColor = type === 'overdue' ? '#f44336' : (type === 'due-3days' ? '#ff9800' : '#2196f3');
+                
+                html += `<div class="task-item" style="border-left:3px solid ${borderColor}">
+                    <div><div class="task-name">${t.name}</div>
+                    <div class="task-meta">${t.project_name || ''} · ${t.assignee_name || '-'} · 截止:${t.due_date || '-'} · 进度${t.progress}%</div></div>
+                    <div class="task-meta" style="color:${badgeColor}">${badge} · ${days}</div>
+                </div>`;
+            }
+            document.getElementById(containerId).innerHTML = html;
+        }
+
+        function renderDailyPersonStats(persons) {
+            if (persons.length === 0) {
+                document.getElementById('daily-person-stats').innerHTML = '<div class="empty-state">暂无人员数据</div>';
+                return;
+            }
+            let html = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f5f5f5">';
+            html += '<th style="padding:10px;text-align:left">人员</th><th style="padding:10px;text-align:center">任务</th><th style="padding:10px;text-align:center">延期</th><th style="padding:10px;text-align:center">高风险</th><th style="padding:10px;text-align:center">状态</th>';
+            html += '</tr></thead><tbody>';
+            for (const p of persons) {
+                let status = '', statusColor = '';
+                if (p.overdue_count > 0) { status = '⚠️ 需关注'; statusColor = '#f44336'; }
+                else if (p.high_risk_count > 0) { status = '🔶 有风险'; statusColor = '#ff9800'; }
+                else { status = '✅ 正常'; statusColor = '#4caf50'; }
+                html += `<tr style="border-bottom:1px solid #eee">
+                    <td style="padding:10px">${p.name}</td>
+                    <td style="padding:10px;text-align:center">${p.total_tasks}</td>
+                    <td style="padding:10px;text-align:center">${p.overdue_count || 0}</td>
+                    <td style="padding:10px;text-align:center">${p.high_risk_count || 0}</td>
+                    <td style="padding:10px;text-align:center;color:${statusColor}">${status}</td>
+                </tr>`;
+            }
+            html += '</tbody></table>';
+            document.getElementById('daily-person-stats').innerHTML = html;
+        }
+
+        function renderDailyRecommendations(data) {
+            let urgent = '', important = '';
+            
+            // 延期且100%的任务
+            for (const t of data.overdue_tasks || []) {
+                if (t.progress === 100) {
+                    urgent += `<div style="padding:10px;background:#ffebee;border-radius:6px;margin-bottom:8px;color:#c62828">确认关闭: ${t.name} (进度100%)</div>`;
+                }
+            }
+            
+            // 3天内到期且进度<70%
+            for (const t of data.due_3days_tasks || []) {
+                if (t.progress < 70) {
+                    urgent += `<div style="padding:10px;background:#ffebee;border-radius:6px;margin-bottom:8px;color:#c62828">关注冲刺: ${t.name} - ${t.assignee_name} (${t.progress}%, 剩余${t.remaining_days}天)</div>`;
+                }
+            }
+            
+            // 一周内到期且进度<30%
+            for (const t of data.due_week_tasks || []) {
+                if (t.progress < 30) {
+                    important += `<div style="padding:10px;background:#fff8e1;border-radius:6px;margin-bottom:8px;color:#e65100">启动推进: ${t.name} - ${t.assignee_name} (${t.progress}%, 剩余${t.remaining_days}天)</div>`;
+                }
+            }
+            
+            document.getElementById('daily-recommendations').innerHTML = `
+                <h4 style="margin-bottom:10px;color:#c62828">🔴 紧急</h4>
+                ${urgent || '<div style="padding:10px;background:#f5f5f5;border-radius:6px;color:#999">无紧急事项</div>'}
+                <h4 style="margin-top:15px;margin-bottom:10px;color:#e65100">🟡 重要</h4>
+                ${important || '<div style="padding:10px;background:#f5f5f5;border-radius:6px;color:#999">无重要事项</div>'}
+            `;
+        }
+
+        async function exportDailyReport(format) {
+            if (!dailyReportData) { alert('请先加载日报'); return; }
+            
+            const html = generateDailyReportHTML(dailyReportData);
+            
+            if (format === 'html') {
+                const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `PM日报_${dailyReportData.date}.html`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } else if (format === 'pdf') {
+                // 使用html2canvas和jsPDF导出PDF
+                const container = document.getElementById('daily-report');
+                await exportElementToPDF(container, `PM日报_${dailyReportData.date}.pdf`);
+            }
+        }
+
+        function generateDailyReportHTML(data) {
+            let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>PM日报 - ${data.date}</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:40px;background:#f5f5f5}
+.report{max-width:800px;margin:0 auto;background:white;padding:30px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+h1{color:#667eea;border-bottom:2px solid #667eea;padding-bottom:15px;margin-bottom:20px}
+.stats{display:flex;gap:15px;margin-bottom:25px}
+.stat{flex:1;padding:15px;background:#f9f9f9;border-radius:8px;text-align:center}
+.stat h4{color:#666;font-size:13px;margin-bottom:8px}
+.stat .val{font-size:24px;font-weight:bold;color:#667eea}
+h2{font-size:16px;margin:20px 0 10px;color:#333;border-left:3px solid #667eea;padding-left:10px}
+table{width:100%;border-collapse:collapse;margin-bottom:15px}
+th,td{padding:10px;border-bottom:1px solid #eee;text-align:left}
+th{background:#f5f5f5;color:#666;font-size:13px}
+.risk-high{color:#c62828}.risk-medium{color:#e65100}.risk-low{color:#2e7d32}
+.rec{padding:10px;border-radius:6px;margin:8px 0}.rec-urgent{background:#ffebee;color:#c62828}
+.rec-important{background:#fff8e1;color:#e65100}
+</style></head><body><div class="report">
+<h1>📊 PM系统日报 - ${data.date}</h1>
+<div class="stats">
+<div class="stat"><h4>总任务</h4><div class="val">${data.summary.total_tasks}</div></div>
+<div class="stat"><h4>已完成</h4><div class="val" style="color:#4caf50">${data.summary.completed_tasks}</div></div>
+<div class="stat"><h4>进行中</h4><div class="val" style="color:#2196f3">${data.summary.in_progress_tasks}</div></div>
+<div class="stat"><h4>已延期</h4><div class="val" style="color:#f44336">${data.summary.overdue_tasks}</div></div>
+<div class="stat"><h4>3天内到期</h4><div class="val" style="color:#ff9800">${data.summary.due_3days}</div></div>
+<div class="stat"><h4>一周内到期</h4><div class="val" style="color:#9c27b0">${data.summary.due_week}</div></div>
+</div>`;
+            
+            if (data.overdue_tasks && data.overdue_tasks.length > 0) {
+                html += '<h2 style="border-left-color:#f44336">🔴 已延期任务</h2><table><thead><tr><th>任务</th><th>负责人</th><th>截止日期</th><th>延期天数</th><th>进度</th></tr></thead><tbody>';
+                for (const t of data.overdue_tasks) {
+                    const risk = t.progress === 100 ? '✅' : (t.progress < 70 ? '🔴' : '🟡');
+                    html += `<tr><td>${t.name}</td><td>${t.assignee_name || '-'}</td><td>${t.due_date || '-'}</td><td>${t.overdue_days || 0}天</td><td>${risk} ${t.progress}%</td></tr>`;
+                }
+                html += '</tbody></table>';
+            }
+            
+            if (data.due_3days_tasks && data.due_3days_tasks.length > 0) {
+                html += '<h2 style="border-left-color:#ff9800">🟡 3天内到期任务</h2><table><thead><tr><th>任务</th><th>负责人</th><th>截止日期</th><th>剩余天数</th><th>进度</th></tr></thead><tbody>';
+                for (const t of data.due_3days_tasks) {
+                    const risk = t.progress < 70 ? '🔴' : (t.progress < 90 ? '🟡' : '🟢');
+                    html += `<tr><td>${t.name}</td><td>${t.assignee_name || '-'}</td><td>${t.due_date || '-'}</td><td>${t.remaining_days || 0}天</td><td>${risk} ${t.progress}%</td></tr>`;
+                }
+                html += '</tbody></table>';
+            }
+            
+            if (data.due_week_tasks && data.due_week_tasks.length > 0) {
+                html += '<h2 style="border-left-color:#2196f3">🔵 一周内到期任务</h2><table><thead><tr><th>任务</th><th>负责人</th><th>截止日期</th><th>剩余天数</th><th>进度</th></tr></thead><tbody>';
+                for (const t of data.due_week_tasks) {
+                    const risk = t.progress < 30 ? '🔴' : (t.progress < 70 ? '🟡' : '🟢');
+                    html += `<tr><td>${t.name}</td><td>${t.assignee_name || '-'}</td><td>${t.due_date || '-'}</td><td>${t.remaining_days || 0}天</td><td>${risk} ${t.progress}%</td></tr>`;
+                }
+                html += '</tbody></table>';
+            }
+            
+            if (data.person_stats && data.person_stats.length > 0) {
+                html += '<h2>👥 人员工作量</h2><table><thead><tr><th>人员</th><th>任务数</th><th>延期</th><th>高风险</th><th>状态</th></tr></thead><tbody>';
+                for (const p of data.person_stats) {
+                    const status = p.overdue_count > 0 ? '⚠️ 需关注' : (p.high_risk_count > 0 ? '🔶 有风险' : '✅ 正常');
+                    html += `<tr><td>${p.name}</td><td>${p.total_tasks}</td><td>${p.overdue_count || 0}</td><td>${p.high_risk_count || 0}</td><td>${status}</td></tr>`;
+                }
+                html += '</tbody></table>';
+            }
+            
+            html += '<h2>📋 建议行动</h2>';
+            let urgent = '', important = '';
+            for (const t of data.overdue_tasks || []) {
+                if (t.progress === 100) urgent += `<div class="rec rec-urgent">确认关闭: ${t.name} (进度100%)</div>`;
+            }
+            for (const t of data.due_3days_tasks || []) {
+                if (t.progress < 70) urgent += `<div class="rec rec-urgent">关注冲刺: ${t.name} - ${t.assignee_name} (${t.progress}%, 剩余${t.remaining_days}天)</div>`;
+            }
+            for (const t of data.due_week_tasks || []) {
+                if (t.progress < 30) important += `<div class="rec rec-important">启动推进: ${t.name} - ${t.assignee_name} (${t.progress}%, 剩余${t.remaining_days}天)</div>`;
+            }
+            html += `<h4 style="color:#c62828">🔴 紧急</h4>${urgent || '<div class="rec">无紧急事项</div>'}`;
+            html += `<h4 style="color:#e65100;margin-top:15px">🟡 重要</h4>${important || '<div class="rec">无重要事项</div>'}`;
+            
+            html += `<div style="margin-top:30px;padding-top:15px;border-top:1px solid #eee;color:#999;font-size:12px">报告生成时间: ${new Date().toLocaleString()}</div>`;
+            html += '</div></body></html>';
+            return html;
+        }
+
+        // PDF导出辅助函数
+        async function exportElementToPDF(element, filename) {
+            // 动态加载html2canvas和jsPDF
+            if (!window.html2canvas) {
+                await loadScript('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js');
+            }
+            if (!window.jspdf) {
+                await loadScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+            }
+            
+            const canvas = await html2canvas(element, { scale: 2, useCORS: true, logging: false });
+            const imgData = canvas.toDataURL('image/png');
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const imgWidth = pageWidth - 20;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            
+            let heightLeft = imgHeight;
+            let position = 10;
+            
+            pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+            
+            while (heightLeft > 0) {
+                position = heightLeft - imgHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 10, position + 10, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+            }
+            
+            pdf.save(filename);
+        }
+
+        function loadScript(url) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = url;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
         }
 
         async function loadWeeklyReport() {
@@ -685,7 +1024,7 @@ ${(r.completed_tasks||[]).map(t=>`<tr><td>${t.name}</td><td>${t.project_name||'-
 
         // === 初始化 ===
         loadProjects();
-        loadWeeklyReport();
+        loadDailyReport();  // 默认加载日报
         loadNotifications();
     </script>
 </body>
