@@ -351,7 +351,7 @@ async function doExport() {
     }
     
     try {
-        const canvas = await html2canvas(container, {scale:2, backgroundColor:null, useCORS:true});
+        const canvas = await html2canvas(container, {scale:1.5, backgroundColor:'#ffffff', useCORS:true});
         document.body.removeChild(container);
         
         if (format === 'png') {

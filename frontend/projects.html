@@ -80,7 +80,7 @@
 <body>
     <header>
         <h1>📊 项目管理系统</h1>
-        <nav><a href="index.html">Dashboard</a><a href="projects.html" class="active">项目列表</a><a href="tasks.html">任务管理</a><a href="gantt.html">甘特图</a><a href="issues.html">问题追踪</a><a href="report.html">📊 报告</a><a href="persons.html">👥 人员</a><a href="phases.html">阶段管理</a><a href="templates.html">📋 模板</a><a href="reminders.html">🔔 提醒</a><a href="settings.html">⚙️ 设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span></nav>
+        <nav><a href="index.html">Dashboard</a><a href="projects.html" class="active">项目列表</a><a href="tasks.html">任务管理</a><a href="gantt.html">甘特图</a><a href="issues.html">问题追踪</a><a href="report.html">📊 报告</a><a href="persons.html">👥 人员</a><a href="phases.html">阶段管理</a><a href="templates.html">📋 模板</a><a href="reminders.html">🔔 提醒</a><a href="settings.html">⚙️ 设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span><a href="https://github.com/DennisSkyWind/pm-system" target="_blank" title="GitHub仓库" style="cursor:pointer;font-size:18px;margin-left:8px;color:inherit;text-decoration:none;"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" style="vertical-align:middle;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg></a></nav>
     </header>
     
 
@@ -184,6 +184,13 @@
                 <label>目标完成日期</label>
                 <input type="date" id="project-end-date">
             </div>
+            <div class="form-group">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                    <input type="checkbox" id="project-confidential" style="width:18px;height:18px;">
+                    🔒 机密项目
+                </label>
+                <small style="color:#999;margin-left:26px;">机密项目在各类报表中不统计</small>
+            </div>
             <div class="form-actions">
                 <button class="btn-secondary" onclick="hideModal('new-project-modal')">取消</button>
                 <button class="btn btn-primary" onclick="createProject()">创建</button>
@@ -231,6 +238,13 @@
                     <input type="hidden" id="edit-project-owner">
                     <div class="search-select-dropdown" id="edit-owner-dropdown"></div>
                 </div>
+            </div>
+            <div class="form-group">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                    <input type="checkbox" id="edit-project-confidential" style="width:18px;height:18px;">
+                    🔒 机密项目
+                </label>
+                <small style="color:#999;margin-left:26px;">机密项目在各类报表中不统计</small>
             </div>
             <div class="form-actions">
                 <button class="btn-secondary" onclick="hideModal('edit-project-modal')">取消</button>
@@ -405,7 +419,7 @@
                 return `
                     <tr>
                         <td>${p.id}</td>
-                        <td><strong>${p.name}</strong></td>
+                        <td><strong>${p.name}</strong>${p.confidential == 1 ? ' 🔒' : ''}</td>
                         <td><span class="status-badge ${statusClass}">${statusText}</span></td>
                         <td>
                             <div class="progress-bar">
@@ -462,6 +476,7 @@
                     // 填充负责人搜索框
                     document.getElementById('edit-project-owner').value = p.owner_id || '';
                     document.getElementById('edit-project-owner-search').value = p.owner_name || '';
+                    document.getElementById('edit-project-confidential').checked = p.confidential == 1;
                     document.getElementById('edit-project-modal').classList.add('show');
                 });
         }
@@ -532,13 +547,14 @@
             const status = document.getElementById('new-project-status').value;
             const endDate = document.getElementById('project-end-date').value;
             const ownerId = document.getElementById('new-project-owner').value;
+            const confidential = document.getElementById('project-confidential').checked ? 1 : 0;
             
             if (!name) { alert('请输入项目名称'); return; }
             
             await authFetch(`${API}/projects`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, description: desc, priority, status, target_end_date: endDate, owner_id: ownerId || null })
+                body: JSON.stringify({ name, description: desc, priority, status, target_end_date: endDate, owner_id: ownerId || null, confidential })
             });
             
             hideModal('new-project-modal');
@@ -553,13 +569,14 @@
             const priority = document.getElementById('edit-project-priority').value;
             const endDate = document.getElementById('edit-project-end-date').value;
             const ownerId = document.getElementById('edit-project-owner').value;
+            const confidential = document.getElementById('edit-project-confidential').checked ? 1 : 0;
             
             if (!name) { alert('请输入项目名称'); return; }
             
             await authFetch(`${API}/projects/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, description: desc, status, priority, target_end_date: endDate, owner_id: ownerId || null })
+                body: JSON.stringify({ name, description: desc, status, priority, target_end_date: endDate, owner_id: ownerId || null, confidential })
             });
             
             hideModal('edit-project-modal');

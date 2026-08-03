@@ -324,9 +324,9 @@ async function doKanbanExport() {
         await new Promise(r => setTimeout(r, 300));
         
         const canvas = await html2canvas(container.firstElementChild, {
-            scale: 2,
+            scale: 1.5,
             useCORS: true,
-            backgroundColor: null
+            backgroundColor: '#ffffff'
         });
         
         document.body.removeChild(container);

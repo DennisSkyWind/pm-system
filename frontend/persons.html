@@ -46,7 +46,8 @@
         .badge-admin { background: #e3f2fd; color: #2196f3; }
         .badge-member { background: #f5f5f5; color: #666; }
         .badge-active { background: #e8f5e9; color: #4caf50; }
-        .badge-inactive { background: #ffebee; color: #f44336; }
+        .badge-resigned { background: #ffebee; color: #f44336; }
+        .badge-retired { background: #fff8e1; color: #ff8f00; }
         .badge-manager { background: #fff3e0; color: #e65100; }
         .badge-tech { background: #e8f5e9; color: #2e7d32; }
         .badge-pro { background: #e3f2fd; color: #1565c0; }
@@ -77,7 +78,7 @@
 <body>
     <header>
         <h1>👥 人员名册</h1>
-        <nav><a href="index.html">Dashboard</a><a href="projects.html">项目列表</a><a href="tasks.html">任务管理</a><a href="gantt.html">甘特图</a><a href="issues.html">问题追踪</a><a href="report.html">📊 报告</a><a href="persons.html" class="active">👥 人员</a><a href="phases.html">阶段管理</a><a href="templates.html">📋 模板</a><a href="reminders.html">🔔 提醒</a><a href="settings.html">⚙️ 设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span></nav>
+        <nav><a href="index.html">Dashboard</a><a href="projects.html">项目列表</a><a href="tasks.html">任务管理</a><a href="gantt.html">甘特图</a><a href="issues.html">问题追踪</a><a href="report.html">📊 报告</a><a href="persons.html" class="active">👥 人员</a><a href="phases.html">阶段管理</a><a href="templates.html">📋 模板</a><a href="reminders.html">🔔 提醒</a><a href="settings.html">⚙️ 设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span><a href="https://github.com/DennisSkyWind/pm-system" target="_blank" title="GitHub仓库" style="cursor:pointer;font-size:18px;margin-left:8px;color:inherit;text-decoration:none;"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" style="vertical-align:middle;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg></a></nav>
     </header>
     
 
@@ -121,10 +122,8 @@
                 <select id="status-filter" onchange="filterPersons()">
                     <option value="">全部状态</option>
                     <option value="active">在职</option>
-                    <option value="inactive">离职</option>
-                </select>
-            </div>
-                    <option value="inactive">离职</option>
+                    <option value="resigned">离职</option>
+                    <option value="retired">退休</option>
                 </select>
             </div>
             <div style="display: flex; gap: 10px;">
@@ -182,10 +181,14 @@
                     <input type="text" id="person-sub-line" placeholder="如：数字化场景">
                 </div>
                 
-                <!-- 第三行：岗位、角色、状态 -->
+                <!-- 第三行：岗位、入职日期、角色 -->
                 <div class="form-group">
                     <label>岗位</label>
                     <input type="text" id="person-position" placeholder="如：解决方案经理">
+                </div>
+                <div class="form-group">
+                    <label>入职日期</label>
+                    <input type="date" id="person-hire-date">
                 </div>
                 <div class="form-group">
                     <label>角色</label>
@@ -194,12 +197,41 @@
                         <option value="admin">管理员</option>
                     </select>
                 </div>
+                
+                <!-- 第四行：状态、学历、生日 -->
                 <div class="form-group">
                     <label>状态</label>
                     <select id="person-status">
                         <option value="active">在职</option>
-                        <option value="inactive">离职</option>
+                        <option value="resigned">离职</option>
+                        <option value="retired">退休</option>
                     </select>
+                </div>
+                <div class="form-group">
+                    <label>学历</label>
+                    <select id="person-education">
+                        <option value="">请选择</option>
+                        <option value="博士">博士</option>
+                        <option value="硕士">硕士</option>
+                        <option value="本科">本科</option>
+                        <option value="大专">大专</option>
+                        <option value="中专">中专</option>
+                        <option value="高中">高中</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>生日</label>
+                    <input type="date" id="person-birthday">
+                </div>
+                
+                <!-- 第五行：毕业学校、专业 -->
+                <div class="form-group">
+                    <label>毕业学校</label>
+                    <input type="text" id="person-school" placeholder="如：云南大学">
+                </div>
+                <div class="form-group">
+                    <label>专业</label>
+                    <input type="text" id="person-major" placeholder="如：计算机科学与技术">
                 </div>
             </div>
             
@@ -225,8 +257,8 @@
                 <div class="form-group">
                     <label>CSV内容（逗号分隔）</label>
                     <textarea id="csv-input" rows="8" placeholder="姓名,角色,部门,邮箱,电话
-周泓武,admin,老周,zhou@email.com,13800138000
-陈玲,member,Migo,ling@email.com,13900139000" onkeyup="previewImport()"></textarea>
+张三,admin,,zhangsan@example.com,13800138000
+李四,member,,lisi@example.com,13900139000" onkeyup="previewImport()"></textarea>
                 </div>
                 <div style="color: #666; font-size: 13px; margin-bottom: 15px;">
                     格式说明：姓名,角色(member/admin),部门,邮箱,电话<br>
@@ -237,8 +269,8 @@
                 <div class="form-group">
                     <label>JSON内容</label>
                     <textarea id="json-input" rows="8" placeholder='[
-  {"name": "周泓武", "role": "admin", "department": "老周"},
-  {"name": "陈玲", "role": "member", "department": "Migo"}
+  {"name": "张三", "role": "admin", "department": ""},
+  {"name": "李四", "role": "member", "department": ""}
 ]' onkeyup="previewImport()"></textarea>
                 </div>
                 <div style="color: #666; font-size: 13px; margin-bottom: 15px;">
@@ -284,12 +316,46 @@
                 } catch(e) {}
             }
             const res = [];
-            _gsData.projects.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'project',i:'📁',n:p.name,d:`进度 ${p.progress||0}%`,l:`project.html?id=${p.id}`}));
-            _gsData.tasks.filter(t => (t.name||'').toLowerCase().includes(q)).slice(0,8).forEach(t => res.push({t:'task',i:'📋',n:t.name,d:`${t.project_name||''} · ${t.assignee_name||'未分配'}`,l:'tasks.html'}));
-            _gsData.persons.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'person',i:'👤',n:p.name,d:`${p.line||''} ${p.position||''}`,l:'persons.html'}));
+            _gsData.projects.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'project',i:'📁',n:p.name,d:`进度 ${p.progress||0}%`,l:`projects.html?highlight=${p.id}`,aid:p.id}));
+            _gsData.tasks.filter(t => (t.name||'').toLowerCase().includes(q)).slice(0,8).forEach(t => res.push({t:'task',i:'📋',n:t.name,d:`${t.project_name||''} · ${t.assignee_name||'未分配'}`,l:`tasks.html?highlight=${t.id}`,aid:t.id}));
+            _gsData.persons.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'person',i:'👤',n:p.name,d:`${p.line||''} ${p.position||''}`,l:`persons.html?highlight=${p.id}`,aid:p.id}));
             const c = document.getElementById('global-search-results');
             if (!res.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#999">未找到相关结果</div>'; return; }
-            c.innerHTML = res.map(r => `<a href="${r.l}" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;text-decoration:none;color:#333" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background=''"><span style="font-size:18px">${r.i}</span><div style="flex:1"><div style="font-weight:500">${r.n}</div><div style="font-size:12px;color:#888">${r.d}</div></div><span style="font-size:11px;color:#bbb;background:#f5f5f5;padding:2px 6px;border-radius:3px">${r.t==='project'?'项目':r.t==='task'?'任务':'人员'}</span></a>`).join('');
+            c.innerHTML = res.map(r => `<a href="${r.l}" onclick="handleSearchClick(event,'${r.t}',${r.aid})" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;text-decoration:none;color:#333" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background=''"><span style="font-size:18px">${r.i}</span><div style="flex:1"><div style="font-weight:500">${r.n}</div><div style="font-size:12px;color:#888">${r.d}</div></div><span style="font-size:11px;color:#bbb;background:#f5f5f5;padding:2px 6px;border-radius:3px">${r.t==='project'?'项目':r.t==='task'?'任务':'人员'}</span></a>`).join('');
+        }
+        function handleSearchClick(e, type, id) {
+            const currentPage = location.pathname;
+            if (type === 'person' && currentPage.includes('persons.html')) {
+                e.preventDefault();
+                hideGlobalSearch();
+                highlightPerson(id);
+            } else if (type === 'task' && currentPage.includes('tasks.html')) {
+                e.preventDefault();
+                hideGlobalSearch();
+                // tasks.html有自己的highlightTask
+                if (typeof highlightTask === 'function') highlightTask(id);
+            }
+        }
+        function highlightPerson(personId) {
+            const searchInput = document.getElementById('search-input');
+            if (searchInput) searchInput.value = '';
+            const lineFilter = document.getElementById('line-filter');
+            if (lineFilter) lineFilter.value = '';
+            const statusFilter = document.getElementById('status-filter');
+            if (statusFilter) statusFilter.value = '';
+            renderPersons();
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    const targetCard = document.querySelector(`.person-card[data-id="${personId}"]`);
+                    if (targetCard) {
+                        targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        targetCard.style.transition = 'box-shadow 0.3s, background 0.3s';
+                        targetCard.style.boxShadow = '0 0 0 3px #ff9800';
+                        targetCard.style.background = '#fff3e0';
+                        setTimeout(() => { targetCard.style.boxShadow = ''; targetCard.style.background = ''; }, 3000);
+                    }
+                }, 100);
+            });
         }
         function handleSearchKey(e) { if (e.key === 'Escape') hideGlobalSearch(); }
         document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); showGlobalSearch(); } });
@@ -358,7 +424,7 @@
             }
             
             grid.innerHTML = filteredList.map(p => `
-                <div class="person-card">
+                <div class="person-card" data-id="${p.id}">
                     <div class="person-header">
                         <div class="avatar">${p.name.charAt(0)}</div>
                         <div class="person-info">
@@ -366,7 +432,7 @@
                             <div style="font-size: 12px; color: #666; margin-bottom: 5px;">${p.position || ''}</div>
                             <div class="person-role">
                                 <span class="badge badge-${p.job_sequence === '管理序列' ? 'manager' : p.job_sequence === '技术序列' ? 'tech' : 'pro'}">${p.job_sequence || '专业序列'}</span>
-                                <span class="badge badge-${p.status}">${p.status === 'active' ? '在职' : '离职'}</span>
+                                <span class="badge badge-${p.status}">${p.status === 'active' ? '在职' : p.status === 'resigned' ? '离职' : '退休'}</span>
                                 ${p.line ? `<span class="line-tag">${p.line}</span>` : ''}
                             </div>
                         </div>
@@ -387,6 +453,26 @@
                         <div class="detail-row">
                             <span class="detail-label">岗位</span>
                             <span class="detail-value">${p.position || '-'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">入职日期</span>
+                            <span class="detail-value">${p.hire_date || '-'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">学历</span>
+                            <span class="detail-value">${p.education || '-'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">毕业学校</span>
+                            <span class="detail-value">${p.school || '-'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">专业</span>
+                            <span class="detail-value">${p.major || '-'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">生日</span>
+                            <span class="detail-value">${p.birthday || '-'}</span>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">职位序列</span>
@@ -465,8 +551,13 @@
             document.getElementById('person-line').value = '';
             document.getElementById('person-sub-line').value = '';
             document.getElementById('person-position').value = '';
+            document.getElementById('person-hire-date').value = '';
             document.getElementById('person-role').value = 'member';
             document.getElementById('person-status').value = 'active';
+            document.getElementById('person-education').value = '';
+            document.getElementById('person-birthday').value = '';
+            document.getElementById('person-school').value = '';
+            document.getElementById('person-major').value = '';
             document.getElementById('person-modal').style.display = 'block';
         }
         
@@ -483,8 +574,13 @@
             document.getElementById('person-line').value = person.line || '';
             document.getElementById('person-sub-line').value = person.sub_line || '';
             document.getElementById('person-position').value = person.position || '';
+            document.getElementById('person-hire-date').value = person.hire_date || '';
             document.getElementById('person-role').value = person.role || 'member';
             document.getElementById('person-status').value = person.status || 'active';
+            document.getElementById('person-education').value = person.education || '';
+            document.getElementById('person-birthday').value = person.birthday || '';
+            document.getElementById('person-school').value = person.school || '';
+            document.getElementById('person-major').value = person.major || '';
             document.getElementById('person-modal').style.display = 'block';
         }
         
@@ -507,8 +603,13 @@
                 line: document.getElementById('person-line').value,
                 sub_line: document.getElementById('person-sub-line').value,
                 position: document.getElementById('person-position').value,
+                hire_date: document.getElementById('person-hire-date').value,
                 role: document.getElementById('person-role').value,
-                status: document.getElementById('person-status').value
+                status: document.getElementById('person-status').value,
+                education: document.getElementById('person-education').value,
+                birthday: document.getElementById('person-birthday').value,
+                school: document.getElementById('person-school').value,
+                major: document.getElementById('person-major').value
             };
             
             try {
@@ -761,7 +862,52 @@
             URL.revokeObjectURL(csvUrl);
         }
         
-        document.addEventListener('DOMContentLoaded', async () => { const u = await initAuthPage(); if (u) loadPersons(); });
+        document.addEventListener('DOMContentLoaded', async () => {
+            const u = await initAuthPage();
+            if (u) {
+                // Ctrl+K搜索跳转定位：在loadPersons之前先读取highlight参数
+                const urlParams = new URLSearchParams(window.location.search);
+                const highlightId = urlParams.get('highlight');
+                const editId = urlParams.get('edit');
+                const targetId = highlightId || editId;
+                
+                if (targetId) {
+                    // 清除搜索筛选，确保目标人员可见
+                    const searchInput = document.getElementById('search-input');
+                    if (searchInput) searchInput.value = '';
+                    const lineFilter = document.getElementById('line-filter');
+                    if (lineFilter) lineFilter.value = '';
+                    const statusFilter = document.getElementById('status-filter');
+                    if (statusFilter) statusFilter.value = '';
+                }
+                
+                await loadPersons();
+                
+                if (targetId) {
+                    requestAnimationFrame(() => {
+                        setTimeout(() => {
+                            const targetCard = document.querySelector(`.person-card[data-id="${targetId}"]`);
+                            if (targetCard) {
+                                targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                targetCard.style.transition = 'box-shadow 0.3s, background 0.3s';
+                                targetCard.style.boxShadow = '0 0 0 3px #ff9800';
+                                targetCard.style.background = '#fff3e0';
+                                setTimeout(() => { 
+                                    targetCard.style.boxShadow = ''; 
+                                    targetCard.style.background = '';
+                                }, 3000);
+                            }
+                            
+                            if (editId) {
+                                editPerson(parseInt(editId));
+                            }
+                            
+                            window.history.replaceState({}, '', 'persons.html');
+                        }, 100);
+                    });
+                }
+            }
+        });
     </script>
     <script src="dark-mode.js"></script>
 </body>

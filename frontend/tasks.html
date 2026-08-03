@@ -71,6 +71,7 @@
         .btn-pause { background: #9e9e9e; color: white; }
         .btn-abort { background: #f44336; color: white; }
         .btn-edit { background: #2196f3; color: white; }
+        .btn-reopen { background: #2196f3; color: white; }
         .btn-delete { background: #f44336; color: white; }
         
         /* 进度条 */
@@ -250,7 +251,7 @@
 <body>
     <header>
         <h1>📊 任务管理</h1>
-        <nav><a href="index.html">Dashboard</a><a href="projects.html">项目列表</a><a href="tasks.html" class="active">任务管理</a><a href="gantt.html">甘特图</a><a href="issues.html">问题追踪</a><a href="report.html">📊 报告</a><a href="persons.html">👥 人员</a><a href="phases.html">阶段管理</a><a href="templates.html">📋 模板</a><a href="reminders.html">🔔 提醒</a><a href="settings.html">⚙️ 设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span></nav>
+        <nav><a href="index.html">Dashboard</a><a href="projects.html">项目列表</a><a href="tasks.html" class="active">任务管理</a><a href="gantt.html">甘特图</a><a href="issues.html">问题追踪</a><a href="report.html">📊 报告</a><a href="persons.html">👥 人员</a><a href="phases.html">阶段管理</a><a href="templates.html">📋 模板</a><a href="reminders.html">🔔 提醒</a><a href="settings.html">⚙️ 设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span><a href="https://github.com/DennisSkyWind/pm-system" target="_blank" title="GitHub仓库" style="cursor:pointer;font-size:18px;margin-left:8px;color:inherit;text-decoration:none;"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" style="vertical-align:middle;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg></a></nav>
     </header>
     
 
@@ -323,7 +324,8 @@
                 <button class="filter-btn active" id="view-list-btn" onclick="switchView('list')">📋 列表</button>
                 <button class="filter-btn" id="view-kanban-btn" onclick="switchView('kanban')">📌 看板</button>
                 <strong style="margin-left:15px;">状态筛选：</strong>
-                <button class="filter-btn active" data-filter="status" data-value="" onclick="setFilter('status', '')">全部</button>
+                <button class="filter-btn" data-filter="status" data-value="" onclick="setFilter('status', '')">全部</button>
+                <button class="filter-btn" data-filter="status" data-value="uncompleted" onclick="setFilter('status', 'uncompleted')">未完成</button>
                 <button class="filter-btn" data-filter="status" data-value="pending" onclick="setFilter('status', 'pending')">待处理</button>
                 <button class="filter-btn" data-filter="status" data-value="in_progress" onclick="setFilter('status', 'in_progress')">进行中</button>
                 <button class="filter-btn" data-filter="status" data-value="completed" onclick="setFilter('status', 'completed')">已完成</button>
@@ -456,6 +458,29 @@
         </div>
     </div>
     
+    <!-- 完成任务评价弹窗 -->
+    <div class="modal" id="rating-modal">
+        <div class="modal-content" style="max-width:420px;">
+            <h2 class="modal-title">🏆 任务完成评价</h2>
+            <p style="color:#666;margin:12px 0 20px;">请对该任务完成质量进行评价：</p>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <button class="rating-btn" data-rating="outstanding" style="padding:12px 16px;border:2px solid #9b59b6;border-radius:8px;background:#f8f0ff;cursor:pointer;font-size:15px;text-align:left;transition:all 0.2s;">
+                    <span style="font-size:20px;">🌟</span> <strong>卓越</strong> <span style="color:#888;font-size:12px;">— 超出预期，成果突出</span>
+                </button>
+                <button class="rating-btn" data-rating="excellent" style="padding:12px 16px;border:2px solid #27ae60;border-radius:8px;background:#f0fff4;cursor:pointer;font-size:15px;text-align:left;transition:all 0.2s;">
+                    <span style="font-size:20px;">⭐</span> <strong>优秀</strong> <span style="color:#888;font-size:12px;">— 高质量完成，超出要求</span>
+                </button>
+                <button class="rating-btn" data-rating="normal" style="padding:12px 16px;border:2px solid #3498db;border-radius:8px;background:#f0f8ff;cursor:pointer;font-size:15px;text-align:left;transition:all 0.2s;">
+                    <span style="font-size:20px;">✅</span> <strong>正常</strong> <span style="color:#888;font-size:12px;">— 按要求完成，符合预期</span>
+                </button>
+                <button class="rating-btn" data-rating="insufficient" style="padding:12px 16px;border:2px solid #e74c3c;border-radius:8px;background:#fff5f5;cursor:pointer;font-size:15px;text-align:left;transition:all 0.2s;">
+                    <span style="font-size:20px;">⚠️</span> <strong>不足</strong> <span style="color:#888;font-size:12px;">— 未达预期，需要改进</span>
+                </button>
+            </div>
+            <button class="rating-cancel" style="margin-top:16px;padding:8px 16px;border:1px solid #ddd;border-radius:6px;background:#f5f5f5;cursor:pointer;color:#888;">取消</button>
+        </div>
+    </div>
+    
     <!-- 编辑任务模态框 -->
     <div class="modal" id="edit-task-modal">
         <div class="modal-content">
@@ -497,7 +522,15 @@
             </div>
             <div class="form-group">
                 <label>截止日期</label>
-                <input type="date" id="edit-task-due">
+                <input type="date" id="edit-task-due" onchange="onDueDateChange()">
+            </div>
+            <div class="form-group" id="delay-reason-group" style="display:none;">
+                <label>延期原因</label>
+                <input type="text" id="edit-delay-reason" placeholder="请输入延期原因（可选）">
+            </div>
+            <div id="delay-history-section" style="display:none;">
+                <label style="font-weight:600;color:#e74c3c;">📋 延期记录</label>
+                <div id="delay-history-list" style="max-height:150px;overflow-y:auto;font-size:0.85em;background:#fef5f5;border:1px solid #f0c9c9;border-radius:6px;padding:8px;margin-top:4px;"></div>
             </div>
             <div class="form-group">
                 <label>描述</label>
@@ -637,6 +670,7 @@
                     <label>任务状态：</label>
                     <select id="pdf-status">
                         <option value="all">全部状态</option>
+                        <option value="uncompleted">未完成</option>
                         <option value="pending">待处理</option>
                         <option value="in_progress">进行中</option>
                         <option value="completed">已完成</option>
@@ -744,12 +778,49 @@
                 } catch(e) {}
             }
             const res = [];
-            _gsData.projects.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'project',i:'📁',n:p.name,d:`进度 ${p.progress||0}%`,l:`project.html?id=${p.id}`}));
-            _gsData.tasks.filter(t => (t.name||'').toLowerCase().includes(q)).slice(0,8).forEach(t => res.push({t:'task',i:'📋',n:t.name,d:`${t.project_name||''} · ${t.assignee_name||'未分配'}`,l:'tasks.html'}));
-            _gsData.persons.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'person',i:'👤',n:p.name,d:`${p.line||''} ${p.position||''}`,l:'persons.html'}));
+            _gsData.projects.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'project',i:'📁',n:p.name,d:`进度 ${p.progress||0}%`,l:`projects.html?highlight=${p.id}`,aid:p.id}));
+            _gsData.tasks.filter(t => (t.name||'').toLowerCase().includes(q)).slice(0,8).forEach(t => res.push({t:'task',i:'📋',n:t.name,d:`${t.project_name||''} · ${t.assignee_name||'未分配'}`,l:`tasks.html?highlight=${t.id}`,aid:t.id}));
+            _gsData.persons.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'person',i:'👤',n:p.name,d:`${p.line||''} ${p.position||''}`,l:`persons.html?highlight=${p.id}`,aid:p.id}));
             const c = document.getElementById('global-search-results');
             if (!res.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#999">未找到相关结果</div>'; return; }
-            c.innerHTML = res.map(r => `<a href="${r.l}" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;text-decoration:none;color:#333" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background=''"><span style="font-size:18px">${r.i}</span><div style="flex:1"><div style="font-weight:500">${r.n}</div><div style="font-size:12px;color:#888">${r.d}</div></div><span style="font-size:11px;color:#bbb;background:#f5f5f5;padding:2px 6px;border-radius:3px">${r.t==='project'?'项目':r.t==='task'?'任务':'人员'}</span></a>`).join('');
+            c.innerHTML = res.map(r => `<a href="${r.l}" onclick="handleSearchClick(event,'${r.t}',${r.aid})" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;text-decoration:none;color:#333" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background=''"><span style="font-size:18px">${r.i}</span><div style="flex:1"><div style="font-weight:500">${r.n}</div><div style="font-size:12px;color:#888">${r.d}</div></div><span style="font-size:11px;color:#bbb;background:#f5f5f5;padding:2px 6px;border-radius:3px">${r.t==='project'?'项目':r.t==='task'?'任务':'人员'}</span></a>`).join('');
+        }
+        function handleSearchClick(e, type, id) {
+            // 如果搜索结果类型是当前页面类型，直接在当前页面定位
+            const currentPage = location.pathname;
+            if (type === 'task' && currentPage.includes('tasks.html')) {
+                e.preventDefault();
+                hideGlobalSearch();
+                highlightTask(id);
+            } else if (type === 'person' && currentPage.includes('persons.html')) {
+                e.preventDefault();
+                hideGlobalSearch();
+                highlightPerson(id);
+            }
+            // 其他情况正常跳转
+        }
+        function highlightTask(taskId) {
+            // 清除筛选，确保目标任务可见
+            currentFilters = { status: '', project: '', priority: '', assignee: '', dateStart: '', dateEnd: '', search: '' };
+            const fp = document.getElementById('filter-project'); if (fp) fp.value = '';
+            const fpr = document.getElementById('filter-priority'); if (fpr) fpr.value = '';
+            const fa = document.getElementById('filter-assignee'); if (fa) fa.value = '';
+            const fs = document.getElementById('filter-status'); if (fs) fs.value = '';
+            const fse = document.getElementById('filter-search'); if (fse) fse.value = '';
+            filteredTasks = allTasks.filter(t => true);
+            renderTasks();
+            if (currentView === 'kanban') switchView('list');
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    const targetRow = document.querySelector(`tr[data-id="${taskId}"]`);
+                    if (targetRow) {
+                        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        targetRow.style.transition = 'background 0.3s';
+                        targetRow.style.background = '#fff3e0';
+                        setTimeout(() => { targetRow.style.background = ''; }, 3000);
+                    }
+                }, 100);
+            });
         }
         function handleSearchKey(e) { if (e.key === 'Escape') hideGlobalSearch(); }
         document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); showGlobalSearch(); } });
@@ -792,6 +863,57 @@
         setTimeout(loadNotifications, 2000);
 
         const API = '/api';
+        const ratingLabels = { insufficient: '不足', normal: '正常', excellent: '优秀', outstanding: '卓越' };
+        const ratingIcons = { insufficient: '⚠️', normal: '✅', excellent: '⭐', outstanding: '🌟' };
+        
+        function isAdmin() {
+            const user = JSON.parse(localStorage.getItem('pm_user') || '{}');
+            if (user.role === 'admin') return true;
+            // fallback: 从auth.js的checkAuth获取
+            return false;
+        }
+        
+        // 页面加载时获取用户信息
+        async function initUserInfo() {
+            if (!localStorage.getItem('pm_user')) {
+                try {
+                    const res = await authFetch(`${API}/auth/me`);
+                    const data = await res.json();
+                    if (data.success && data.user) {
+                        localStorage.setItem('pm_user', JSON.stringify(data.user));
+                    }
+                } catch(e) {}
+            }
+        }
+        
+        async function rateTask(id, currentRating) {
+            const modal = document.getElementById('rating-modal');
+            modal.classList.add('show');
+            // 高亮当前评价
+            modal.querySelectorAll('.rating-btn').forEach(btn => {
+                btn.style.opacity = btn.dataset.rating === currentRating ? '1' : '0.7';
+                btn.style.transform = btn.dataset.rating === currentRating ? 'scale(1.02)' : '';
+            });
+            return new Promise((resolve) => {
+                modal.querySelectorAll('.rating-btn').forEach(btn => {
+                    btn.onclick = async () => {
+                        const rating = btn.dataset.rating;
+                        modal.classList.remove('show');
+                        await authFetch(`${API}/tasks/${id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ rating })
+                        });
+                        await loadTasks();
+                        resolve(rating);
+                    };
+                });
+                modal.querySelector('.rating-cancel').onclick = () => {
+                    modal.classList.remove('show');
+                    resolve(null);
+                };
+            });
+        }
 
 
         
@@ -805,9 +927,65 @@
         
         // 加载初始数据
         async function init() {
+            await initUserInfo();
             await loadProjects();
             await loadPersons();
+            
+            // Ctrl+K搜索跳转定位：在loadTasks之前先读取highlight参数
+            const urlParams = new URLSearchParams(window.location.search);
+            const highlightId = urlParams.get('highlight');
+            const editId = urlParams.get('edit');
+            const targetId = highlightId || editId;
+            
+            if (targetId) {
+                // 先清除所有筛选条件，确保目标任务可见
+                currentFilters = { status: '', project: '', priority: '', assignee: '', dateStart: '', dateEnd: '', search: '' };
+                const fp = document.getElementById('filter-project'); if (fp) fp.value = '';
+                const fpr = document.getElementById('filter-priority'); if (fpr) fpr.value = '';
+                const fa = document.getElementById('filter-assignee'); if (fa) fa.value = '';
+                const fs = document.getElementById('filter-status'); if (fs) fs.value = '';
+                const fse = document.getElementById('filter-search'); if (fse) fse.value = '';
+            }
+            
             await loadTasks();
+            
+            if (targetId) {
+                // loadTasks内部applyFilters已从DOM读取了清空后的筛选值，目标任务应该可见
+                // 等待DOM渲染完成后定位
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        const targetRow = document.querySelector(`tr[data-id="${targetId}"]`);
+                        if (targetRow) {
+                            targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            targetRow.style.transition = 'background 0.3s';
+                            targetRow.style.background = '#fff3e0';
+                            setTimeout(() => { targetRow.style.background = ''; }, 3000);
+                        } else {
+                            // 可能在看板视图，尝试切换到列表视图
+                            if (currentView === 'kanban') {
+                                switchView('list');
+                                setTimeout(() => {
+                                    const row = document.querySelector(`tr[data-id="${targetId}"]`);
+                                    if (row) {
+                                        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        row.style.transition = 'background 0.3s';
+                                        row.style.background = '#fff3e0';
+                                        setTimeout(() => { row.style.background = ''; }, 3000);
+                                    }
+                                }, 300);
+                            }
+                        }
+                        
+                        // 如果是edit模式，弹出编辑弹窗
+                        if (editId) {
+                            editTask(parseInt(editId));
+                        }
+                        
+                        // 清除URL参数
+                        window.history.replaceState({}, '', 'tasks.html');
+                    }, 100);
+                });
+            }
         }
         
         async function loadProjects() {
@@ -829,7 +1007,7 @@
         }
         
         async function loadPersons() {
-            const res = await authFetch(`${API}/persons`);
+            const res = await authFetch(`${API}/persons?active_only=true`);
             const data = await res.json();
             personsList = data.persons || [];
             
@@ -1081,7 +1259,9 @@
             currentFilters.search = document.getElementById('filter-search').value.toLowerCase();
             
             filteredTasks = allTasks.filter(t => {
-                if (currentFilters.status && t.status !== currentFilters.status) return false;
+                if (currentFilters.status === 'uncompleted') {
+                    if (t.status === 'completed' || t.status === 'cancelled') return false;
+                } else if (currentFilters.status && t.status !== currentFilters.status) return false;
                 if (currentFilters.project && t.project_id != currentFilters.project) return false;
                 if (currentFilters.priority && t.priority !== currentFilters.priority) return false;
                 if (currentFilters.assignee && t.assignee_id != currentFilters.assignee) return false;
@@ -1262,6 +1442,7 @@
                             <span class="status-badge status-${t.status || 'pending'}">
                                 ${t.status === 'completed' ? '✅ 已完成' : t.status === 'cancelled' ? '❌ 已中止' : t.status === 'in_progress' ? '⏳ 进行中' : '⏸️ 待处理'}
                             </span>
+                            ${t.rating && ratingLabels[t.rating] ? `<span style="margin-left:4px;font-size:0.8em;" title="${ratingLabels[t.rating]}">${ratingIcons[t.rating]}</span>` : ''}
                         </td>
                         <td>
                             <div class="progress-cell" style="cursor: pointer;" onclick="showProgressModal(${t.id}, ${t.progress || 0})" title="点击调整进度">
@@ -1274,9 +1455,12 @@
                         <td>
                             ${t.due_date || '-'}
                             ${isDelayed ? '<span class="delayed"> ⚠️延期</span>' : ''}
+                            ${t.delay_count > 0 ? `<span style="color:#e67e22;font-size:0.8em;margin-left:4px;" title="已延期${t.delay_count}次">🔄${t.delay_count}</span>` : ''}
                         </td>
                         <td style="display: flex; gap: 4px; flex-wrap: wrap;">
                             ${!isFinished ? `<button class="action-btn btn-complete" onclick="completeTask(${t.id})">完成</button>` : ''}
+                            ${t.status === 'completed' ? `<button class="action-btn btn-reopen" onclick="reopenTask(${t.id})">重新打开</button>` : ''}
+                            ${t.status === 'completed' && isAdmin() ? `<button class="action-btn" style="background:#9b59b6;color:white;" onclick="rateTask(${t.id}, '${t.rating || ''}')">🏆${t.rating && ratingLabels[t.rating] ? ratingLabels[t.rating] : '评价'}</button>` : ''}
                             ${t.status === 'pending' ? `<button class="action-btn btn-progress" onclick="startTask(${t.id})">开始</button>` : ''}
                             ${t.status === 'in_progress' ? `<button class="action-btn btn-pause" onclick="pauseTask(${t.id})">暂停</button>` : ''}
                             ${!isFinished ? `<button class="action-btn btn-abort" onclick="abortTask(${t.id})">中止</button>` : ''}
@@ -1441,6 +1625,15 @@
             await loadTasks();
         }
         
+        async function reopenTask(id) {
+            await authFetch(`${API}/tasks/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'in_progress', progress: 0 })
+            });
+            await loadTasks();
+        }
+        
         async function startTask(id) {
             await authFetch(`${API}/tasks/${id}`, {
                 method: 'PUT',
@@ -1496,6 +1689,12 @@
             document.getElementById('edit-task-desc').value = task.description || '';
             document.getElementById('edit-task-priority').value = task.priority || 'medium';
             document.getElementById('edit-task-due').value = task.due_date || '';
+            // 保存原始截止日期，用于检测变更
+            window._originalDueDate = task.due_date || '';
+            document.getElementById('edit-delay-reason').value = '';
+            document.getElementById('delay-reason-group').style.display = 'none';
+            // 加载延期历史
+            loadDelayHistory(id);
             document.getElementById('edit-task-project').value = task.project_id || '';
             document.getElementById('edit-task-project-search').value = task.project_name || '';
             document.getElementById('edit-task-assignee').value = task.assignee_id || '';
@@ -1515,6 +1714,50 @@
         function hideEditTaskModal() {
             document.getElementById('edit-task-modal').classList.remove('show');
             document.getElementById('task-comments-list').innerHTML = '';
+            document.getElementById('delay-reason-group').style.display = 'none';
+            document.getElementById('delay-history-section').style.display = 'none';
+        }
+        
+        // 检测截止日期变更，显示延期原因输入
+        function onDueDateChange() {
+            const newDate = document.getElementById('edit-task-due').value;
+            const origDate = window._originalDueDate || '';
+            if (newDate && origDate && newDate > origDate) {
+                document.getElementById('delay-reason-group').style.display = 'block';
+                document.getElementById('edit-delay-reason').focus();
+            } else {
+                document.getElementById('delay-reason-group').style.display = 'none';
+                document.getElementById('edit-delay-reason').value = '';
+            }
+        }
+        
+        // 加载任务延期历史
+        async function loadDelayHistory(taskId) {
+            try {
+                const res = await authFetch(`${API}/tasks/${taskId}/delay-history`);
+                const data = await res.json();
+                if (data.success && data.history && data.history.length > 0) {
+                    const section = document.getElementById('delay-history-section');
+                    const list = document.getElementById('delay-history-list');
+                    const delays = data.history.filter(h => h.new_due_date > h.old_due_date);
+                    let html = `<div style="margin-bottom:4px;color:#c0392b;font-weight:600;">延期 ${data.delay_count} 次</div>`;
+                    delays.forEach(h => {
+                        const time = h.created_at ? h.created_at.substring(0, 16).replace('T', ' ') : '';
+                        html += `<div style="padding:3px 0;border-bottom:1px solid #f5d5d5;">
+                            <span style="color:#888;">${time}</span> 
+                            ${h.old_due_date || '无'} → ${h.new_due_date}
+                            ${h.operator_name ? `<span style="color:#666;">(${h.operator_name})</span>` : ''}
+                            ${h.reason ? `<div style="color:#555;padding-left:12px;">原因: ${h.reason}</div>` : ''}
+                        </div>`;
+                    });
+                    list.innerHTML = html;
+                    section.style.display = 'block';
+                } else {
+                    document.getElementById('delay-history-section').style.display = 'none';
+                }
+            } catch(e) {
+                console.error('加载延期历史失败:', e);
+            }
         }
         
         // ========== 评论功能 ==========
@@ -1676,7 +1919,8 @@
                 phase_id: document.getElementById('edit-task-phase').value || null,
                 assignee_id: document.getElementById('edit-task-assignee').value || null,
                 priority: document.getElementById('edit-task-priority').value,
-                due_date: document.getElementById('edit-task-due').value || null
+                due_date: document.getElementById('edit-task-due').value || null,
+                delay_reason: document.getElementById('edit-delay-reason').value || ''
             };
             
             try {
@@ -1907,6 +2151,14 @@
                 tasksToExport = tasksToExport.filter(t => t.project_id == projectId);
             }
             
+            if (statusFilter && statusFilter !== 'all') {
+                if (statusFilter === 'uncompleted') {
+                    tasksToExport = tasksToExport.filter(t => t.status !== 'completed' && t.status !== 'cancelled');
+                } else {
+                    tasksToExport = tasksToExport.filter(t => t.status === statusFilter);
+                }
+            }
+            
             if (tasksToExport.length === 0) {
                 alert('没有可导出的数据');
                 return;
@@ -1947,7 +2199,7 @@
                 
                 hidePdfExportModal();
                 const orientText = landscape ? '横向' : '纵向';
-                const statusText = statusFilter === 'all' ? '全部' : statusFilter;
+                const statusText = statusFilter === 'all' ? '全部' : statusFilter === 'uncompleted' ? '未完成' : statusFilter;
                 alert(`已导出 ${tasksToExport.length} 个任务 (${pdfStyleNames[selectedPdfStyle-1]}风格, ${statusText}状态, ${orientText})`);
                 
             } catch (e) {

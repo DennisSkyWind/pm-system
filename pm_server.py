@@ -12,20 +12,26 @@ import re
 import json
 from functools import wraps
 
+# 版本号
+APP_VERSION = '2.4.0'
+
 # 前端文件目录
-FRONTEND_DIR = '/home/ubuntu/.openclaw/workspace/pm-system'
+FRONTEND_DIR = os.environ.get('PM_FRONTEND_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend'))
 
 app = Flask(__name__, static_folder=FRONTEND_DIR)
-DB_PATH = '/home/ubuntu/.copaw/data/pm.db'
-MEMOS_SCRIPT = '/home/ubuntu/.copaw/scripts/write_to_memos.py'
+DB_PATH = os.environ.get('PM_DB_PATH', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'pm.db'))
+MEMOS_SCRIPT = os.environ.get('MEMOS_SCRIPT', '')
 
 # 用户会话存储（简单实现）
 USER_SESSIONS = {}
 SESSION_EXPIRE_HOURS = 24
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA busy_timeout=30000')
+    conn.execute('PRAGMA synchronous=NORMAL')
     return conn
 
 # ========== 用户认证系统 ==========
@@ -65,6 +71,75 @@ def init_user_table():
 def hash_password(password: str) -> str:
     """密码哈希"""
     return hashlib.sha256(password.encode()).hexdigest()
+
+RATING_LABELS = {
+    'insufficient': '不足',
+    'normal': '正常',
+    'excellent': '优秀',
+    'outstanding': '卓越'
+}
+
+def get_rating_stats(cursor, start_date=None, end_date=None):
+    """获取任务完成评价统计
+    返回: {总体统计, 按人员统计, 按项目统计}
+    """
+    date_filter = ''
+    params = []
+    if start_date and end_date:
+        date_filter = 'AND t.completed_date >= ? AND t.completed_date <= ?'
+        params = [start_date, end_date]
+    
+    # 总体评价分布
+    cursor.execute(f'''
+        SELECT rating, COUNT(*) as count
+        FROM task t
+        WHERE t.status = 'completed' AND t.rating IS NOT NULL AND t.rating != ''
+        {date_filter}
+        GROUP BY rating
+    ''', params)
+    rating_dist = {RATING_LABELS.get(r['rating'], r['rating']): r['count'] for r in cursor.fetchall()}
+    
+    # 按人员评价统计
+    cursor.execute(f'''
+        SELECT per.name, t.rating, COUNT(*) as count
+        FROM task t
+        LEFT JOIN person per ON t.assignee_id = per.id
+        WHERE t.status = 'completed' AND t.rating IS NOT NULL AND t.rating != ''
+        {date_filter}
+        GROUP BY per.id, t.rating
+    ''', params)
+    person_ratings = {}
+    for r in cursor.fetchall():
+        name = r['name']
+        if name not in person_ratings:
+            person_ratings[name] = {'total_rated': 0, 'ratings': {}}
+        label = RATING_LABELS.get(r['rating'], r['rating'])
+        person_ratings[name]['ratings'][label] = r['count']
+        person_ratings[name]['total_rated'] += r['count']
+    
+    # 按项目评价统计
+    cursor.execute(f'''
+        SELECT p.name as project_name, t.rating, COUNT(*) as count
+        FROM task t
+        LEFT JOIN project p ON t.project_id = p.id
+        WHERE t.status = 'completed' AND t.rating IS NOT NULL AND t.rating != ''
+        {date_filter}
+        GROUP BY p.id, t.rating
+    ''', params)
+    project_ratings = {}
+    for r in cursor.fetchall():
+        pname = r['project_name']
+        if pname not in project_ratings:
+            project_ratings[pname] = {'total_rated': 0, 'ratings': {}}
+        label = RATING_LABELS.get(r['rating'], r['rating'])
+        project_ratings[pname]['ratings'][label] = r['count']
+        project_ratings[pname]['total_rated'] += r['count']
+    
+    return {
+        'distribution': rating_dist,
+        'by_person': person_ratings,
+        'by_project': project_ratings
+    }
 
 def generate_username(name: str, existing_names: set) -> str:
     """生成用户名（姓名拼音缩写）"""
@@ -317,7 +392,7 @@ def change_password():
     cursor = conn.cursor()
     
     # 验证旧密码
-    cursor.execute('SELECT password_hash FROM pm_user WHERE id = ?', (user['id']))
+    cursor.execute('SELECT password_hash FROM pm_user WHERE id = ?', (user['id'],))
     row = cursor.fetchone()
     
     if row['password_hash'] != hash_password(old_password):
@@ -325,7 +400,7 @@ def change_password():
     
     # 更新密码
     cursor.execute('UPDATE pm_user SET password_hash = ? WHERE id = ?', 
-                   (hash_password(new_password), user['id']))
+                   (hash_password(new_password), user['id'],))
     conn.commit()
     conn.close()
     
@@ -512,11 +587,11 @@ def create_project():
     cursor = conn.cursor()
     
     cursor.execute('''
-        INSERT INTO project (name, description, status, priority, start_date, target_end_date, owner_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO project (name, description, status, priority, start_date, target_end_date, owner_id, confidential)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ''', (data.get('name'), data.get('description', ''), data.get('status', 'pending'), 
           data.get('priority', 'medium'), data.get('start_date'), 
-          data.get('target_end_date'), data.get('owner_id')))
+          data.get('target_end_date'), data.get('owner_id'), data.get('confidential', 0)))
     
     project_id = cursor.lastrowid
     conn.commit()
@@ -591,11 +666,12 @@ def update_project(project_id):
             target_end_date = COALESCE(?, target_end_date),
             actual_end_date = COALESCE(?, actual_end_date),
             owner_id = COALESCE(?, owner_id),
+            confidential = COALESCE(?, confidential),
             updated_at = ?
         WHERE id = ?
     ''', (data.get('name'), data.get('description'), data.get('status'),
           data.get('priority'), data.get('target_end_date'), data.get('actual_end_date'),
-          data.get('owner_id'), datetime.now().isoformat(), project_id))
+          data.get('owner_id'), data.get('confidential'), datetime.now().isoformat(), project_id))
     
     conn.commit()
     conn.close()
@@ -981,6 +1057,22 @@ def get_tasks():
     cursor.execute(query, params)
     
     tasks = [dict(row) for row in cursor.fetchall()]
+    
+    # 附加每个任务的延期次数
+    if tasks:
+        task_ids = [t['id'] for t in tasks]
+        placeholders = ','.join(['?'] * len(task_ids))
+        cursor.execute(f'''
+            SELECT task_id, COUNT(*) as delay_count
+            FROM task_due_date_history
+            WHERE task_id IN ({placeholders})
+            AND new_due_date > old_due_date
+            GROUP BY task_id
+        ''', task_ids)
+        delay_map = {row['task_id']: row['delay_count'] for row in cursor.fetchall()}
+        for t in tasks:
+            t['delay_count'] = delay_map.get(t['id'], 0)
+    
     conn.close()
     
     return jsonify({'success': True, 'tasks': tasks})
@@ -1064,8 +1156,8 @@ def update_task(task_id):
     conn = get_db()
     cursor = conn.cursor()
     
-    # 获取任务信息（用于进度联动）
-    cursor.execute('SELECT project_id, phase_id, assignee_id FROM task WHERE id = ?', (task_id,))
+    # 获取任务信息（用于进度联动+日期变更记录）
+    cursor.execute('SELECT project_id, phase_id, assignee_id, due_date FROM task WHERE id = ?', (task_id,))
     task_info = cursor.fetchone()
     if not task_info:
         conn.close()
@@ -1075,6 +1167,7 @@ def update_task(task_id):
     project_id = task_info['project_id']
     phase_id = task_info['phase_id']
     old_assignee_id = task_info['assignee_id']
+    old_due_date = task_info['due_date']
     if (user.get('role') != 'admin' and 
         not is_project_owner(project_id, person_id) and 
         old_assignee_id != person_id):
@@ -1085,6 +1178,11 @@ def update_task(task_id):
     if data.get('progress') == 100:
         data['status'] = 'completed'
         data['completed_date'] = datetime.now().strftime('%Y-%m-%d')
+    
+    # 如果状态从completed改为其他状态，清除completed_date
+    if data.get('status') and data.get('status') != 'completed':
+        if task_info:  # task_info在前面已获取
+            data['completed_date'] = None  # 清除完成日期
     
     cursor.execute('''
         UPDATE task SET 
@@ -1099,20 +1197,39 @@ def update_task(task_id):
             notes = COALESCE(?, notes),
             assignee_id = COALESCE(?, assignee_id),
             phase_id = COALESCE(?, phase_id),
+            project_id = COALESCE(?, project_id),
+            rating = COALESCE(?, rating),
             updated_at = ?
         WHERE id = ?
     ''', (data.get('name'), data.get('description'), data.get('status'),
           data.get('priority'), data.get('due_date'), data.get('start_date'), data.get('progress'),
           data.get('completed_date'), data.get('notes'), data.get('assignee_id'),
-          data.get('phase_id'),
+          data.get('phase_id'), data.get('project_id'), data.get('rating'),
           datetime.now().isoformat(), task_id))
+    
+    # 记录截止日期变更历史
+    new_due_date = data.get('due_date')
+    if new_due_date and str(new_due_date) != str(old_due_date or ''):
+        operator = getattr(request, 'current_user', {}) or {}
+        cursor.execute('''
+            INSERT INTO task_due_date_history (task_id, old_due_date, new_due_date, reason, operator_id, operator_name)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (task_id, old_due_date, new_due_date, data.get('delay_reason', ''), 
+              operator.get('person_id'), operator.get('person_name')))
     
     conn.commit()
     conn.close()
     
     # 更新进度链（任务变更 → 阶段进度 → 项目进度）
     new_phase_id = data.get('phase_id', phase_id)
-    project_progress = update_progress_chain(project_id, new_phase_id)
+    new_project_id = data.get('project_id', project_id)
+    
+    # 如果项目变更，需要更新新旧两个项目的进度
+    if new_project_id != project_id:
+        project_progress = update_progress_chain(project_id, phase_id)  # 原项目进度
+        update_progress_chain(new_project_id, new_phase_id)  # 新项目进度
+    else:
+        project_progress = update_progress_chain(project_id, new_phase_id)
     
     # 记录操作日志
     operator = getattr(request, 'current_user', {}) or {}
@@ -1746,7 +1863,7 @@ def send_reminders():
 
 @app.route('/api/tasks/due-check', methods=['GET'])
 def check_due_tasks():
-    """检查即将到期和已延期的任务（排除已结项项目）"""
+    """检查即将到期和已延期的任务（排除已结项/已中止项目）"""
     today = datetime.now().strftime('%Y-%m-%d')
     tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
     next_week = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d')
@@ -1754,28 +1871,28 @@ def check_due_tasks():
     conn = get_db()
     cursor = conn.cursor()
     
-    # 已延期任务（排除已结项项目）
+    # 已延期任务（排除已结项/已中止项目）
     cursor.execute('''
         SELECT t.*, p.name as project_name
         FROM task t LEFT JOIN project p ON t.project_id = p.id
-        WHERE t.due_date < ? AND t.status != 'completed' AND p.status != 'archived'
+        WHERE t.due_date < ? AND t.status NOT IN ('completed', 'cancelled') AND p.status NOT IN ('archived', 'cancelled') AND COALESCE(p.confidential, 0) = 0
         ORDER BY t.due_date ASC
     ''', [today])
     overdue_tasks = [dict(row) for row in cursor.fetchall()]
     
-    # 今日到期任务（排除已结项项目）
+    # 今日到期任务（排除已结项/已中止项目）
     cursor.execute('''
         SELECT t.*, p.name as project_name
         FROM task t LEFT JOIN project p ON t.project_id = p.id
-        WHERE t.due_date = ? AND t.status != 'completed' AND p.status != 'archived'
+        WHERE t.due_date = ? AND t.status NOT IN ('completed', 'cancelled') AND p.status NOT IN ('archived', 'cancelled') AND COALESCE(p.confidential, 0) = 0
     ''', [today])
     today_tasks = [dict(row) for row in cursor.fetchall()]
     
-    # 一周内到期任务（排除已结项项目）
+    # 一周内到期任务（排除已结项/已中止项目）
     cursor.execute('''
         SELECT t.*, p.name as project_name
         FROM task t LEFT JOIN project p ON t.project_id = p.id
-        WHERE t.due_date BETWEEN ? AND ? AND t.status != 'completed' AND p.status != 'archived'
+        WHERE t.due_date BETWEEN ? AND ? AND t.status NOT IN ('completed', 'cancelled') AND p.status NOT IN ('archived', 'cancelled') AND COALESCE(p.confidential, 0) = 0
         ORDER BY t.due_date ASC
     ''', [tomorrow, next_week])
     upcoming_tasks = [dict(row) for row in cursor.fetchall()]
@@ -1827,6 +1944,99 @@ def notify_due_tasks():
     
     return jsonify({'success': False, 'error': '发送失败'})
 
+@app.route('/api/tasks/delay-stats', methods=['GET'])
+@check_auth
+def task_delay_stats():
+    """任务延期统计 - 按人员统计延期次数"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # 按人员统计延期次数
+    cursor.execute('''
+        SELECT h.operator_id, h.operator_name,
+               COUNT(*) as delay_count,
+               COUNT(DISTINCT h.task_id) as affected_tasks
+        FROM task_due_date_history h
+        WHERE h.new_due_date > h.old_due_date
+        GROUP BY h.operator_id, h.operator_name
+        ORDER BY delay_count DESC
+    ''')
+    by_person = [dict(row) for row in cursor.fetchall()]
+    
+    # 按任务统计延期历史
+    task_id = request.args.get('task_id', '')
+    if task_id:
+        cursor.execute('''
+            SELECT h.*, t.name as task_name
+            FROM task_due_date_history h
+            LEFT JOIN task t ON h.task_id = t.id
+            WHERE h.task_id = ?
+            ORDER BY h.created_at DESC
+        ''', [task_id])
+        task_history = [dict(row) for row in cursor.fetchall()]
+    else:
+        task_history = []
+    
+    # 按月份统计延期次数
+    cursor.execute('''
+        SELECT strftime('%Y-%m', h.created_at) as month,
+               COUNT(*) as delay_count,
+               COUNT(DISTINCT h.task_id) as affected_tasks,
+               COUNT(DISTINCT h.operator_id) as affected_persons
+        FROM task_due_date_history h
+        WHERE h.new_due_date > h.old_due_date
+        GROUP BY strftime('%Y-%m', h.created_at)
+        ORDER BY month DESC
+    ''')
+    by_month = [dict(row) for row in cursor.fetchall()]
+    
+    # 总计
+    cursor.execute('''
+        SELECT COUNT(*) as total_delays,
+               COUNT(DISTINCT task_id) as total_affected_tasks
+        FROM task_due_date_history
+        WHERE new_due_date > old_due_date
+    ''')
+    summary = dict(cursor.fetchone())
+    
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'summary': summary,
+        'by_person': by_person,
+        'by_month': by_month,
+        'task_history': task_history
+    })
+
+@app.route('/api/tasks/<int:task_id>/delay-history', methods=['GET'])
+@check_auth
+def task_delay_history(task_id):
+    """获取单个任务的延期历史"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT h.*, t.name as task_name
+        FROM task_due_date_history h
+        LEFT JOIN task t ON h.task_id = t.id
+        WHERE h.task_id = ?
+        ORDER BY h.created_at DESC
+    ''', [task_id])
+    history = [dict(row) for row in cursor.fetchall()]
+    
+    # 延期次数
+    delay_count = sum(1 for h in history if h.get('new_due_date') and h.get('old_due_date') and h['new_due_date'] > h['old_due_date'])
+    
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'task_id': task_id,
+        'delay_count': delay_count,
+        'history': history
+    })
+
 # ========== 前端页面 ==========
 
 @app.route('/', methods=['GET'])
@@ -1842,19 +2052,33 @@ def static_files(path):
         return jsonify({'error': 'Not found'}), 404
     return send_file(os.path.join(FRONTEND_DIR, path))
 
+@app.route('/api/version', methods=['GET'])
+def get_version():
+    """获取系统版本"""
+    return jsonify({'success': True, 'version': APP_VERSION})
+
 # ========== 人员管理 API ==========
 
 @app.route('/api/persons', methods=['GET'])
 @check_auth
 def get_persons():
-    """获取人员列表（管理员看全部，普通用户看参与项目相关人员）"""
+    """获取人员列表（管理员看全部，普通用户看参与项目相关人员）
+    参数：
+    - status: 按状态筛选
+    - active_only: 只返回在职人员（用于新增任务/项目时选择人员）
+    """
     status = request.args.get('status', '')
+    active_only = request.args.get('active_only', 'false').lower() == 'true'
     
     current_user = getattr(request, 'current_user', {}) or {}
     is_admin = current_user.get('role') == 'admin'
     
     conn = get_db()
     cursor = conn.cursor()
+    
+    # active_only参数优先，强制只显示在职人员
+    if active_only:
+        status = 'active'
     
     if is_admin:
         # 管理员看全部
@@ -1869,24 +2093,43 @@ def get_persons():
         
         if not my_project_ids:
             # 没有参与任何项目，只看管理员和自己
-            cursor.execute('''
-                SELECT DISTINCT p.* FROM person p
-                LEFT JOIN pm_user u ON u.person_id = p.id
-                WHERE u.role = 'admin' OR p.id = ?
-                ORDER BY p.name
-            ''', (person_id,))
+            if status:
+                cursor.execute('''
+                    SELECT DISTINCT p.* FROM person p
+                    LEFT JOIN pm_user u ON u.person_id = p.id
+                    WHERE (u.role = 'admin' OR p.id = ?) AND p.status = ?
+                    ORDER BY p.name
+                ''', (person_id, status))
+            else:
+                cursor.execute('''
+                    SELECT DISTINCT p.* FROM person p
+                    LEFT JOIN pm_user u ON u.person_id = p.id
+                    WHERE u.role = 'admin' OR p.id = ?
+                    ORDER BY p.name
+                ''', (person_id,))
         else:
             placeholders = ','.join(['?'] * len(my_project_ids))
-            # 看参与项目的owner、assignee、viewer + 管理员
-            cursor.execute(f'''
-                SELECT DISTINCT p.* FROM person p
-                LEFT JOIN pm_user u ON u.person_id = p.id
-                LEFT JOIN task t ON t.project_id IN ({placeholders}) AND t.assignee_id = p.id
-                LEFT JOIN project_viewer pv ON pv.project_id IN ({placeholders}) AND pv.person_id = p.id
-                LEFT JOIN project proj ON proj.id IN ({placeholders}) AND proj.owner_id = p.id
-                WHERE u.role = 'admin' OR p.id = ? OR t.id IS NOT NULL OR pv.id IS NOT NULL OR proj.id IS NOT NULL
-                ORDER BY p.name
-            ''', my_project_ids + my_project_ids + my_project_ids + [person_id])
+            if status:
+                # 看参与项目的owner、assignee、viewer + 管理员 + 状态筛选
+                cursor.execute(f'''
+                    SELECT DISTINCT p.* FROM person p
+                    LEFT JOIN pm_user u ON u.person_id = p.id
+                    LEFT JOIN task t ON t.project_id IN ({placeholders}) AND t.assignee_id = p.id
+                    LEFT JOIN project_viewer pv ON pv.project_id IN ({placeholders}) AND pv.person_id = p.id
+                    LEFT JOIN project proj ON proj.id IN ({placeholders}) AND proj.owner_id = p.id
+                    WHERE (u.role = 'admin' OR p.id = ? OR t.id IS NOT NULL OR pv.id IS NOT NULL OR proj.id IS NOT NULL) AND p.status = ?
+                    ORDER BY p.name
+                ''', my_project_ids + my_project_ids + my_project_ids + [person_id, status])
+            else:
+                cursor.execute(f'''
+                    SELECT DISTINCT p.* FROM person p
+                    LEFT JOIN pm_user u ON u.person_id = p.id
+                    LEFT JOIN task t ON t.project_id IN ({placeholders}) AND t.assignee_id = p.id
+                    LEFT JOIN project_viewer pv ON pv.project_id IN ({placeholders}) AND pv.person_id = p.id
+                    LEFT JOIN project proj ON proj.id IN ({placeholders}) AND proj.owner_id = p.id
+                    WHERE u.role = 'admin' OR p.id = ? OR t.id IS NOT NULL OR pv.id IS NOT NULL OR proj.id IS NOT NULL
+                    ORDER BY p.name
+                ''', my_project_ids + my_project_ids + my_project_ids + [person_id])
     
     persons = [dict(row) for row in cursor.fetchall()]
     conn.close()
@@ -1905,13 +2148,14 @@ def create_person():
     cursor = conn.cursor()
     
     cursor.execute('''
-        INSERT INTO person (employee_id, name, role, email, phone, department, job_sequence, line, sub_line, position, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO person (employee_id, name, role, email, phone, department, job_sequence, line, sub_line, position, status, hire_date, major, school, education, birthday)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (data.get('employee_id'), data.get('name'), data.get('role', 'member'), 
           data.get('email'), data.get('phone'), 
           data.get('department', '智能与数字化中心'),
           data.get('job_sequence'), data.get('line'), data.get('sub_line'), 
-          data.get('position'), data.get('status', 'active')))
+          data.get('position'), data.get('status', 'active'), data.get('hire_date'),
+          data.get('major'), data.get('school'), data.get('education'), data.get('birthday')))
     
     person_id = cursor.lastrowid
     conn.commit()
@@ -1968,12 +2212,18 @@ def update_person(person_id):
             sub_line = COALESCE(?, sub_line),
             position = COALESCE(?, position),
             status = COALESCE(?, status),
+            hire_date = COALESCE(?, hire_date),
+            major = COALESCE(?, major),
+            school = COALESCE(?, school),
+            education = COALESCE(?, education),
+            birthday = COALESCE(?, birthday),
             updated_at = ?
         WHERE id = ?
     ''', (data.get('employee_id'), data.get('name'), data.get('role'), 
           data.get('email'), data.get('phone'), data.get('department'),
           data.get('job_sequence'), data.get('line'), data.get('sub_line'),
-          data.get('position'), data.get('status'),
+          data.get('position'), data.get('status'), data.get('hire_date'),
+          data.get('major'), data.get('school'), data.get('education'), data.get('birthday'),
           datetime.now().isoformat(), person_id))
     
     conn.commit()
@@ -2006,6 +2256,18 @@ def delete_person(person_id):
     conn.close()
     
     return jsonify({'success': True, 'deleted': True})
+
+@app.route('/api/persons/status-options', methods=['GET'])
+def get_person_status_options():
+    """获取人员状态选项列表"""
+    return jsonify({
+        'success': True,
+        'options': [
+            {'value': 'active', 'label': '在职'},
+            {'value': 'resigned', 'label': '离职'},
+            {'value': 'retired', 'label': '退休'}
+        ]
+    })
 
 # ========== 操作日志 ==========
 
@@ -2401,36 +2663,40 @@ def get_daily_report():
     cursor.execute('SELECT COUNT(*) FROM task WHERE status = "in_progress"')
     in_progress_tasks = cursor.fetchone()[0]
     
-    # 延期任务（已过截止日期且未完成，排除已中止）
+    # 延期任务（已过截止日期且未完成，排除已中止/归档项目）
     cursor.execute('''
-        SELECT COUNT(*) FROM task WHERE due_date < ? AND status = 'in_progress'
+        SELECT COUNT(*) FROM task t
+        LEFT JOIN project p ON t.project_id = p.id
+        WHERE t.due_date < ? AND t.status = 'in_progress' AND p.status NOT IN ('archived', 'cancelled') AND COALESCE(p.confidential, 0) = 0
     ''', (today_str,))
     overdue_count = cursor.fetchone()[0]
     
-    # 3天内到期任务（排除已中止和已完成）
+    # 3天内到期任务（排除已中止/归档项目）
     three_days_later = (today + timedelta(days=3)).strftime('%Y-%m-%d')
     cursor.execute('''
-        SELECT COUNT(*) FROM task 
-        WHERE due_date >= ? AND due_date <= ? AND status = 'in_progress'
+        SELECT COUNT(*) FROM task t
+        LEFT JOIN project p ON t.project_id = p.id
+        WHERE t.due_date >= ? AND t.due_date <= ? AND t.status = 'in_progress' AND p.status NOT IN ('archived', 'cancelled') AND COALESCE(p.confidential, 0) = 0
     ''', (today_str, three_days_later))
     due_3days_count = cursor.fetchone()[0]
     
-    # 一周内到期任务（排除已中止和已完成）
+    # 一周内到期任务（排除已中止/归档项目）
     week_later = (today + timedelta(days=7)).strftime('%Y-%m-%d')
     cursor.execute('''
-        SELECT COUNT(*) FROM task 
-        WHERE due_date > ? AND due_date <= ? AND status = 'in_progress'
+        SELECT COUNT(*) FROM task t
+        LEFT JOIN project p ON t.project_id = p.id
+        WHERE t.due_date > ? AND t.due_date <= ? AND t.status = 'in_progress' AND p.status NOT IN ('archived', 'cancelled') AND COALESCE(p.confidential, 0) = 0
     ''', (three_days_later, week_later))
     due_week_count = cursor.fetchone()[0]
     
-    # 延期任务列表（排除已中止）
+    # 延期任务列表（排除已中止/归档项目）
     cursor.execute('''
         SELECT t.id, t.name, t.due_date, t.progress, t.status,
                p.name as project_name, per.name as assignee_name
         FROM task t
         LEFT JOIN project p ON t.project_id = p.id
         LEFT JOIN person per ON t.assignee_id = per.id
-        WHERE t.due_date < ? AND t.status = 'in_progress'
+        WHERE t.due_date < ? AND t.status = 'in_progress' AND p.status NOT IN ('archived', 'cancelled') AND COALESCE(p.confidential, 0) = 0
         ORDER BY t.due_date ASC
     ''', (today_str,))
     overdue_tasks = [dict(row) for row in cursor.fetchall()]
@@ -2441,14 +2707,14 @@ def get_daily_report():
             due = datetime.strptime(task['due_date'], '%Y-%m-%d')
             task['overdue_days'] = (today - due).days
     
-    # 3天内到期任务列表（排除已中止和已完成）
+    # 3天内到期任务列表（排除已中止/归档项目）
     cursor.execute('''
         SELECT t.id, t.name, t.due_date, t.progress, t.status,
                p.name as project_name, per.name as assignee_name
         FROM task t
         LEFT JOIN project p ON t.project_id = p.id
         LEFT JOIN person per ON t.assignee_id = per.id
-        WHERE t.due_date >= ? AND t.due_date <= ? AND t.status = 'in_progress'
+        WHERE t.due_date >= ? AND t.due_date <= ? AND t.status = 'in_progress' AND p.status NOT IN ('archived', 'cancelled') AND COALESCE(p.confidential, 0) = 0
         ORDER BY t.due_date ASC
     ''', (today_str, three_days_later))
     due_3days_tasks = [dict(row) for row in cursor.fetchall()]
@@ -2459,14 +2725,14 @@ def get_daily_report():
             due = datetime.strptime(task['due_date'], '%Y-%m-%d')
             task['remaining_days'] = (due - today).days
     
-    # 一周内到期任务列表（排除已中止和已完成）
+    # 一周内到期任务列表（排除已中止/归档项目）
     cursor.execute('''
         SELECT t.id, t.name, t.due_date, t.progress, t.status,
                p.name as project_name, per.name as assignee_name
         FROM task t
         LEFT JOIN project p ON t.project_id = p.id
         LEFT JOIN person per ON t.assignee_id = per.id
-        WHERE t.due_date > ? AND t.due_date <= ? AND t.status = 'in_progress'
+        WHERE t.due_date > ? AND t.due_date <= ? AND t.status = 'in_progress' AND p.status NOT IN ('archived', 'cancelled') AND COALESCE(p.confidential, 0) = 0
         ORDER BY t.due_date ASC
     ''', (three_days_later, week_later))
     due_week_tasks = [dict(row) for row in cursor.fetchall()]
@@ -2483,11 +2749,11 @@ def get_daily_report():
                (SELECT COUNT(*) FROM task WHERE project_id = p.id AND status = 'completed') as completed_tasks,
                (SELECT COUNT(*) FROM task WHERE project_id = p.id AND due_date < ? AND status = 'in_progress') as overdue_tasks
         FROM project p
-        ORDER BY p.id
+        WHERE p.status NOT IN ('archived', 'cancelled') AND COALESCE(p.confidential, 0) = 0
     ''', (today_str,))
     projects = [dict(row) for row in cursor.fetchall()]
     
-    # 人员工作量（排除已中止任务）
+    # 人员工作量（排除已中止/归档项目的任务）
     cursor.execute('''
         SELECT per.id, per.name,
                COUNT(t.id) as total_tasks,
@@ -2495,13 +2761,57 @@ def get_daily_report():
                SUM(CASE WHEN t.due_date >= ? AND t.due_date <= ? AND t.status = 'in_progress' AND t.progress < 80 THEN 1 ELSE 0 END) as high_risk_count
         FROM person per
         LEFT JOIN task t ON t.assignee_id = per.id AND t.status = 'in_progress'
+        LEFT JOIN project p ON t.project_id = p.id AND p.status NOT IN ('archived', 'cancelled') AND COALESCE(p.confidential, 0) = 0
         GROUP BY per.id
         HAVING total_tasks > 0
         ORDER BY overdue_count DESC, high_risk_count DESC
     ''', (today_str, today_str, three_days_later))
     person_stats = [dict(row) for row in cursor.fetchall()]
     
+    # 人员当日推迟次数（task_due_date_history，仅今天）
+    cursor.execute('''
+        SELECT t.assignee_id, COUNT(h.id) as delay_count
+        FROM task_due_date_history h
+        JOIN task t ON h.task_id = t.id
+        WHERE h.new_due_date > h.old_due_date AND DATE(h.created_at) = ?
+        GROUP BY t.assignee_id
+    ''', (today_str,))
+    delay_map = {row['assignee_id']: row['delay_count'] for row in cursor.fetchall()}
+    
+    # 人员当日评价统计（仅今天完成的任务）
+    cursor.execute('''
+        SELECT t.assignee_id,
+               COUNT(t.id) as rated_count,
+               SUM(CASE WHEN t.rating = 'outstanding' THEN 1 ELSE 0 END) as outstanding_count,
+               SUM(CASE WHEN t.rating = 'excellent' THEN 1 ELSE 0 END) as excellent_count,
+               SUM(CASE WHEN t.rating = 'normal' THEN 1 ELSE 0 END) as normal_count,
+               SUM(CASE WHEN t.rating = 'insufficient' THEN 1 ELSE 0 END) as insufficient_count
+        FROM task t
+        WHERE t.rating IS NOT NULL AND DATE(t.completed_date) = ?
+        GROUP BY t.assignee_id
+    ''', (today_str,))
+    rating_map = {}
+    for row in cursor.fetchall():
+        rating_map[row['assignee_id']] = {
+            'rated_count': row['rated_count'],
+            'outstanding': row['outstanding_count'],
+            'excellent': row['excellent_count'],
+            'normal': row['normal_count'],
+            'insufficient': row['insufficient_count']
+        }
+    
+    # 合并到person_stats
+    for p in person_stats:
+        p['delay_count'] = delay_map.get(p['id'], 0)
+        p['rating'] = rating_map.get(p['id'], {'rated_count': 0, 'outstanding': 0, 'excellent': 0, 'normal': 0, 'insufficient': 0})
+    
     conn.close()
+    
+    # 评价统计（今日已完成任务）
+    conn2 = get_db()
+    cur2 = conn2.cursor()
+    rating_stats = get_rating_stats(cur2, today_str, today_str)
+    conn2.close()
     
     return jsonify({
         'success': True,
@@ -2518,7 +2828,8 @@ def get_daily_report():
         'due_3days_tasks': due_3days_tasks,
         'due_week_tasks': due_week_tasks,
         'projects': projects,
-        'person_stats': person_stats
+        'person_stats': person_stats,
+        'rating_stats': rating_stats
     })
 
 @app.route('/api/report/weekly', methods=['GET'])
@@ -2570,8 +2881,7 @@ def get_weekly_report():
         SELECT p.*, per.name as owner_name
         FROM project p
         LEFT JOIN person per ON p.owner_id = per.id
-        WHERE p.status = 'in_progress'
-        ORDER BY p.progress DESC
+        WHERE p.status = 'in_progress' AND COALESCE(p.confidential, 0) = 0
     ''')
     active_projects = [dict(row) for row in cursor.fetchall()]
     
@@ -2628,6 +2938,12 @@ def get_weekly_report():
     
     conn.close()
     
+    # 评价统计（本周）
+    conn2 = get_db()
+    cur2 = conn2.cursor()
+    rating_stats = get_rating_stats(cur2, week_start.strftime('%Y-%m-%d'), week_end.strftime('%Y-%m-%d'))
+    conn2.close()
+    
     return jsonify({
         'success': True,
         'report': {
@@ -2640,25 +2956,68 @@ def get_weekly_report():
             'active_projects': active_projects,
             'due_soon_tasks': due_soon_tasks,
             'overdue_tasks': overdue_tasks,
-            'risk_tasks': risk_tasks
+            'risk_tasks': risk_tasks,
+            'rating_stats': rating_stats
         }
     })
 
 @app.route('/api/report/monthly', methods=['GET'])
 def get_monthly_report():
-    """生成月报"""
+    """生成月报 - 支持year/month参数选择历史月份"""
+    return get_period_report('monthly')
+
+@app.route('/api/report/quarterly', methods=['GET'])
+def get_quarterly_report():
+    """生成季度报"""
+    return get_period_report('quarterly')
+
+@app.route('/api/report/annual', methods=['GET'])
+def get_annual_report():
+    """生成年度报"""
+    return get_period_report('annual')
+
+def get_period_report(report_type):
+    """通用报告生成 - 月报/季度报/年度报"""
     from datetime import datetime
     import calendar
     
     today = datetime.now()
-    month_start = today.replace(day=1)
-    last_day = calendar.monthrange(today.year, today.month)[1]
-    month_end = today.replace(day=last_day)
+    
+    # 根据报告类型确定时间范围
+    if report_type == 'monthly':
+        year = int(request.args.get('year', today.year))
+        month = int(request.args.get('month', today.month))
+        period_start = datetime(year, month, 1)
+        last_day = calendar.monthrange(year, month)[1]
+        period_end = datetime(year, month, last_day)
+        period_label = f'{year}年{month:02d}月'
+        period_key = f'{year}-{month:02d}'
+    elif report_type == 'quarterly':
+        year = int(request.args.get('year', today.year))
+        quarter = int(request.args.get('quarter', (today.month - 1) // 3 + 1))
+        q_start_month = (quarter - 1) * 3 + 1
+        q_end_month = quarter * 3
+        period_start = datetime(year, q_start_month, 1)
+        last_day = calendar.monthrange(year, q_end_month)[1]
+        period_end = datetime(year, q_end_month, last_day)
+        period_label = f'{year}年第{quarter}季度'
+        period_key = f'{year}-Q{quarter}'
+    elif report_type == 'annual':
+        year = int(request.args.get('year', today.year))
+        period_start = datetime(year, 1, 1)
+        period_end = datetime(year, 12, 31)
+        period_label = f'{year}年度'
+        period_key = f'{year}'
+    else:
+        return jsonify({'success': False, 'error': 'Unknown report type'}), 400
+    
+    start_str = period_start.strftime('%Y-%m-%d')
+    end_str = period_end.strftime('%Y-%m-%d')
     
     conn = get_db()
     cursor = conn.cursor()
     
-    # 本月完成的任务
+    # 期间完成的任务
     cursor.execute('''
         SELECT t.*, p.name as project_name, per.name as assignee_name
         FROM task t
@@ -2666,45 +3025,114 @@ def get_monthly_report():
         LEFT JOIN person per ON t.assignee_id = per.id
         WHERE t.completed_date >= ? AND t.completed_date <= ?
         ORDER BY t.completed_date DESC
-    ''', (month_start.strftime('%Y-%m-%d'), month_end.strftime('%Y-%m-%d')))
+    ''', (start_str, end_str))
     completed_tasks = [dict(row) for row in cursor.fetchall()]
     
-    # 本月完成的项目
+    # 期间完成的项目
     cursor.execute('''
         SELECT p.*, per.name as owner_name
         FROM project p
         LEFT JOIN person per ON p.owner_id = per.id
-        WHERE p.actual_end_date >= ? AND p.actual_end_date <= ?
+        WHERE p.actual_end_date >= ? AND p.actual_end_date <= ? AND COALESCE(p.confidential, 0) = 0
         ORDER BY p.actual_end_date DESC
-    ''', (month_start.strftime('%Y-%m-%d'), month_end.strftime('%Y-%m-%d')))
+    ''', (start_str, end_str))
     completed_projects = [dict(row) for row in cursor.fetchall()]
     
-    # 本月解决的问题
+    # 期间解决的问题
     cursor.execute('''
-        SELECT COUNT(*) FROM issue WHERE resolved_at >= ? AND status = 'resolved'
-    ''', (month_start.strftime('%Y-%m-%d') + ' 00:00:00',))
+        SELECT COUNT(*) FROM issue WHERE resolved_at >= ? AND resolved_at <= ? AND status = 'resolved'
+    ''', (start_str + ' 00:00:00', end_str + ' 23:59:59'))
     resolved_count = cursor.fetchone()[0]
     
-    # 人员绩效（过滤无任务人员，排除已中止任务）
+    # 期间新增的问题
     cursor.execute('''
-        SELECT per.name, COUNT(t.id) as task_count,
-               SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) as completed_count
+        SELECT COUNT(*) FROM issue WHERE created_at >= ? AND created_at <= ?
+    ''', (start_str + ' 00:00:00', end_str + ' 23:59:59'))
+    new_issues_count = cursor.fetchone()[0]
+    
+    # 人员绩效 - 期间内分配的任务（排除已中止+机密项目）
+    cursor.execute('''
+        SELECT per.name, per.id as person_id, per.line, per.position,
+               COUNT(t.id) as task_count,
+               SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) as completed_count,
+               SUM(CASE WHEN t.status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_count,
+               SUM(CASE WHEN t.status = 'pending' THEN 1 ELSE 0 END) as pending_count,
+               AVG(CASE WHEN t.status = 'completed' THEN t.progress ELSE NULL END) as avg_progress
         FROM person per
         LEFT JOIN task t ON t.assignee_id = per.id AND t.status != 'cancelled'
+            AND ((t.created_at >= ? AND t.created_at <= ?)
+                 OR (t.completed_date >= ? AND t.completed_date <= ?)
+                 OR (t.status IN ('in_progress', 'pending')))
+            AND t.project_id NOT IN (SELECT id FROM project WHERE COALESCE(confidential, 0) = 1)
+        WHERE per.status = 'active'
         GROUP BY per.id
         HAVING task_count > 0
         ORDER BY completed_count DESC
-    ''')
+    ''', (start_str + ' 00:00:00', end_str + ' 23:59:59', start_str + ' 00:00:00', end_str + ' 23:59:59'))
     person_stats = [dict(row) for row in cursor.fetchall()]
     
-    # 延期任务统计（排除已中止）
+    # 人员延期次数统计
+    cursor.execute('''
+        SELECT per.name as person_name, per.id as person_id,
+               COUNT(h.id) as delay_count,
+               COUNT(DISTINCT h.task_id) as delayed_tasks
+        FROM task_due_date_history h
+        LEFT JOIN task t ON h.task_id = t.id
+        LEFT JOIN person per ON t.assignee_id = per.id
+        WHERE h.new_due_date > h.old_due_date
+        AND h.created_at >= ? AND h.created_at <= ?
+        GROUP BY per.id
+        ORDER BY delay_count DESC
+    ''', (start_str + ' 00:00:00', end_str + ' 23:59:59'))
+    person_delay_stats = [dict(row) for row in cursor.fetchall()]
+    
+    # 合并延期到person_stats
+    delay_map = {d['person_id']: d for d in person_delay_stats}
+    for p in person_stats:
+        d = delay_map.get(p.get('person_id'))
+        p['delay_count'] = d['delay_count'] if d else 0
+        p['delayed_tasks'] = d['delayed_tasks'] if d else 0
+    
+    # 人员评价统计
+    cursor.execute('''
+        SELECT per.name as person_name, per.id as person_id,
+               t.rating, COUNT(*) as count
+        FROM task t
+        LEFT JOIN person per ON t.assignee_id = per.id
+        WHERE t.rating IS NOT NULL
+        AND t.completed_date >= ? AND t.completed_date <= ?
+        GROUP BY per.id, t.rating
+    ''', (start_str, end_str))
+    person_rating_rows = cursor.fetchall()
+    # 构建人员评价map
+    person_rating_map = {}
+    for row in person_rating_rows:
+        r = dict(row)
+        pid = r['person_id']
+        if pid not in person_rating_map:
+            person_rating_map[pid] = {'name': r['person_name'], 'ratings': {}, 'total': 0}
+        rating_label = {'insufficient': '不足', 'normal': '正常', 'excellent': '优秀', 'outstanding': '卓越'}.get(r['rating'], r['rating'])
+        person_rating_map[pid]['ratings'][rating_label] = r['count']
+        person_rating_map[pid]['total'] += r['count']
+    # 合并到person_stats
+    for p in person_stats:
+        pr = person_rating_map.get(p.get('person_id'))
+        if pr:
+            p['rating_detail'] = pr['ratings']
+            p['rating_total'] = pr['total']
+        else:
+            p['rating_detail'] = {}
+            p['rating_total'] = 0
+    
+    # 当前延期任务（排除已中止项目）
     today_str = today.strftime('%Y-%m-%d')
     cursor.execute('''
         SELECT t.*, p.name as project_name, per.name as assignee_name
         FROM task t
         LEFT JOIN project p ON t.project_id = p.id
         LEFT JOIN person per ON t.assignee_id = per.id
-        WHERE t.due_date < ? AND t.status = 'in_progress'
+        WHERE t.due_date < ? AND t.status NOT IN ('completed', 'cancelled')
+        AND p.status NOT IN ('archived', 'cancelled') AND COALESCE(p.confidential, 0) = 0
         ORDER BY t.due_date ASC
     ''', (today_str,))
     overdue_tasks = [dict(row) for row in cursor.fetchall()]
@@ -2714,48 +3142,77 @@ def get_monthly_report():
         SELECT 
             COUNT(CASE WHEN i.created_at >= ? THEN 1 END) as new_issues,
             COUNT(CASE WHEN i.resolved_at >= ? AND i.status = 'resolved' THEN 1 END) as resolved_issues,
-            COUNT(CASE WHEN i.status != 'resolved' AND i.status != 'closed' THEN 1 END) as pending_issues
+            COUNT(CASE WHEN i.status NOT IN ('resolved', 'closed') THEN 1 END) as pending_issues
         FROM issue i
-    ''', (month_start.strftime('%Y-%m-%d') + ' 00:00:00', month_start.strftime('%Y-%m-%d') + ' 00:00:00'))
+    ''', (start_str + ' 00:00:00', start_str + ' 00:00:00'))
     issue_trend = dict(cursor.fetchone())
     
-    # 活跃项目（进行中的项目含进度，排除已中止任务）
+    # 活跃项目
     cursor.execute('''
         SELECT p.*, per.name as owner_name,
                (SELECT COUNT(*) FROM task t WHERE t.project_id = p.id AND t.status != 'cancelled') as total_tasks,
                (SELECT COUNT(*) FROM task t WHERE t.project_id = p.id AND t.status = 'completed') as done_tasks
         FROM project p
         LEFT JOIN person per ON p.owner_id = per.id
-        WHERE p.status = 'in_progress'
-        ORDER BY p.progress DESC
+        WHERE p.status = 'in_progress' AND COALESCE(p.confidential, 0) = 0
     ''')
     active_projects = [dict(row) for row in cursor.fetchall()]
     
+    # 季度报/年度报额外维度：月度趋势
+    monthly_trend = []
+    if report_type in ('quarterly', 'annual'):
+        if report_type == 'quarterly':
+            months_range = range(q_start_month, q_end_month + 1)
+        else:
+            months_range = range(1, 13)
+        for m in months_range:
+            m_start = datetime(year, m, 1).strftime('%Y-%m-%d')
+            m_last = calendar.monthrange(year, m)[1]
+            m_end = datetime(year, m, m_last).strftime('%Y-%m-%d')
+            cursor.execute('''
+                SELECT 
+                    COUNT(CASE WHEN t.completed_date >= ? AND t.completed_date <= ? THEN 1 END) as completed,
+                    COUNT(CASE WHEN t.due_date < ? AND t.status NOT IN ('completed','cancelled') THEN 1 END) as overdue
+                FROM task t
+                LEFT JOIN project p ON t.project_id = p.id
+                WHERE t.status != 'cancelled' AND p.status NOT IN ('archived','cancelled') AND COALESCE(p.confidential, 0) = 0
+            ''', (m_start, m_end, today_str))
+            row = dict(cursor.fetchone())
+            row['month'] = f'{m:02d}月'
+            monthly_trend.append(row)
+    
     stats = {
-        'month': today.strftime('%Y-%m'),
+        'period_key': period_key,
         'completed_tasks': len(completed_tasks),
         'completed_projects': len(completed_projects),
         'resolved_issues': resolved_count,
+        'new_issues': new_issues_count,
         'overdue_tasks': len(overdue_tasks),
         'active_projects': len(active_projects),
     }
     
+    # 评价统计
+    rating_stats = get_rating_stats(cursor, start_str, end_str)
+    
     conn.close()
     
-    return jsonify({
-        'success': True,
-        'report': {
-            'type': 'monthly',
-            'period': today.strftime('%Y年%m月'),
-            'stats': stats,
-            'completed_tasks': completed_tasks,
-            'completed_projects': completed_projects,
-            'person_stats': person_stats,
-            'overdue_tasks': overdue_tasks,
-            'issue_trend': issue_trend,
-            'active_projects': active_projects
-        }
-    })
+    report = {
+        'type': report_type,
+        'period': period_label,
+        'start_date': start_str,
+        'end_date': end_str,
+        'stats': stats,
+        'completed_tasks': completed_tasks,
+        'completed_projects': completed_projects,
+        'person_stats': person_stats,
+        'overdue_tasks': overdue_tasks,
+        'issue_trend': issue_trend,
+        'active_projects': active_projects,
+        'rating_stats': rating_stats,
+        'monthly_trend': monthly_trend,
+    }
+    
+    return jsonify({'success': True, 'report': report})
 
 @app.route('/api/report/export', methods=['POST'])
 def export_report():
@@ -2805,7 +3262,7 @@ def export_report():
 </html>
 """
         
-        filename = f"weekly_report_{week_start.strftime('%Y%m%d')}.html"
+        filename = f"weekly_report_{week_start.strftime('%Y%m%d')}_{datetime.now().strftime('%Y%m%d')}.html"
         
     else:
         # 月报导出 — 完整实现
@@ -2862,7 +3319,7 @@ def export_report():
 </body>
 </html>
 """
-        filename = f"monthly_report_{today.strftime('%Y%m')}.html"
+        filename = f"monthly_report_{today.strftime('%Y%m')}_{datetime.now().strftime('%Y%m%d')}.html"
     
     import tempfile
     import os
@@ -2874,7 +3331,7 @@ def export_report():
 
 # ========== 附件管理 ==========
 
-UPLOAD_DIR = '/home/ubuntu/.copaw/data/pm_attachments'
+UPLOAD_DIR = os.environ.get('PM_UPLOAD_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'attachments'))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def init_attachment_table():
@@ -3157,7 +3614,7 @@ def export_tasks():
     wb.save(output)
     output.seek(0)
     
-    return send_file(output, as_attachment=True, download_name='tasks_export.xlsx',
+    return send_file(output, as_attachment=True, download_name=f'tasks_export_{datetime.now().strftime("%Y%m%d")}.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 @app.route('/api/export/persons', methods=['GET'])
@@ -3181,7 +3638,7 @@ def export_persons():
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
-    return send_file(output, as_attachment=True, download_name='persons_export.xlsx',
+    return send_file(output, as_attachment=True, download_name=f'persons_export_{datetime.now().strftime("%Y%m%d")}.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 @app.route('/api/import/tasks', methods=['POST'])

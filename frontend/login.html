@@ -198,7 +198,7 @@
         <div class="tips">
             <h3>💡 使用提示</h3>
             <ul>
-                <li>• 用户名：姓名拼音缩写（如：周泓武 → zhw）</li>
+                <li>• 用户名：姓名拼音缩写（如：张三 → zhw）</li>
                 <li>• 默认密码：pm2026</li>
                 <li>• 首次登录后请修改密码</li>
             </ul>
@@ -252,6 +252,7 @@
                 
                 if (data.success) {
                     localStorage.setItem('pm_token', data.token);
+                    localStorage.setItem('pm_user', JSON.stringify(data.user));
                     showLoggedIn(data.user);
                     // 2秒后跳转
                     setTimeout(() => redirectAfterLogin(), 2000);

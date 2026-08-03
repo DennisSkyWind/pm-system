@@ -33,12 +33,12 @@ const PM_REPORT_EXPORT = {
         }
     },
 
-    _ensureStartDate(task) {
-        if (task.start_date) return task;
+    _ensureStartDate(task, projectCreatedAt) {
+        if (task.start_date) return task;  // 已设置开始日期（点击"开始"按钮）
         const t = Object.assign({}, task);
-        if (t.due_date) {
-            const d = new Date(t.due_date); d.setDate(d.getDate() - 7);
-            t.start_date = d.toISOString().split('T')[0];
+        // 未设置开始日期：使用项目创建时间
+        if (projectCreatedAt) {
+            t.start_date = projectCreatedAt.split('T')[0];
         } else if (t.created_at) {
             t.start_date = t.created_at.split('T')[0];
         }
@@ -112,7 +112,7 @@ const PM_REPORT_EXPORT = {
 
     // ========== 任务清单（含完成情况说明） ==========
     _buildTaskList(project) {
-        const tasks = (project.tasks || []).map(t => this._ensureStartDate(t));
+        const tasks = (project.tasks || []).map(t => this._ensureStartDate(t, project.created_at));
         const statusMap = { pending: '⏳ 待处理', in_progress: '🔄 进行中', completed: '✅ 已完成', cancelled: '❌ 已中止', delayed: '⚠️ 延期' };
         const priorityMap = { critical: '🔴 紧急', high: '🟠 高', medium: '🟡 中', low: '🟢 低' };
 
@@ -251,7 +251,7 @@ const PM_REPORT_EXPORT = {
     },
 
     _buildGanttFallback(project, opts) {
-        const tasks = (project.tasks || []).map(t => this._ensureStartDate(t));
+        const tasks = (project.tasks || []).map(t => this._ensureStartDate(t, project.created_at));
         const phases = project.phases || [];
         const range = this._getTimeRange(opts);
         const rangeStart = range.start;
@@ -402,7 +402,8 @@ const PM_REPORT_EXPORT = {
         const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = `${project.name}_项目报告.html`;
+        const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
+        a.href = url; a.download = `${project.name}_项目报告_${dateStr}.html`;
         a.click(); URL.revokeObjectURL(url);
     },
 
@@ -429,7 +430,7 @@ const PM_REPORT_EXPORT = {
             if (sec.issues) sections.push({ name: '问题清单', html: this._buildIssues(project) });
             sections.push({ name: '页脚', html: this._buildFooter() });
 
-            const RENDER_WIDTH = 1200;
+            const RENDER_WIDTH = 800;
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
             const pdfPageW = pdf.internal.pageSize.getWidth();
@@ -457,9 +458,10 @@ const PM_REPORT_EXPORT = {
 
                 try {
                     const canvas = await html2canvas(container, {
-                        scale: 2, useCORS: true, allowTaint: true,
-                        backgroundColor: s.bg || '#ffffff',
-                        width: RENDER_WIDTH, windowWidth: RENDER_WIDTH
+                        scale: 1.5, useCORS: true, allowTaint: true,
+                        backgroundColor: '#ffffff',
+                        width: RENDER_WIDTH, windowWidth: RENDER_WIDTH,
+                        logging: false, imageTimeout: 0
                     });
 
                     if (canvas.width === 0 || canvas.height === 0) {
@@ -474,7 +476,7 @@ const PM_REPORT_EXPORT = {
                     if (imgH <= contentH) {
                         // 板块可以放在一页内
                         if (!isFirstPage) pdf.addPage();
-                        pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, imgW, imgH);
+                        pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', margin, margin, imgW, imgH);
                         isFirstPage = false;
                     } else {
                         // 板块需要跨页：按A4页面高度切割
@@ -496,7 +498,7 @@ const PM_REPORT_EXPORT = {
                             const ctx = sliceCanvas.getContext('2d');
                             ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
 
-                            pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, imgW, destH);
+                            pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 1.0), 'JPEG', margin, margin, imgW, destH);
                             isFirstPage = false;
                         }
                     }
@@ -506,7 +508,8 @@ const PM_REPORT_EXPORT = {
                 document.body.removeChild(container);
             }
 
-            pdf.save(`${project.name}_项目报告.pdf`);
+            const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
+            pdf.save(`${project.name}_项目报告_${dateStr}.pdf`);
         } finally {
             document.body.removeChild(loadingEl);
         }
@@ -558,7 +561,7 @@ const PM_REPORT_EXPORT = {
             await new Promise(r => setTimeout(r, 800));
 
             const canvas = await html2canvas(wrapper, {
-                scale: 2, useCORS: true, logging: false,
+                scale: 1.5, useCORS: true, logging: false,
                 width: 840, backgroundColor: '#ffffff'
             });
 
@@ -581,7 +584,7 @@ const PM_REPORT_EXPORT = {
                 sliceCanvas.height = Math.max(1, Math.round(srcH));
                 const ctx = sliceCanvas.getContext('2d');
                 ctx.drawImage(canvas, 0, Math.round(srcY), canvas.width, Math.round(srcH), 0, 0, canvas.width, Math.round(srcH));
-                pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, imgW, sliceH);
+                pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 1.0), 'JPEG', margin, margin, imgW, sliceH);
                 y += maxH;
             }
             pdf.save(filename);
