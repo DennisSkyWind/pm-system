@@ -1403,8 +1403,11 @@ def get_issues():
         query += ' AND i.project_id = ?'
         params.append(project_id)
     if status:
-        query += ' AND i.status = ?'
-        params.append(status)
+        # 支持多状态过滤（逗号分隔，如 status=open,in_progress）
+        statuses = [s.strip() for s in status.split(',')]
+        placeholders = ','.join(['?'] * len(statuses))
+        query += f' AND i.status IN ({placeholders})'
+        params.extend(statuses)
     
     query += ' ORDER BY i.severity DESC, i.created_at DESC'
     cursor.execute(query, params)

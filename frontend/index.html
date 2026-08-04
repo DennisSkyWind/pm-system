@@ -446,8 +446,8 @@
                 const remindersData = await remindersRes.json();
                 renderReminders(remindersData.reminders);
                 
-                // 问题
-                const issuesRes = await authFetch(API + '/issues');
+                // 问题（只显示未解决的）
+                const issuesRes = await authFetch(API + '/issues?status=open,in_progress');
                 const issuesData = await issuesRes.json();
                 renderIssues(issuesData.issues);
             } catch (e) {
