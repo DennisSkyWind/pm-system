@@ -532,6 +532,10 @@
                 <label style="font-weight:600;color:#e74c3c;">📋 延期记录</label>
                 <div id="delay-history-list" style="max-height:150px;overflow-y:auto;font-size:0.85em;background:#fef5f5;border:1px solid #f0c9c9;border-radius:6px;padding:8px;margin-top:4px;"></div>
             </div>
+            <div id="assignee-history-section" style="display:none;">
+                <label style="font-weight:600;color:#ff9800;">🔄 负责人变更记录</label>
+                <div id="assignee-history-list" style="max-height:150px;overflow-y:auto;font-size:0.85em;background:#fff8e1;border:1px solid #ffe0b2;border-radius:6px;padding:8px;margin-top:4px;"></div>
+            </div>
             <div class="form-group">
                 <label>描述</label>
                 <textarea id="edit-task-desc" rows="3"></textarea>
@@ -1695,6 +1699,8 @@
             document.getElementById('delay-reason-group').style.display = 'none';
             // 加载延期历史
             loadDelayHistory(id);
+            // 加载负责人变更历史
+            loadAssigneeHistory(id);
             document.getElementById('edit-task-project').value = task.project_id || '';
             document.getElementById('edit-task-project-search').value = task.project_name || '';
             document.getElementById('edit-task-assignee').value = task.assignee_id || '';
@@ -1757,6 +1763,34 @@
                 }
             } catch(e) {
                 console.error('加载延期历史失败:', e);
+            }
+        }
+        
+        // 加载任务负责人变更历史
+        async function loadAssigneeHistory(taskId) {
+            try {
+                const res = await authFetch(`${API}/tasks/${taskId}/assignee-history`);
+                const data = await res.json();
+                if (data.success && data.history && data.history.length > 0) {
+                    const section = document.getElementById('assignee-history-section');
+                    const list = document.getElementById('assignee-history-list');
+                    let html = `<div style="margin-bottom:4px;color:#e65100;font-weight:600;">负责人变更 ${data.change_count} 次</div>`;
+                    data.history.forEach(h => {
+                        const time = h.created_at ? h.created_at.substring(0, 16).replace('T', ' ') : '';
+                        html += `<div style="padding:3px 0;border-bottom:1px solid #ffe0b2;">
+                            <span style="color:#888;">${time}</span> 
+                            ${h.old_assignee_name || '未分配'} → ${h.new_assignee_name || '未分配'}
+                            ${h.operator_name ? `<span style="color:#666;">(${h.operator_name})</span>` : ''}
+                            ${h.reason ? `<div style="color:#555;padding-left:12px;">原因: ${h.reason}</div>` : ''}
+                        </div>`;
+                    });
+                    list.innerHTML = html;
+                    section.style.display = 'block';
+                } else {
+                    document.getElementById('assignee-history-section').style.display = 'none';
+                }
+            } catch(e) {
+                console.error('加载负责人变更历史失败:', e);
             }
         }
         

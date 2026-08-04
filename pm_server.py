@@ -19,6 +19,7 @@ APP_VERSION = '2.4.0'
 FRONTEND_DIR = os.environ.get('PM_FRONTEND_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend'))
 
 app = Flask(__name__, static_folder=FRONTEND_DIR)
+app.json.sort_keys = False
 DB_PATH = os.environ.get('PM_DB_PATH', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'pm.db'))
 MEMOS_SCRIPT = os.environ.get('MEMOS_SCRIPT', '')
 
@@ -63,6 +64,36 @@ def init_user_table():
             UNIQUE(project_id, person_id),
             FOREIGN KEY (project_id) REFERENCES project(id),
             FOREIGN KEY (person_id) REFERENCES person(id)
+        )
+    ''')
+    # 任务负责人变更历史表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS task_assignee_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            old_assignee_id INTEGER,
+            new_assignee_id INTEGER,
+            old_assignee_name TEXT,
+            new_assignee_name TEXT,
+            reason TEXT,
+            operator_id INTEGER,
+            operator_name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (task_id) REFERENCES task(id)
+        )
+    ''')
+    # 任务截止日期变更历史表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS task_due_date_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            old_due_date DATE,
+            new_due_date DATE,
+            reason TEXT,
+            operator_id INTEGER,
+            operator_name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (task_id) REFERENCES task(id)
         )
     ''')
     conn.commit()
@@ -1217,6 +1248,29 @@ def update_task(task_id):
         ''', (task_id, old_due_date, new_due_date, data.get('delay_reason', ''), 
               operator.get('person_id'), operator.get('person_name')))
     
+    # 记录负责人变更历史
+    new_assignee_id = data.get('assignee_id')
+    if new_assignee_id and str(new_assignee_id) != str(old_assignee_id or ''):
+        operator = getattr(request, 'current_user', {}) or {}
+        # 查询新旧负责人姓名
+        old_name = ''
+        new_name = ''
+        if old_assignee_id:
+            cursor.execute('SELECT name FROM person WHERE id = ?', (old_assignee_id,))
+            row = cursor.fetchone()
+            if row:
+                old_name = row['name']
+        if new_assignee_id:
+            cursor.execute('SELECT name FROM person WHERE id = ?', (new_assignee_id,))
+            row = cursor.fetchone()
+            if row:
+                new_name = row['name']
+        cursor.execute('''
+            INSERT INTO task_assignee_history (task_id, old_assignee_id, new_assignee_id, old_assignee_name, new_assignee_name, reason, operator_id, operator_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (task_id, old_assignee_id, new_assignee_id, old_name, new_name, data.get('assignee_change_reason', ''),
+              operator.get('person_id'), operator.get('person_name')))
+    
     conn.commit()
     conn.close()
     
@@ -2037,6 +2091,31 @@ def task_delay_history(task_id):
         'history': history
     })
 
+@app.route('/api/tasks/<int:task_id>/assignee-history', methods=['GET'])
+@check_auth
+def task_assignee_history(task_id):
+    """获取单个任务的负责人变更历史"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT h.*, t.name as task_name
+        FROM task_assignee_history h
+        LEFT JOIN task t ON h.task_id = t.id
+        WHERE h.task_id = ?
+        ORDER BY h.created_at DESC
+    ''', [task_id])
+    history = [dict(row) for row in cursor.fetchall()]
+    
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'task_id': task_id,
+        'change_count': len(history),
+        'history': history
+    })
+
 # ========== 前端页面 ==========
 
 @app.route('/', methods=['GET'])
@@ -2767,6 +2846,14 @@ def get_daily_report():
         ORDER BY overdue_count DESC, high_risk_count DESC
     ''', (today_str, today_str, three_days_later))
     person_stats = [dict(row) for row in cursor.fetchall()]
+    # 修复None值（line/position可能为NULL，避免JSON序列化排序错误）
+    for p in person_stats:
+        if p.get('line') is None:
+            p['line'] = ''
+        if p.get('position') is None:
+            p['position'] = ''
+        if p.get('avg_progress') is None:
+            p['avg_progress'] = 0
     
     # 人员当日推迟次数（task_due_date_history，仅今天）
     cursor.execute('''
@@ -2804,6 +2891,19 @@ def get_daily_report():
     for p in person_stats:
         p['delay_count'] = delay_map.get(p['id'], 0)
         p['rating'] = rating_map.get(p['id'], {'rated_count': 0, 'outstanding': 0, 'excellent': 0, 'normal': 0, 'insufficient': 0})
+    
+    # 人员当日负责人变更次数（task_assignee_history，仅今天）
+    cursor.execute('''
+        SELECT t.assignee_id as new_assignee_id, COUNT(h.id) as assignee_change_count
+        FROM task_assignee_history h
+        JOIN task t ON h.task_id = t.id
+        WHERE DATE(h.created_at) = ?
+        GROUP BY t.assignee_id
+    ''', (today_str,))
+    assignee_change_map = {row['new_assignee_id']: row['assignee_change_count'] for row in cursor.fetchall()}
+    
+    for p in person_stats:
+        p['assignee_change_count'] = assignee_change_map.get(p['id'], 0)
     
     conn.close()
     
@@ -3070,6 +3170,14 @@ def get_period_report(report_type):
         ORDER BY completed_count DESC
     ''', (start_str + ' 00:00:00', end_str + ' 23:59:59', start_str + ' 00:00:00', end_str + ' 23:59:59'))
     person_stats = [dict(row) for row in cursor.fetchall()]
+    # 修复None值（line/position可能为NULL，避免JSON序列化排序错误）
+    for p in person_stats:
+        if p.get('line') is None:
+            p['line'] = ''
+        if p.get('position') is None:
+            p['position'] = ''
+        if p.get('avg_progress') is None:
+            p['avg_progress'] = 0
     
     # 人员延期次数统计
     cursor.execute('''
@@ -3123,6 +3231,18 @@ def get_period_report(report_type):
         else:
             p['rating_detail'] = {}
             p['rating_total'] = 0
+    
+    # 人员负责人变更次数（期间内）
+    cursor.execute('''
+        SELECT t.assignee_id as person_id, COUNT(h.id) as assignee_change_count
+        FROM task_assignee_history h
+        JOIN task t ON h.task_id = t.id
+        WHERE h.created_at >= ? AND h.created_at <= ?
+        GROUP BY t.assignee_id
+    ''', (start_str + ' 00:00:00', end_str + ' 23:59:59'))
+    assignee_change_map = {row['person_id']: row['assignee_change_count'] for row in cursor.fetchall()}
+    for p in person_stats:
+        p['assignee_change_count'] = assignee_change_map.get(p.get('person_id'), 0)
     
     # 当前延期任务（排除已中止项目）
     today_str = today.strftime('%Y-%m-%d')
@@ -3212,6 +3332,18 @@ def get_period_report(report_type):
         'monthly_trend': monthly_trend,
     }
     
+    # 递归清理None值（避免JSON序列化排序错误）
+    def clean_none(obj):
+        if isinstance(obj, dict):
+            return {k: clean_none(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [clean_none(item) for item in obj]
+        elif obj is None:
+            return ''
+        return obj
+    
+    report = clean_none(report)
+    
     return jsonify({'success': True, 'report': report})
 
 @app.route('/api/report/export', methods=['POST'])
@@ -3293,6 +3425,14 @@ def export_report():
             ORDER BY completed_count DESC
         ''')
         person_stats = [dict(row) for row in cursor.fetchall()]
+    # 修复None值（line/position可能为NULL，避免JSON序列化排序错误）
+    for p in person_stats:
+        if p.get('line') is None:
+            p['line'] = ''
+        if p.get('position') is None:
+            p['position'] = ''
+        if p.get('avg_progress') is None:
+            p['avg_progress'] = 0
         
         conn.close()
         

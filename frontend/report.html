@@ -679,7 +679,7 @@
                 return;
             }
             let html = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f5f5f5">';
-            html += '<th style="padding:10px;text-align:left">人员</th><th style="padding:10px;text-align:center">任务</th><th style="padding:10px;text-align:center">延期</th><th style="padding:10px;text-align:center">高风险</th><th style="padding:10px;text-align:center">推迟次数</th><th style="padding:10px;text-align:center">评价</th><th style="padding:10px;text-align:center">状态</th>';
+            html += '<th style="padding:10px;text-align:left">人员</th><th style="padding:10px;text-align:center">任务</th><th style="padding:10px;text-align:center">延期</th><th style="padding:10px;text-align:center">高风险</th><th style="padding:10px;text-align:center">推迟次数</th><th style="padding:10px;text-align:center">换人</th><th style="padding:10px;text-align:center">评价</th><th style="padding:10px;text-align:center">状态</th>';
             html += '</tr></thead><tbody>';
             const ratingLabels = { outstanding: '🌟卓越', excellent: '⭐优秀', normal: '✅正常', insufficient: '⚠️不足' };
             for (const p of persons) {
@@ -691,6 +691,10 @@
                 // 推迟次数
                 const delays = p.delay_count || 0;
                 const delayColor = delays > 3 ? '#f44336' : delays > 0 ? '#ff9800' : '#4caf50';
+                
+                // 换人次数
+                const assigneeChanges = p.assignee_change_count || 0;
+                const changeColor = assigneeChanges > 0 ? '#ff9800' : '#4caf50';
                 
                 // 评价
                 const r = p.rating || {};
@@ -712,6 +716,7 @@
                     <td style="padding:10px;text-align:center">${p.overdue_count || 0}</td>
                     <td style="padding:10px;text-align:center">${p.high_risk_count || 0}</td>
                     <td style="padding:10px;text-align:center;color:${delayColor};font-weight:${delays>0?'bold':'normal'}">${delays}</td>
+                    <td style="padding:10px;text-align:center;color:${changeColor};font-weight:${assigneeChanges>0?'bold':'normal'}">${assigneeChanges > 0 ? '🔄' + assigneeChanges : '-'}</td>
                     <td style="padding:10px;text-align:center;font-size:0.85em">${ratingHtml}</td>
                     <td style="padding:10px;text-align:center;color:${statusColor}">${status}</td>
                 </tr>`;
@@ -827,10 +832,11 @@ th{background:#f5f5f5;color:#666;font-size:13px}
             }
             
             if (data.person_stats && data.person_stats.length > 0) {
-                html += '<h2>👥 人员工作量</h2><table><thead><tr><th>人员</th><th>任务数</th><th>延期</th><th>高风险</th><th>推迟次数</th><th>评价</th><th>状态</th></tr></thead><tbody>';
+                html += '<h2>👥 人员工作量</h2><table><thead><tr><th>人员</th><th>任务数</th><th>延期</th><th>高风险</th><th>推迟次数</th><th>换人</th><th>评价</th><th>状态</th></tr></thead><tbody>';
                 for (const p of data.person_stats) {
                     const status = p.overdue_count > 0 ? '⚠️ 需关注' : (p.high_risk_count > 0 ? '🔶 有风险' : '✅ 正常');
                     const delays = p.delay_count || 0;
+                    const assigneeChanges = p.assignee_change_count || 0;
                     const r = p.rating || {};
                     let ratingStr = '-';
                     if (r.rated_count > 0) {
@@ -841,7 +847,7 @@ th{background:#f5f5f5;color:#666;font-size:13px}
                         if (r.insufficient) parts.push('⚠️' + r.insufficient);
                         ratingStr = parts.join(' ');
                     }
-                    html += `<tr><td>${p.name}</td><td>${p.total_tasks}</td><td>${p.overdue_count || 0}</td><td>${p.high_risk_count || 0}</td><td>${delays}</td><td style="font-size:0.85em">${ratingStr}</td><td>${status}</td></tr>`;
+                    html += `<tr><td>${p.name}</td><td>${p.total_tasks}</td><td>${p.overdue_count || 0}</td><td>${p.high_risk_count || 0}</td><td>${delays}</td><td>${assigneeChanges > 0 ? '🔄' + assigneeChanges : '-'}</td><td style="font-size:0.85em">${ratingStr}</td><td>${status}</td></tr>`;
                 }
                 html += '</tbody></table>';
             }
@@ -1375,8 +1381,8 @@ ${(r.overdue_tasks||[]).length>0?`<h2 style="color:#f44336">🔴 延期任务</h
 <h2>📋 活跃项目</h2>
 ${(r.active_projects||[]).map(p=>`<div style="margin:8px 0"><strong>${p.name}</strong> <span style="color:#666">· ${p.owner_name||'-'} · 任务:${p.done_tasks||0}/${p.total_tasks||0} · ${p.progress||0}%</span></div>`).join('')||'<p style="color:#999">暂无</p>'}
 <h2>📊 人员工作量与绩效</h2>
-<table><tr><th>人员</th><th>条线</th><th>总任务</th><th>完成</th><th>完成率</th><th>延期</th><th>评价</th></tr>
-${(r.person_stats||[]).map(p=>{const t=p.task_count||0,d=p.completed_count||0,rate=t>0?Math.round(d/t*100):0,delays=p.delay_count||0;const rd=p.rating_detail||{};const rs=Object.entries(rd).map(([l,c])=>`${l}:${c}`).join(' ')||'-';return `<tr><td><strong>${p.name}</strong></td><td>${p.line||'-'}</td><td>${t}</td><td>${d}</td><td style="font-weight:bold;color:${rate>=80?'#4caf50':rate>=50?'#ff9800':'#2196f3'}">${rate}%</td><td style="color:${delays>0?'#f44336':'#4caf50'}">${delays}</td><td style="font-size:0.85em">${rs}</td></tr>`;}).join('')||'<tr><td colspan="7" style="text-align:center;color:#999">暂无数据</td></tr>'}
+<table><tr><th>人员</th><th>条线</th><th>总任务</th><th>完成</th><th>完成率</th><th>延期</th><th>换人</th><th>评价</th></tr>
+${(r.person_stats||[]).map(p=>{const t=p.task_count||0,d=p.completed_count||0,rate=t>0?Math.round(d/t*100):0,delays=p.delay_count||0,ac=p.assignee_change_count||0;const rd=p.rating_detail||{};const rs=Object.entries(rd).map(([l,c])=>`${l}:${c}`).join(' ')||'-';return `<tr><td><strong>${p.name}</strong></td><td>${p.line||'-'}</td><td>${t}</td><td>${d}</td><td style="font-weight:bold;color:${rate>=80?'#4caf50':rate>=50?'#ff9800':'#2196f3'}">${rate}%</td><td style="color:${delays>0?'#f44336':'#4caf50'}">${delays}</td><td style="color:${ac>0?'#ff9800':'#999'}">${ac>0?'🔄'+ac:'-'}</td><td style="font-size:0.85em">${rs}</td></tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;color:#999">暂无数据</td></tr>'}
 </table>
 <h2>✅ 完成任务</h2>
 <table><tr><th>任务</th><th>项目</th><th>负责人</th><th>完成日期</th><th>评价</th></tr>
@@ -1510,11 +1516,11 @@ ${(r.overdue_tasks||[]).length>0?`<h2 style="color:#f44336">🔴 延期任务</h
 <h2>📋 活跃项目</h2>
 ${(r.active_projects||[]).map(p=>`<div style="margin:10px 0"><strong>${p.name}</strong> <span style="color:#666">· 负责人:${p.owner_name||'-'} · 任务:${p.done_tasks||0}/${p.total_tasks||0}</span><div class="progress-bar"><div class="progress-fill" style="width:${p.progress}%;background:${p.progress>=80?'#4caf50':p.progress>=50?'#ff9800':'#2196f3'}"></div></div><span style="font-size:13px;color:#666">${p.progress}%</span></div>`).join('')||'<p style="color:#999">暂无活跃项目</p>'}
 <h2>📊 人员工作量统计</h2>
-<table><tr><th>人员</th><th>总任务</th><th>完成</th><th>完成率</th><th>延期次数</th></tr>
+<table><tr><th>人员</th><th>总任务</th><th>完成</th><th>完成率</th><th>延期次数</th><th>换人</th></tr>
 ${(r.person_stats||[]).map(p=>{
-    const total=p.task_count||0;const done=p.completed_count||0;const rate=total>0?Math.round(done/total*100):0;const delays=p.delay_count||0;
-    return `<tr><td><strong>${p.name}</strong></td><td>${total}</td><td>${done}</td><td>${rate}%</td><td style="color:${delays>0?'#f44336':'#4caf50'}">${delays>0?'🔴 '+delays:'✅ 0'}</td></tr>`;
-}).join('')||'<tr><td colspan="5" style="text-align:center;color:#999">暂无数据</td></tr>'}
+    const total=p.task_count||0;const done=p.completed_count||0;const rate=total>0?Math.round(done/total*100):0;const delays=p.delay_count||0;const ac=p.assignee_change_count||0;
+    return `<tr><td><strong>${p.name}</strong></td><td>${total}</td><td>${done}</td><td>${rate}%</td><td style="color:${delays>0?'#f44336':'#4caf50'}">${delays>0?'🔴 '+delays:'✅ 0'}</td><td style="color:${ac>0?'#ff9800':'#999'}">${ac>0?'🔄'+ac:'-'}</td></tr>`;
+}).join('')||'<tr><td colspan="6" style="text-align:center;color:#999">暂无数据</td></tr>'}
 </table>
 <h2>✅ 本月完成任务</h2>
 <table><tr><th>任务</th><th>项目</th><th>负责人</th><th>完成日期</th><th>评价</th></tr>
