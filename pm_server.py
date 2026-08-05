@@ -2126,6 +2126,493 @@ def index():
     """返回前端页面"""
     return send_file(os.path.join(FRONTEND_DIR, 'index.html'))
 
+
+# ============================================================
+
+@app.route('/api/performance', methods=['GET', 'POST'])
+@check_auth
+def handle_performance():
+    """绩效列表查询(GET) / 新增绩效(POST)"""
+    if request.method == 'GET':
+        period_type = request.args.get('period_type', 'monthly')
+        year = request.args.get('year', type=int)
+        period = request.args.get('period', type=int)
+        line = request.args.get('line')
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        query = '''SELECT p.*, per.name as person_name, per.line, per.position
+                   FROM performance p
+                   LEFT JOIN person per ON p.person_id = per.id
+                   WHERE 1=1'''
+        params = []
+        
+        if period_type:
+            query += ' AND p.period_type = ?'
+            params.append(period_type)
+        if year:
+            query += ' AND p.year = ?'
+            params.append(year)
+        if period is not None:
+            query += ' AND p.period = ?'
+            params.append(period)
+        if line:
+            query += ' AND per.line = ?'
+            params.append(line)
+        
+        query += ' ORDER BY per.line, per.name'
+        cursor.execute(query, params)
+        
+        records = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        return jsonify({'success': True, 'performance': records})
+    
+    else:  # POST
+        data = request.json
+        conn = get_db()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''INSERT OR REPLACE INTO performance 
+                (person_id, period_type, year, period, score, grade, comment, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))''',
+                (data['person_id'], data['period_type'], data['year'], data['period'],
+                 data.get('score'), data.get('grade'), data.get('comment', '')))
+            conn.commit()
+            record_id = cursor.lastrowid
+            conn.close()
+            return jsonify({'success': True, 'id': record_id})
+        except Exception as e:
+            conn.close()
+            return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/performance/<int:record_id>', methods=['PUT'])
+@check_auth
+def update_performance(record_id):
+    """更新绩效记录"""
+    data = request.json
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''UPDATE performance SET 
+            score = ?, grade = ?, comment = ?, updated_at = datetime('now')
+            WHERE id = ?''',
+            (data.get('score'), data.get('grade'), data.get('comment', ''), record_id))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'updated': cursor.rowcount})
+    except Exception as e:
+        conn.close()
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/performance/<int:record_id>', methods=['DELETE'])
+@check_auth
+def delete_performance(record_id):
+    """删除绩效记录"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM performance WHERE id = ?', (record_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'deleted': cursor.rowcount})
+
+@app.route('/api/performance/summary', methods=['GET'])
+@check_auth
+def get_performance_summary():
+    """绩效汇总统计"""
+    period_type = request.args.get('period_type', 'monthly')
+    year = request.args.get('year', type=int)
+    period = request.args.get('period', type=int)
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    params = [period_type]
+    where = 'p.period_type = ?'
+    if year:
+        where += ' AND p.year = ?'
+        params.append(year)
+    if period is not None:
+        where += ' AND p.period = ?'
+        params.append(period)
+    
+    # 等级分布
+    cursor.execute(f'''SELECT p.grade, COUNT(*) as count
+                       FROM performance p
+                       WHERE {where} AND p.grade IS NOT NULL AND p.grade != ''
+                       GROUP BY p.grade ORDER BY p.grade''', params)
+    grade_dist = [dict(row) for row in cursor.fetchall()]
+    
+    # 条线平均分
+    cursor.execute(f'''SELECT per.line, AVG(p.score) as avg_score, COUNT(*) as count
+                       FROM performance p
+                       LEFT JOIN person per ON p.person_id = per.id
+                       WHERE {where} AND p.score IS NOT NULL
+                       GROUP BY per.line''', params)
+    line_stats = [dict(row) for row in cursor.fetchall()]
+    
+    # 总体统计
+    cursor.execute(f'''SELECT COUNT(*) as total, AVG(score) as avg_score,
+                          MIN(score) as min_score, MAX(score) as max_score
+                       FROM performance p WHERE {where} AND p.score IS NOT NULL''', params)
+    overall = dict(cursor.fetchone())
+    
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'grade_distribution': grade_dist,
+        'line_stats': line_stats,
+        'overall': overall
+    })
+
+@app.route('/api/performance/import', methods=['POST'])
+@check_auth
+def import_performance():
+    """批量导入绩效（Excel）"""
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': '请上传文件'}), 400
+    
+    file = request.files['file']
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        return jsonify({'success': False, 'error': '仅支持xlsx格式'}), 400
+    
+    import openpyxl
+    from io import BytesIO
+    
+    try:
+        wb = openpyxl.load_workbook(BytesIO(file.read()))
+        ws = wb.active
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT id, name FROM person WHERE status = "active"')
+        name_map = {row['name']: row['id'] for row in cursor.fetchall()}
+        
+        period_map = {'月度': 'monthly', '季度': 'quarterly', '年度': 'annual',
+                      'monthly': 'monthly', 'quarterly': 'quarterly', 'annual': 'annual'}
+        
+        imported = 0
+        skipped = 0
+        errors = []
+        
+        for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+            if not row or not row[0]:
+                continue
+            
+            name = str(row[0]).strip()
+            period_type_str = str(row[1]).strip() if len(row) > 1 else 'monthly'
+            year_val = int(row[2]) if len(row) > 2 and row[2] else None
+            period_val = int(row[3]) if len(row) > 3 and row[3] else 0
+            score_val = float(row[4]) if len(row) > 4 and row[4] is not None else None
+            grade_val = str(row[5]).strip() if len(row) > 5 and row[5] else None
+            comment_val = str(row[6]).strip() if len(row) > 6 and row[6] else ''
+            
+            if name not in name_map:
+                errors.append(f'第{i}行: 姓名"{name}"未匹配')
+                skipped += 1
+                continue
+            
+            pt = period_map.get(period_type_str, 'monthly')
+            if not year_val:
+                errors.append(f'第{i}行: 年份为空')
+                skipped += 1
+                continue
+            
+            try:
+                cursor.execute('''INSERT OR REPLACE INTO performance 
+                    (person_id, period_type, year, period, score, grade, comment, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))''',
+                    (name_map[name], pt, year_val, period_val, score_val, grade_val, comment_val))
+                imported += 1
+            except Exception as e:
+                errors.append(f'第{i}行: {str(e)}')
+                skipped += 1
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'imported': imported,
+            'skipped': skipped,
+            'errors': errors[:20]
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/performance/export', methods=['GET'])
+@check_auth
+def export_performance():
+    """导出绩效数据（Excel）"""
+    import openpyxl
+    from io import BytesIO
+    
+    period_type = request.args.get('period_type', 'monthly')
+    year = request.args.get('year', type=int)
+    period = request.args.get('period', type=int)
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    query = '''SELECT p.*, per.name as person_name, per.line, per.position
+               FROM performance p
+               LEFT JOIN person per ON p.person_id = per.id
+               WHERE p.period_type = ?'''
+    params = [period_type]
+    if year:
+        query += ' AND p.year = ?'
+        params.append(year)
+    if period is not None:
+        query += ' AND p.period = ?'
+        params.append(period)
+    query += ' ORDER BY per.line, per.name'
+    
+    cursor.execute(query, params)
+    records = cursor.fetchall()
+    conn.close()
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = '绩效数据'
+    
+    headers = ['姓名', '条线', '岗位', '周期', '年份', '期次', '分数', '等级', '评语']
+    ws.append(headers)
+    
+    period_names = {'monthly': '月度', 'quarterly': '季度', 'annual': '年度'}
+    for r in records:
+        ws.append([
+            r['person_name'], r['line'], r['position'],
+            period_names.get(r['period_type'], r['period_type']),
+            r['year'], r['period'], r['score'], r['grade'], r['comment']
+        ])
+    
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                     as_attachment=True, download_name=f'performance_{period_type}_{year or "all"}.xlsx')
+
+# ============================================================
+# 考勤管理 API
+# ============================================================
+
+@app.route('/api/attendance', methods=['GET', 'POST'])
+@check_auth
+def handle_attendance():
+    """考勤列表查询(GET) / 新增考勤(POST)"""
+    if request.method == 'GET':
+        year = request.args.get('year', type=int)
+        month = request.args.get('month', type=int)
+        line = request.args.get('line')
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        query = '''SELECT a.*, per.name as person_name, per.line, per.position
+                   FROM attendance a
+                   LEFT JOIN person per ON a.person_id = per.id
+                   WHERE 1=1'''
+        params = []
+        
+        if year:
+            query += ' AND a.year = ?'
+            params.append(year)
+        if month:
+            query += ' AND a.month = ?'
+            params.append(month)
+        if line:
+            query += ' AND per.line = ?'
+            params.append(line)
+        
+        query += ' ORDER BY per.line, per.name'
+        cursor.execute(query, params)
+        
+        records = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        return jsonify({'success': True, 'attendance': records})
+    
+    else:  # POST
+        data = request.json
+        conn = get_db()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''INSERT OR REPLACE INTO attendance 
+                (person_id, year, month, overtime_hours, leave_days, leave_detail, comment, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))''',
+                (data['person_id'], data['year'], data['month'],
+                 data.get('overtime_hours', 0), data.get('leave_days', 0),
+                 data.get('leave_detail', ''), data.get('comment', '')))
+            conn.commit()
+            record_id = cursor.lastrowid
+            conn.close()
+            return jsonify({'success': True, 'id': record_id})
+        except Exception as e:
+            conn.close()
+            return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/attendance/<int:record_id>', methods=['PUT'])
+@check_auth
+def update_attendance(record_id):
+    """更新考勤记录"""
+    data = request.json
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''UPDATE attendance SET 
+            overtime_hours = ?, leave_days = ?, leave_detail = ?, comment = ?, updated_at = datetime('now')
+            WHERE id = ?''',
+            (data.get('overtime_hours', 0), data.get('leave_days', 0),
+             data.get('leave_detail', ''), data.get('comment', ''), record_id))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'updated': cursor.rowcount})
+    except Exception as e:
+        conn.close()
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/attendance/<int:record_id>', methods=['DELETE'])
+@check_auth
+def delete_attendance(record_id):
+    """删除考勤记录"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM attendance WHERE id = ?', (record_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'deleted': cursor.rowcount})
+
+@app.route('/api/attendance/import', methods=['POST'])
+@check_auth
+def import_attendance():
+    """批量导入考勤（Excel）"""
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': '请上传文件'}), 400
+    
+    file = request.files['file']
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        return jsonify({'success': False, 'error': '仅支持xlsx格式'}), 400
+    
+    import openpyxl
+    from io import BytesIO
+    
+    try:
+        wb = openpyxl.load_workbook(BytesIO(file.read()))
+        ws = wb.active
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT id, name FROM person WHERE status = "active"')
+        name_map = {row['name']: row['id'] for row in cursor.fetchall()}
+        
+        imported = 0
+        skipped = 0
+        errors = []
+        
+        for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+            if not row or not row[0]:
+                continue
+            
+            name = str(row[0]).strip()
+            year_val = int(row[1]) if len(row) > 1 and row[1] else None
+            month_val = int(row[2]) if len(row) > 2 and row[2] else None
+            ot = float(row[3]) if len(row) > 3 and row[3] is not None else 0
+            ld = float(row[4]) if len(row) > 4 and row[4] is not None else 0
+            detail = str(row[5]).strip() if len(row) > 5 and row[5] else ''
+            cmt = str(row[6]).strip() if len(row) > 6 and row[6] else ''
+            
+            if name not in name_map:
+                errors.append(f'第{i}行: 姓名"{name}"未匹配')
+                skipped += 1
+                continue
+            
+            if not year_val or not month_val:
+                errors.append(f'第{i}行: 年份或月份为空')
+                skipped += 1
+                continue
+            
+            try:
+                cursor.execute('''INSERT OR REPLACE INTO attendance 
+                    (person_id, year, month, overtime_hours, leave_days, leave_detail, comment, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))''',
+                    (name_map[name], year_val, month_val, ot, ld, detail, cmt))
+                imported += 1
+            except Exception as e:
+                errors.append(f'第{i}行: {str(e)}')
+                skipped += 1
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'imported': imported,
+            'skipped': skipped,
+            'errors': errors[:20]
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/attendance/export', methods=['GET'])
+@check_auth
+def export_attendance():
+    """导出考勤数据（Excel）"""
+    import openpyxl
+    from io import BytesIO
+    
+    year = request.args.get('year', type=int)
+    month = request.args.get('month', type=int)
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    query = '''SELECT a.*, per.name as person_name, per.line, per.position
+               FROM attendance a
+               LEFT JOIN person per ON a.person_id = per.id WHERE 1=1'''
+    params = []
+    if year:
+        query += ' AND a.year = ?'
+        params.append(year)
+    if month:
+        query += ' AND a.month = ?'
+        params.append(month)
+    query += ' ORDER BY per.line, per.name'
+    
+    cursor.execute(query, params)
+    records = cursor.fetchall()
+    conn.close()
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = '考勤数据'
+    
+    headers = ['姓名', '条线', '岗位', '年份', '月份', '加班(小时)', '请假(天)', '请假明细', '备注']
+    ws.append(headers)
+    
+    for r in records:
+        ws.append([
+            r['person_name'], r['line'], r['position'],
+            r['year'], r['month'], r['overtime_hours'], r['leave_days'],
+            r['leave_detail'], r['comment']
+        ])
+    
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                     as_attachment=True, download_name=f'attendance_{year or "all"}_{month or "all"}.xlsx')
+
+
 @app.route('/<path:path>', methods=['GET'])
 def static_files(path):
     """返回静态文件"""
