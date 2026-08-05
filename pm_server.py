@@ -13,15 +13,15 @@ import json
 from functools import wraps
 
 # 版本号
-APP_VERSION = '2.4.0'
+APP_VERSION = '2.5.0'
 
 # 前端文件目录
-FRONTEND_DIR = os.environ.get('PM_FRONTEND_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend'))
+FRONTEND_DIR = '/home/ubuntu/.openclaw/workspace/pm-system'
 
 app = Flask(__name__, static_folder=FRONTEND_DIR)
 app.json.sort_keys = False
-DB_PATH = os.environ.get('PM_DB_PATH', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'pm.db'))
-MEMOS_SCRIPT = os.environ.get('MEMOS_SCRIPT', '')
+DB_PATH = '/home/ubuntu/.copaw/data/pm.db'
+MEMOS_SCRIPT = '/home/ubuntu/.copaw/scripts/write_to_memos.py'
 
 # 用户会话存储（简单实现）
 USER_SESSIONS = {}
@@ -3961,7 +3961,7 @@ def export_report():
 
 # ========== 附件管理 ==========
 
-UPLOAD_DIR = os.environ.get('PM_UPLOAD_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'attachments'))
+UPLOAD_DIR = '/home/ubuntu/.copaw/data/pm_attachments'
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def init_attachment_table():
