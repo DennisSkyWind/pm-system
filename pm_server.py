@@ -204,7 +204,7 @@ def create_users_from_persons():
     persons = cursor.fetchall()
     
     # 默认密码
-    default_password = os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026')
+    default_password = os.environ.get('PM_DEFAULT_PASSWORD', 'changeme')
     password_hash = hash_password(default_password)
     
     created_count = 0
@@ -472,7 +472,7 @@ def update_user_role(user_id):
 @require_admin
 def admin_reset_password(user_id):
     """管理员：重置用户密码"""
-    new_password = os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026')  # 重置为默认密码
+    new_password = os.environ.get('PM_DEFAULT_PASSWORD', 'changeme')  # 重置为默认密码
     
     conn = get_db()
     cursor = conn.cursor()
