@@ -204,7 +204,7 @@ def create_users_from_persons():
     persons = cursor.fetchall()
     
     # 默认密码
-    default_password = "pm2026"
+    default_password = os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026')
     password_hash = hash_password(default_password)
     
     created_count = 0
@@ -444,7 +444,7 @@ def change_password():
 def init_users():
     """初始化用户账号（首次创建）"""
     count = create_users_from_persons()
-    return jsonify({'success': True, 'message': f'成功创建 {count} 个用户账号', 'default_password': 'pm2026'})
+    return jsonify({'success': True, 'message': f'成功创建 {count} 个用户账号', 'default_password': os.environ.get('PM_DEFAULT_PASSWORD', '***')})
 
 # ========== 管理员 API ==========
 
@@ -472,7 +472,7 @@ def update_user_role(user_id):
 @require_admin
 def admin_reset_password(user_id):
     """管理员：重置用户密码"""
-    new_password = "pm2026"  # 重置为默认密码
+    new_password = os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026')  # 重置为默认密码
     
     conn = get_db()
     cursor = conn.cursor()

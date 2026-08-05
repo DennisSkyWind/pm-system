@@ -99,8 +99,8 @@ docker run -d -p 5236:5236 pm-system
 
 | 用户名 | 密码 | 角色 |
 |--------|------|------|
-| admin | pm2026 | 管理员 |
-| lisi | pm2026 | 普通用户 |
+| admin | your_password | 管理员 |
+| lisi | your_password | 普通用户 |
 
 > ⚠️ 首次部署后请立即修改默认密码
 
@@ -291,8 +291,8 @@ docker run -d -p 5236:5236 pm-system
 
 | Username | Password | Role |
 |----------|----------|------|
-| admin | pm2026 | Admin |
-| lisi | pm2026 | Regular User |
+| admin | your_password | Admin |
+| lisi | your_password | Regular User |
 
 > ⚠️ Please change the default password immediately after first deployment
 
