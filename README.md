@@ -10,7 +10,7 @@
 
 > 轻量级自托管项目管理系统，支持任务追踪、甘特图、看板视图、权限管理、多维度报告、机密项目隔离
 
-![版本](https://img.shields.io/badge/版本-v2.5.0-blue)
+![版本](https://img.shields.io/badge/版本-v2.4.0-blue)
 ![Python](https://img.shields.io/badge/Python-3.8+-green)
 ![Flask](https://img.shields.io/badge/Flask-3.x-orange)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
@@ -49,13 +49,6 @@
 - ⏰ **延期记录** — 自动记录截止日期变更历史，延期原因追踪
 - ⭐ **完成评价** — 4级评价体系（不足/正常/优秀/卓越），报告展示评价统计
 - 📊 **人员绩效** — 任务数/完成率/延期数/推迟次数/评价分布多维统计
-- 🔄 **负责人变更** — 自动记录负责人变更历史，报告展示换人次数
-
-### 绩效管理
-- 📊 **绩效记录** — 月度/季度/年度三周期，分数+等级(S/A/B/C/D)+评语
-- 📈 **绩效统计** — 等级分布柱状图、条线平均分、汇总统计卡片
-- 📋 **考勤台账** — 加班(小时)+请假(天)记录，请假明细，备注
-- 📥📤 **导入导出** — Excel批量导入导出（绩效+考勤）
 
 ### 体验优化
 - 🌙 **暗黑模式** — 一键切换，偏好记忆
@@ -155,15 +148,6 @@ bash pm_update.sh --force
 
 ## 📜 版本历史
 
-### v2.5.0 (2026-08-05)
-- 🆕 绩效管理模块（月度/季度/年度三周期，分数+等级+评语）
-- 🆕 考勤台账（加班+请假记录，请假明细）
-- 🆕 绩效统计（等级分布柱状图、条线平均分）
-- 🆕 Excel批量导入导出（绩效+考勤）
-- 🆕 任务负责人变更记录（自动记录+报告展示换人次数）
-- 🐛 Dashboard待解决问题只显示未解决的（排除resolved）
-- 🐛 月报/季度报/年度报JSON序列化None值报错修复
-
 ### v2.4.0 (2026-08-03)
 - 🆕 日报人员统计增加当日推迟次数和评价列
 - 🆕 机密项目功能（标记🔒、报表自动排除）
@@ -202,7 +186,7 @@ MIT License
 
 > Lightweight self-hosted project management system with task tracking, Gantt chart, Kanban board, role-based access control, multi-dimensional reports, and confidential project isolation
 
-![Version](https://img.shields.io/badge/Version-v2.5.0-blue)
+![Version](https://img.shields.io/badge/Version-v2.4.0-blue)
 ![Python](https://img.shields.io/badge/Python-3.8+-green)
 ![Flask](https://img.shields.io/badge/Flask-3.x-orange)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
@@ -241,13 +225,6 @@ MIT License
 - ⏰ **Delay Tracking** — Automatic due date change history, delay reason tracking
 - ⭐ **Completion Rating** — 4-level rating system (insufficient/normal/excellent/outstanding), rating stats in reports
 - 📊 **Personnel Performance** — Multi-dimensional stats: task count / completion rate / overdue count / delay count / rating distribution
-- 🔄 **Assignee Changes** — Automatic assignee change history, change count in reports
-
-### Performance Management
-- 📊 **Performance Records** — Monthly/quarterly/annual cycles, score + grade (S/A/B/C/D) + comment
-- 📈 **Performance Stats** — Grade distribution chart, line average score, summary cards
-- 📋 **Attendance Ledger** — Overtime (hours) + leave (days) records, leave details, notes
-- 📥📤 **Import/Export** — Excel batch import/export (performance + attendance)
 
 ### UX
 - 🌙 **Dark Mode** — One-click toggle with preference memory
@@ -346,15 +323,6 @@ bash pm_update.sh --force
 ```
 
 ## 📜 Changelog
-
-### v2.5.0 (2026-08-05)
-- 🆕 Performance management module (monthly/quarterly/annual, score+grade+comment)
-- 🆕 Attendance ledger (overtime+leave records, leave details)
-- 🆕 Performance statistics (grade distribution chart, line average score)
-- 🆕 Excel batch import/export (performance+attendance)
-- 🆕 Task assignee change history (auto-record + report display)
-- 🐛 Dashboard open issues fix (exclude resolved)
-- 🐛 JSON serialization None value fix for reports
 
 ### v2.4.0 (2026-08-03)
 - 🆕 Daily report personnel stats: daily delay count and rating columns
