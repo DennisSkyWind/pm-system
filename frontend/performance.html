@@ -40,13 +40,12 @@
         .stat-card .count { font-size: 24px; font-weight: 600; color: #1a237e; }
         .stat-card .label { font-size: 12px; color: #999; margin-top: 4px; }
         
-        .grade-s { color: #c62828; } .grade-a { color: #e65100; } .grade-b { color: #1565c0; }
-        .grade-c { color: #2e7d32; } .grade-d { color: #757575; }
-        .stat-card.s { border-top: 3px solid #c62828; }
-        .stat-card.a { border-top: 3px solid #e65100; }
+        .grade-a { color: #c62828; } .grade-b\+ { color: #e65100; } .grade-b { color: #1565c0; }
+        .grade-c { color: #2e7d32; }
+        .stat-card.a { border-top: 3px solid #c62828; }
+        .stat-card.b-plus { border-top: 3px solid #e65100; }
         .stat-card.b { border-top: 3px solid #1565c0; }
         .stat-card.c { border-top: 3px solid #2e7d32; }
-        .stat-card.d { border-top: 3px solid #757575; }
         
         .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
         .chart-card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
@@ -58,11 +57,10 @@
         tr:hover td { background: #fafafa; }
         
         .grade-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-weight: 600; font-size: 13px; }
-        .grade-badge.s { background: #ffebee; color: #c62828; }
-        .grade-badge.a { background: #fff3e0; color: #e65100; }
+        .grade-badge.a { background: #ffebee; color: #c62828; }
+        .grade-badge.b-plus { background: #fff3e0; color: #e65100; }
         .grade-badge.b { background: #e3f2fd; color: #1565c0; }
         .grade-badge.c { background: #e8f5e9; color: #2e7d32; }
-        .grade-badge.d { background: #f5f5f5; color: #757575; }
         
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
         .modal.show { display: flex; align-items: center; justify-content: center; }
@@ -197,7 +195,7 @@
             </div>
             <div class="form-group">
                 <label>等级</label>
-                <select id="perf-grade"><option value="">未评定</option><option value="S">S 卓越</option><option value="A">A 优秀</option><option value="B">B 良好</option><option value="C">C 合格</option><option value="D">D 不合格</option></select>
+                <select id="perf-grade"><option value="">未评定</option><option value="A">A</option><option value="B+">B+</option><option value="B">B</option><option value="C">C</option></select>
             </div>
             <div class="form-group">
                 <label>评语</label>
@@ -369,7 +367,7 @@
                         <td>${r.line || ''}</td>
                         <td>${r.position || ''}</td>
                         <td>${r.score != null ? r.score : '-'}</td>
-                        <td>${r.grade ? `<span class="grade-badge ${r.grade.toLowerCase()}">${r.grade}</span>` : '-'}</td>
+                        <td>${r.grade ? `<span class="grade-badge ${r.grade === 'B+' ? 'b-plus' : r.grade.toLowerCase()}">${r.grade}</span>` : '-'}</td>
                         <td>${r.comment || ''}</td>
                         <td class="actions">
                             <button class="btn btn-sm btn-outline" onclick="editPerf(${r.id}, ${r.person_id}, '${r.period_type}', ${r.year}, ${r.period}, ${r.score || 'null'}, '${r.grade || ''}', '${(r.comment||'').replace(/'/g,"\\'")}')">编辑</button>
@@ -391,7 +389,7 @@
             const lineStats = sumData.line_stats || [];
             
             // 等级统计卡片
-            const grades = ['S', 'A', 'B', 'C', 'D'];
+            const grades = ['A', 'B+', 'B', 'C'];
             const gradeMap = {};
             gradeDist.forEach(g => gradeMap[g.grade] = g.count);
             const total = records.length;
@@ -399,12 +397,12 @@
             document.getElementById('perf-stats').innerHTML = grades.map(g => {
                 const count = gradeMap[g] || 0;
                 const pct = total > 0 ? (count / total * 100).toFixed(0) : 0;
-                return `<div class="stat-card ${g.toLowerCase()}"><div class="grade grade-${g.toLowerCase()}">${g}</div><div class="count">${count}</div><div class="label">${pct}%</div></div>`;
+                return `<div class="stat-card ${g === 'B+' ? 'b-plus' : g.toLowerCase()}"><div class="grade grade-${g === 'B+' ? 'b-plus' : g.toLowerCase()}">${g}</div><div class="count">${count}</div><div class="label">${pct}%</div></div>`;
             }).join('');
             
             // 等级分布柱状图
             const maxCount = Math.max(...grades.map(g => gradeMap[g] || 0), 1);
-            const colors = { S: '#c62828', A: '#e65100', B: '#1565c0', C: '#2e7d32', D: '#757575' };
+            const colors = { A: '#c62828', 'B+': '#e65100', B: '#1565c0', C: '#2e7d32' };
             document.getElementById('grade-chart').innerHTML = grades.map(g => {
                 const count = gradeMap[g] || 0;
                 const h = (count / maxCount * 130);
