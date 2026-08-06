@@ -35,6 +35,17 @@ def get_db():
     conn.execute('PRAGMA synchronous=NORMAL')
     return conn
 
+def ensure_task_start_date(tasks):
+    """确保任务的start_date不为空：未设置时用created_at日期填充"""
+    if isinstance(tasks, dict):
+        tasks = [tasks]
+    for t in tasks:
+        if isinstance(t, dict) and not t.get('start_date'):
+            created = t.get('created_at', '')
+            if created:
+                t['start_date'] = created[:10] if len(created) >= 10 else created
+    return tasks
+
 # ========== 用户认证系统 ==========
 
 def init_user_table():
@@ -675,7 +686,7 @@ def get_project(project_id):
     
     project['progress'] = calculate_project_progress(project_id)
     project['phases'] = phases
-    project['tasks'] = tasks
+    project['tasks'] = ensure_task_start_date(tasks)
     project['issues'] = issues
     
     return jsonify({'success': True, 'project': project})
@@ -1106,7 +1117,7 @@ def get_tasks():
     
     conn.close()
     
-    return jsonify({'success': True, 'tasks': tasks})
+    return jsonify({'success': True, 'tasks': ensure_task_start_date(tasks)})
 
 @app.route('/api/tasks', methods=['POST'])
 @check_auth
@@ -1172,6 +1183,7 @@ def get_task(task_id):
         return jsonify({'success': False, 'error': '任务不存在'}), 404
     
     task = dict(row)
+    ensure_task_start_date(task)
     conn.close()
     
     return jsonify({'success': True, 'task': task})
@@ -1209,6 +1221,13 @@ def update_task(task_id):
     if data.get('progress') == 100:
         data['status'] = 'completed'
         data['completed_date'] = datetime.now().strftime('%Y-%m-%d')
+    
+    # 如果状态变为in_progress，自动设置start_date（如果为空）
+    if data.get('status') == 'in_progress':
+        cursor.execute('SELECT start_date FROM task WHERE id = ?', (task_id,))
+        current_start = cursor.fetchone()
+        if not current_start or not current_start['start_date']:
+            data['start_date'] = datetime.now().strftime('%Y-%m-%d')
     
     # 如果状态从completed改为其他状态，清除completed_date
     if data.get('status') and data.get('status') != 'completed':
@@ -3403,6 +3422,11 @@ def get_daily_report():
     rating_stats = get_rating_stats(cur2, today_str, today_str)
     conn2.close()
     
+    # 确保所有任务有start_date
+    ensure_task_start_date(overdue_tasks)
+    ensure_task_start_date(due_3days_tasks)
+    ensure_task_start_date(due_week_tasks)
+    
     return jsonify({
         'success': True,
         'date': today_str,
@@ -3534,6 +3558,13 @@ def get_weekly_report():
     cur2 = conn2.cursor()
     rating_stats = get_rating_stats(cur2, week_start.strftime('%Y-%m-%d'), week_end.strftime('%Y-%m-%d'))
     conn2.close()
+    
+    # 确保所有任务有start_date
+    ensure_task_start_date(completed_tasks)
+    ensure_task_start_date(new_tasks)
+    ensure_task_start_date(due_soon_tasks)
+    ensure_task_start_date(overdue_tasks)
+    ensure_task_start_date(risk_tasks)
     
     return jsonify({
         'success': True,
@@ -3807,6 +3838,10 @@ def get_period_report(report_type):
     
     conn.close()
     
+    # 确保所有任务有start_date
+    ensure_task_start_date(completed_tasks)
+    ensure_task_start_date(overdue_tasks)
+    
     report = {
         'type': report_type,
         'period': period_label,
@@ -3863,6 +3898,7 @@ def export_report():
             ORDER BY t.completed_date DESC LIMIT 20
         ''')
         tasks = [dict(row) for row in cursor.fetchall()]
+        ensure_task_start_date(tasks)
         
         conn.close()
         
