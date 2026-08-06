@@ -10,7 +10,7 @@
 
 > 轻量级自托管项目管理系统，支持任务追踪、甘特图、看板视图、权限管理、多维度报告、机密项目隔离
 
-![版本](https://img.shields.io/badge/版本-v2.5.0-blue)
+![版本](https://img.shields.io/badge/版本-v2.5.1-blue)
 ![Python](https://img.shields.io/badge/Python-3.8+-green)
 ![Flask](https://img.shields.io/badge/Flask-3.x-orange)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
@@ -155,6 +155,11 @@ bash pm_update.sh --force
 
 ## 📜 版本历史
 
+### v2.5.1 (2026-08-06)
+- 🐛 周报新增任务缺少负责人 — SQL添加LEFT JOIN person获取assignee_name
+- 🐛 报告任务开始日期优化 — 任务开始时自动设置start_date，未设置时用created_at填充
+- 🐛 清理测试数据（负责人变更记录测试任务）
+
 ### v2.5.0 (2026-08-05)
 - 🆕 绩效管理模块（月度/季度/年度三周期，分数+等级+评语）
 - 🆕 考勤台账（加班+请假记录，请假明细）
@@ -202,7 +207,7 @@ MIT License
 
 > Lightweight self-hosted project management system with task tracking, Gantt chart, Kanban board, role-based access control, multi-dimensional reports, and confidential project isolation
 
-![Version](https://img.shields.io/badge/Version-v2.5.0-blue)
+![Version](https://img.shields.io/badge/Version-v2.5.1-blue)
 ![Python](https://img.shields.io/badge/Python-3.8+-green)
 ![Flask](https://img.shields.io/badge/Flask-3.x-orange)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
@@ -346,6 +351,11 @@ bash pm_update.sh --force
 ```
 
 ## 📜 Changelog
+
+### v2.5.1 (2026-08-06)
+- 🐛 Weekly report new tasks missing assignee — SQL add LEFT JOIN person
+- 🐛 Report task start date optimization — auto-set start_date on task start, fallback to created_at
+- 🐛 Clean up test data (assignee change test tasks)
 
 ### v2.5.0 (2026-08-05)
 - 🆕 Performance management module (monthly/quarterly/annual, score+grade+comment)
