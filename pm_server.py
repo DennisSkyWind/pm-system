@@ -204,7 +204,7 @@ def create_users_from_persons():
     persons = cursor.fetchall()
     
     # 默认密码
-    default_password = os.environ.get('PM_DEFAULT_PASSWORD', 'changeme')
+    default_password = os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026')
     password_hash = hash_password(default_password)
     
     created_count = 0
@@ -472,7 +472,7 @@ def update_user_role(user_id):
 @require_admin
 def admin_reset_password(user_id):
     """管理员：重置用户密码"""
-    new_password = os.environ.get('PM_DEFAULT_PASSWORD', 'changeme')  # 重置为默认密码
+    new_password = os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026')  # 重置为默认密码
     
     conn = get_db()
     cursor = conn.cursor()
@@ -3448,9 +3448,10 @@ def get_weekly_report():
     
     # 本周创建的任务
     cursor.execute('''
-        SELECT t.*, p.name as project_name
+        SELECT t.*, p.name as project_name, per.name as assignee_name
         FROM task t
         LEFT JOIN project p ON t.project_id = p.id
+        LEFT JOIN person per ON t.assignee_id = per.id
         WHERE t.created_at >= ?
         ORDER BY t.created_at DESC
     ''', (week_start.strftime('%Y-%m-%d') + ' 00:00:00',))
