@@ -551,10 +551,13 @@
                         PM_REPORT_EXPORT.exportHTML(project, selectedReportStyle, opts);
                     } else if (format === 'pdf') {
                         await PM_REPORT_EXPORT.exportPDF(project, selectedReportStyle, opts);
+                    } else if (format === 'png') {
+                        await PM_REPORT_EXPORT.exportPNG(project, selectedReportStyle, opts);
                     }
                     
                     // 每个项目之间延迟，让浏览器有时间处理下载
-                    await new Promise(r => setTimeout(r, 1000));
+                    // PNG导出需要更长时间
+                    await new Promise(r => setTimeout(r, format === 'png' ? 3000 : 1000));
                 }
                 
                 progressText.textContent = `✅ 完成！已导出 ${projects.length} 个项目报告`;
