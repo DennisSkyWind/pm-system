@@ -596,5 +596,75 @@ const PM_REPORT_EXPORT = {
             document.querySelectorAll('[style*="left:-9999px"]').forEach(el => el.remove());
             document.body.removeChild(loadingEl);
         }
+    },
+
+    // ========== PNG导出 ==========
+    async exportPNG(project, styleName, opts) {
+        await this.loadDeps();
+        if (!window.html2canvas) {
+            alert('PNG导出库加载失败，请检查网络连接后重试');
+            return;
+        }
+
+        const loadingEl = document.createElement('div');
+        loadingEl.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000';
+        loadingEl.innerHTML = '<div style="background:white;padding:30px;border-radius:12px;text-align:center"><div style="font-size:24px">🖼️</div><div>正在生成PNG...</div></div>';
+        document.body.appendChild(loadingEl);
+
+        try {
+            // 使用generateReport构建报告内容（与HTML导出一致）
+            const reportHTML = this.generateReport(project, styleName, opts);
+            
+            // 创建隐藏容器渲染HTML
+            const container = document.createElement('div');
+            container.style.cssText = 'position:absolute;left:-9999px;top:0;width:1200px;background:white;padding:20px;';
+            document.body.appendChild(container);
+
+            container.innerHTML = reportHTML;
+
+            // 等待渲染
+            await new Promise(r => setTimeout(r, 800));
+
+            const canvas = await html2canvas(container, {
+                scale: 1.5,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
+            });
+
+            // 下载PNG
+            const link = document.createElement('a');
+            link.download = `${project.name}_报告_${new Date().toISOString().split('T')[0]}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+
+        } catch (e) {
+            console.error('PNG导出失败:', e);
+            alert('PNG导出失败: ' + e.message);
+        } finally {
+            document.querySelectorAll('[style*="left:-9999px"]').forEach(el => el.remove());
+            if (loadingEl.parentNode) document.body.removeChild(loadingEl);
+        }
+    },
+
+    // ========== 直接导出元素为PNG ==========
+    async elementToPNG(element, filename) {
+        await this.loadDeps();
+        if (!window.html2canvas) {
+            alert('PNG导出库加载失败，请检查网络连接后重试');
+            return;
+        }
+
+        const canvas = await html2canvas(element, {
+            scale: 1.5,
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff'
+        });
+
+        const link = document.createElement('a');
+        link.download = filename || `export_${new Date().toISOString().split('T')[0]}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
     }
 };

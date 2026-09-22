@@ -13,7 +13,7 @@ import json
 from functools import wraps
 
 # 版本号
-APP_VERSION = '2.5.0'
+APP_VERSION = '2.5.3'
 
 # 前端文件目录
 FRONTEND_DIR = os.environ.get('PM_FRONTEND_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend'))
@@ -215,7 +215,7 @@ def create_users_from_persons():
     persons = cursor.fetchall()
     
     # 默认密码
-    default_password = os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026')
+    default_password = os.environ.get('PM_DEFAULT_PASSWORD', 'changeme')
     password_hash = hash_password(default_password)
     
     created_count = 0
@@ -323,7 +323,7 @@ def get_user_project_ids(person_id, is_admin=False):
 @app.route('/api/auth/login', methods=['POST'])
 def login():
     """用户登录"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     username = data.get('username', '').lower()
     password = data.get('password', '')
     
@@ -415,7 +415,7 @@ def get_users():
 @check_auth
 def change_password():
     """修改密码"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     old_password = data.get('old_password', '')
     new_password = data.get('new_password', '')
     
@@ -464,7 +464,7 @@ def init_users():
 @require_admin
 def update_user_role(user_id):
     """管理员：修改用户角色"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     new_role = data.get('role', 'user')
     
     if new_role not in ['admin', 'user']:
@@ -483,7 +483,7 @@ def update_user_role(user_id):
 @require_admin
 def admin_reset_password(user_id):
     """管理员：重置用户密码"""
-    new_password = os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026')  # 重置为默认密码
+    new_password = os.environ.get('PM_DEFAULT_PASSWORD', 'changeme')  # 重置为默认密码
     
     conn = get_db()
     cursor = conn.cursor()
@@ -624,7 +624,7 @@ def get_projects():
 @check_auth
 def create_project():
     """创建项目（需要登录）"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     conn = get_db()
     cursor = conn.cursor()
     
@@ -695,7 +695,7 @@ def get_project(project_id):
 @check_auth
 def update_project(project_id):
     """更新项目（需要登录）"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     conn = get_db()
     cursor = conn.cursor()
     
@@ -757,7 +757,7 @@ def delete_project(project_id):
 @require_admin
 def archive_project(project_id):
     """结项项目（需要管理员权限）"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     conn = get_db()
     cursor = conn.cursor()
     
@@ -940,7 +940,7 @@ def get_phases():
 @check_auth
 def create_phase():
     """创建阶段（管理员或项目owner）"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     user = request.current_user
     person_id = user.get('person_id')
     
@@ -966,7 +966,7 @@ def create_phase():
 @check_auth
 def update_phase(phase_id):
     """更新阶段（管理员或项目owner）"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     user = request.current_user
     person_id = user.get('person_id')
     
@@ -1123,7 +1123,7 @@ def get_tasks():
 @check_auth
 def create_task():
     """创建任务（管理员或项目owner可创建）"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     user = request.current_user
     person_id = user.get('person_id')
     
@@ -1192,7 +1192,7 @@ def get_task(task_id):
 @check_auth
 def update_task(task_id):
     """更新任务（管理员、项目owner、或任务assignee可修改）"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     user = request.current_user
     person_id = user.get('person_id')
     
@@ -1440,7 +1440,7 @@ def get_issues():
 @check_auth
 def create_issue():
     """创建问题（管理员、项目owner、项目参与者可创建）"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     user = request.current_user
     person_id = user.get('person_id')
     
@@ -1471,7 +1471,7 @@ def create_issue():
 @check_auth
 def update_issue(issue_id):
     """更新问题（管理员、项目owner、或问题assignee可修改）"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     user = request.current_user
     person_id = user.get('person_id')
     
@@ -1610,7 +1610,7 @@ def add_project_viewer(project_id):
     if user.get('role') != 'admin' and not is_project_owner(project_id, person_id):
         return jsonify({'success': False, 'error': '只有管理员或项目负责人可以授权查看权限'}), 403
     
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     viewer_person_id = data.get('person_id')
     if not viewer_person_id:
         return jsonify({'success': False, 'error': '缺少person_id'}), 400
@@ -1852,7 +1852,7 @@ def get_reminders():
 @app.route('/api/reminders', methods=['POST'])
 def create_reminder():
     """创建提醒"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     conn = get_db()
     cursor = conn.cursor()
     
@@ -1870,7 +1870,7 @@ def create_reminder():
 @app.route('/api/reminders/<int:reminder_id>', methods=['PUT'])
 def update_reminder(reminder_id):
     """更新提醒状态"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     conn = get_db()
     cursor = conn.cursor()
     
@@ -2189,7 +2189,7 @@ def handle_performance():
         return jsonify({'success': True, 'performance': records})
     
     else:  # POST
-        data = request.json
+        data = request.get_json(silent=True) or request.json or {}
         conn = get_db()
         cursor = conn.cursor()
         try:
@@ -2210,7 +2210,7 @@ def handle_performance():
 @check_auth
 def update_performance(record_id):
     """更新绩效记录"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     
     conn = get_db()
     cursor = conn.cursor()
@@ -2458,7 +2458,7 @@ def handle_attendance():
         return jsonify({'success': True, 'attendance': records})
     
     else:  # POST
-        data = request.json
+        data = request.get_json(silent=True) or request.json
         conn = get_db()
         cursor = conn.cursor()
         try:
@@ -2480,7 +2480,7 @@ def handle_attendance():
 @check_auth
 def update_attendance(record_id):
     """更新考勤记录"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json
     
     conn = get_db()
     cursor = conn.cursor()
@@ -2731,7 +2731,7 @@ def create_person():
     user = request.current_user
     if user.get('role') != 'admin':
         return jsonify({'success': False, 'error': '只有管理员可以创建人员'}), 403
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     conn = get_db()
     cursor = conn.cursor()
     
@@ -2783,7 +2783,7 @@ def update_person(person_id):
     user = request.current_user
     if user.get('role') != 'admin':
         return jsonify({'success': False, 'error': '只有管理员可以修改人员信息'}), 403
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     conn = get_db()
     cursor = conn.cursor()
     
@@ -2982,7 +2982,7 @@ def get_comments():
 @app.route('/api/comments', methods=['POST'])
 def create_comment():
     """创建评论"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     entity_type = data.get('entity_type')
     entity_id = data.get('entity_id')
     content = data.get('content')
@@ -3077,7 +3077,7 @@ def get_templates():
 @app.route('/api/templates', methods=['POST'])
 def create_template():
     """创建模板"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     name = data.get('name')
     template_type = data.get('type', 'project')
     description = data.get('description', '')
@@ -3114,7 +3114,7 @@ def get_template(template_id):
 @app.route('/api/templates/<int:template_id>', methods=['PUT'])
 def update_template(template_id):
     """更新模板"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     conn = get_db()
     cursor = conn.cursor()
     
@@ -3147,7 +3147,7 @@ def delete_template(template_id):
 @app.route('/api/templates/apply', methods=['POST'])
 def apply_template():
     """应用模板创建项目或任务"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     template_id = data.get('template_id')
     name = data.get('name')
     
@@ -3821,6 +3821,18 @@ def get_period_report(report_type):
             ''', (m_start, m_end, today_str))
             row = dict(cursor.fetchone())
             row['month'] = f'{m:02d}月'
+            # 月度完成任务按人员分布（趋势图堆叠用）
+            cursor.execute('''
+                SELECT COALESCE(per.name, '未分配') as name, COUNT(*) as cnt
+                FROM task t
+                LEFT JOIN person per ON t.assignee_id = per.id
+                LEFT JOIN project p ON t.project_id = p.id
+                WHERE t.status = 'completed' AND t.completed_date >= ? AND t.completed_date <= ?
+                  AND p.status NOT IN ('archived','cancelled') AND COALESCE(p.confidential, 0) = 0
+                GROUP BY per.id
+                ORDER BY cnt DESC
+            ''', (m_start, m_end))
+            row['by_person'] = [{'name': r['name'], 'count': r['cnt']} for r in cursor.fetchall()]
             monthly_trend.append(row)
     
     stats = {
@@ -3878,7 +3890,7 @@ def export_report():
     from datetime import datetime, timedelta
     import calendar
     
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     report_type = data.get('type', 'weekly')
     format_type = data.get('format', 'html')
     today = datetime.now()
@@ -4933,7 +4945,7 @@ def create_pdf(tasks, style, project_name, landscape=False):
 @app.route('/api/tasks/export-pdf', methods=['POST'])
 def export_tasks_pdf():
     """导出任务PDF，支持状态筛选和横向模式"""
-    data = request.json
+    data = request.get_json(silent=True) or request.json or {}
     tasks = data.get('tasks', [])
     style = data.get('style', 1)
     project_name = data.get('project_name', '全部项目')

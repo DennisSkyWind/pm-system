@@ -188,6 +188,7 @@
                 <button class="export-btn" onclick="exportIssues('csv')">📥 导出CSV</button>
                 <button class="export-btn" onclick="exportIssues('excel')">📥 导出Excel</button>
                 <button class="export-btn" style="background: #2196f3;" onclick="exportIssues('json')">📥 导出JSON</button>
+                <button class="export-btn" style="background: #9c27b0;" onclick="exportIssuesToPNG()">🖼️ 导出PNG</button>
             </div>
         </div>
         
@@ -860,7 +861,57 @@
             
             alert(`已导出 ${filteredIssues.length} 个问题`);
         }
-        
+
+        // 导出问题报告为PNG
+        async function exportIssuesToPNG() {
+            if (!window.html2canvas) {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+                document.head.appendChild(script);
+                await new Promise(resolve => script.onload = resolve);
+            }
+
+            const table = document.querySelector('.issues-table table');
+            if (!table) {
+                alert('没有可导出的数据');
+                return;
+            }
+
+            const container = document.createElement('div');
+            container.style.cssText = 'position:absolute;left:-9999px;top:0;width:1200px;background:white;padding:20px;';
+            document.body.appendChild(container);
+
+            const header = document.createElement('div');
+            header.style.cssText = 'text-align:center;margin-bottom:20px;padding:20px;background:#667eea;color:white;border-radius:8px 8px 0 0;';
+            header.innerHTML = `<h1 style="margin:0;font-size:24px;">📋 问题追踪报告</h1><p style="margin:10px 0 0;">导出时间：${new Date().toLocaleString('zh-CN')}</p>`;
+            container.appendChild(header);
+
+            const tableClone = table.cloneNode(true);
+            tableClone.style.width = '100%';
+            tableClone.style.borderCollapse = 'collapse';
+            container.appendChild(tableClone);
+
+            await new Promise(r => setTimeout(r, 500));
+
+            try {
+                const canvas = await html2canvas(container, {
+                    scale: 1.5,
+                    useCORS: true,
+                    backgroundColor: '#ffffff'
+                });
+
+                const link = document.createElement('a');
+                link.download = `问题报告_${new Date().toISOString().split('T')[0]}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            } catch (e) {
+                console.error('PNG导出失败:', e);
+                alert('PNG导出失败: ' + e.message);
+            } finally {
+                container.remove();
+            }
+        }
+
         // 初始化
         async function start() {
             const user = await initAuthPage();

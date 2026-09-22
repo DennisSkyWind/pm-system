@@ -517,6 +517,11 @@
             document.getElementById('att-modal-title').textContent = id ? '编辑考勤' : '新增考勤';
             document.getElementById('att-id').value = id || '';
             if (!id) {
+                // 重置所有字段（新增模式） - 修复保存无效问题
+                const now = new Date();
+                document.getElementById('att-year-val').value = now.getFullYear();
+                document.getElementById('att-month-val').value = now.getMonth() + 1;
+                document.getElementById('att-person').value = '';
                 document.getElementById('att-overtime').value = 0;
                 document.getElementById('att-leave').value = 0;
                 document.getElementById('att-leave-detail').value = '';
@@ -540,29 +545,57 @@
         function closeAttModal() { document.getElementById('att-modal').classList.remove('show'); }
         
         async function saveAtt() {
-            const id = document.getElementById('att-id').value;
-            const body = {
-                person_id: parseInt(document.getElementById('att-person').value),
-                year: parseInt(document.getElementById('att-year-val').value),
-                month: parseInt(document.getElementById('att-month-val').value),
-                overtime_hours: parseFloat(document.getElementById('att-overtime').value) || 0,
-                leave_days: parseFloat(document.getElementById('att-leave').value) || 0,
-                leave_detail: document.getElementById('att-leave-detail').value || '',
-                comment: document.getElementById('att-comment').value || ''
-            };
-            
-            let res;
-            if (id) {
-                res = await authFetch(`${API}/attendance/${id}`, { method: 'PUT', body });
-            } else {
-                res = await authFetch(`${API}/attendance`, { method: 'POST', body });
-            }
-            const data = await res.json();
-            if (data.success) {
-                closeAttModal();
-                loadAttendance();
-            } else {
-                alert('保存失败: ' + (data.error || '未知错误'));
+            try {
+                const id = document.getElementById('att-id').value;
+                const personIdStr = document.getElementById('att-person').value;
+                const personId = parseInt(personIdStr);
+                const year = parseInt(document.getElementById('att-year-val').value);
+                const month = parseInt(document.getElementById('att-month-val').value);
+
+                // 前端校验 - 修复保存无效问题
+                if (!personIdStr || isNaN(personId) || personId <= 0) {
+                    alert('请选择人员');
+                    document.getElementById('att-person').focus();
+                    return;
+                }
+                if (isNaN(year) || year < 2020 || year > 2100) {
+                    alert('请输入有效年份 (2020-2100)');
+                    document.getElementById('att-year-val').focus();
+                    return;
+                }
+                if (isNaN(month) || month < 1 || month > 12) {
+                    alert('请输入有效月份 (1-12)');
+                    document.getElementById('att-month-val').focus();
+                    return;
+                }
+
+                const body = {
+                    person_id: personId,
+                    year: year,
+                    month: month,
+                    overtime_hours: parseFloat(document.getElementById('att-overtime').value) || 0,
+                    leave_days: parseFloat(document.getElementById('att-leave').value) || 0,
+                    leave_detail: document.getElementById('att-leave-detail').value || '',
+                    comment: document.getElementById('att-comment').value || ''
+                };
+
+                let res;
+                if (id) {
+                    res = await authFetch(`${API}/attendance/${id}`, { method: 'PUT', body });
+                } else {
+                    res = await authFetch(`${API}/attendance`, { method: 'POST', body });
+                }
+                if (!res) return; // 401已跳转
+                const data = await res.json();
+                if (data.success) {
+                    closeAttModal();
+                    loadAttendance();
+                } else {
+                    alert('保存失败: ' + (data.error || '未知错误'));
+                }
+            } catch (e) {
+                alert('保存异常: ' + (e.message || e));
+                console.error('saveAtt error:', e);
             }
         }
         

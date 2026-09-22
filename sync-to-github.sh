@@ -4,7 +4,7 @@
 
 SRC_FE=/home/ubuntu/.openclaw/workspace/pm-system
 SRC_BE=/home/ubuntu/.copaw/scripts/pm_server.py
-DST=/home/ubuntu/pm-open-source
+DST=/home/ubuntu/repos/pm-system-public
 
 if [ -z "$1" ]; then
   echo "用法: bash sync-to-github.sh \"提交说明\""
@@ -18,7 +18,7 @@ cp "$SRC_BE" "$DST/pm_server.py"
 echo "✅ pm_server.py"
 
 # 2. 同步前端核心文件
-for f in index.html projects.html project.html tasks.html gantt.html issues.html persons.html phases.html report.html templates.html reminders.html admin.html settings.html login.html task-pdf-preview.html task-pdf-styles.html auth.js dark-mode.js dark-mode.css common.css mobile.css gantt-export.js kanban-export.js; do
+for f in index.html projects.html project.html tasks.html gantt.html issues.html persons.html phases.html report.html templates.html reminders.html admin.html settings.html login.html task-pdf-preview.html task-pdf-styles.html performance.html auth.js dark-mode.js dark-mode.css common.css mobile.css gantt-export.js kanban-export.js pm-report-export.js; do
   if [ -f "$SRC_FE/$f" ]; then
     cp "$SRC_FE/$f" "$DST/frontend/$f"
     echo "✅ $f"
@@ -86,6 +86,12 @@ for root, dirs, files in os.walk('frontend'):
 
 print('✅ 路径和个人信息已清理')
 "
+
+# 3.5 清理默认密码（开源版用changeme）
+sed -i "s/os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026')/os.environ.get('PM_DEFAULT_PASSWORD', 'changeme')/g" pm_server.py
+sed -i "s/密码已重置为: pm2026/密码已重置为: changeme/g" frontend/admin.html 2>/dev/null
+sed -i "s/默认密码：pm2026/默认密码：changeme/g" frontend/login.html 2>/dev/null
+echo "✅ 默认密码已改为changeme"
 
 # 4. 检查是否有变更
 if git diff --quiet && git diff --cached --quiet; then

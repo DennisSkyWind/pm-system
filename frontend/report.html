@@ -199,6 +199,7 @@
             <div class="form-row" style="margin-top:20px;">
                 <button class="export-btn green" onclick="exportProjectReport('html')">📄 导出 HTML</button>
                 <button class="export-btn orange" onclick="exportProjectReport('pdf')">📋 导出 PDF</button>
+                <button class="export-btn" style="background:#9c27b0" onclick="exportProjectReport('png')">🖼️ 导出 PNG</button>
             </div>
         </div>
 
@@ -246,6 +247,7 @@
                 <div class="export-actions">
                     <button class="export-btn" onclick="exportDailyReport('html')">📥 导出HTML</button>
                     <button class="export-btn" onclick="exportDailyReport('pdf')">📄 导出PDF</button>
+                    <button class="export-btn" style="background:#9c27b0" onclick="exportDailyReport('png')">🖼️ 导出PNG</button>
                 </div>
             </div>
 
@@ -282,6 +284,7 @@
                 <div class="export-actions">
                     <button class="export-btn" onclick="exportWeeklyReport('html')">📥 导出HTML</button>
                     <button class="export-btn" onclick="exportWeeklyReport('pdf')">📄 导出PDF</button>
+                    <button class="export-btn" style="background:#9c27b0" onclick="exportWeeklyReport('png')">🖼️ 导出PNG</button>
                 </div>
             </div>
 
@@ -327,6 +330,7 @@
                 <div class="export-actions">
                     <button class="export-btn" onclick="exportMonthlyReport('html')">📥 导出HTML</button>
                     <button class="export-btn" onclick="exportMonthlyReport('pdf')">📄 导出PDF</button>
+                    <button class="export-btn" style="background:#9c27b0" onclick="exportMonthlyReport('png')">🖼️ 导出PNG</button>
                 </div>
             </div>
 
@@ -347,7 +351,7 @@
                 </div>
                 <div class="stats-grid" id="quarterly-stats"></div>
                 <div class="section" id="quarterly-trend-section" style="display:none">
-                    <div class="section-title">📈 月度趋势</div>
+                    <div class="section-title">📈 月度趋势（完成任务按人员分布）</div>
                     <div id="quarterly-trend"></div>
                 </div>
                 <div class="section" id="quarterly-overdue-section" style="display:none">
@@ -373,6 +377,7 @@
                 <div class="export-actions">
                     <button class="export-btn" onclick="exportPeriodReport('quarterly','html')">📥 导出HTML</button>
                     <button class="export-btn" onclick="exportPeriodReport('quarterly','pdf')">📄 导出PDF</button>
+                    <button class="export-btn" style="background:#9c27b0" onclick="exportPeriodReport('quarterly','png')">🖼️ 导出PNG</button>
                 </div>
             </div>
 
@@ -387,7 +392,7 @@
                 </div>
                 <div class="stats-grid" id="annual-stats"></div>
                 <div class="section" id="annual-trend-section" style="display:none">
-                    <div class="section-title">📈 月度趋势</div>
+                    <div class="section-title">📈 月度趋势（完成任务按人员分布）</div>
                     <div id="annual-trend"></div>
                 </div>
                 <div class="section" id="annual-overdue-section" style="display:none">
@@ -413,6 +418,7 @@
                 <div class="export-actions">
                     <button class="export-btn" onclick="exportPeriodReport('annual','html')">📥 导出HTML</button>
                     <button class="export-btn" onclick="exportPeriodReport('annual','pdf')">📄 导出PDF</button>
+                    <button class="export-btn" style="background:#9c27b0" onclick="exportPeriodReport('annual','png')">🖼️ 导出PNG</button>
                 </div>
             </div>
         </div>
@@ -499,6 +505,8 @@
                 PM_REPORT_EXPORT.exportHTML(project, selectedReportStyle, opts);
             } else if (format === 'pdf') {
                 await PM_REPORT_EXPORT.exportPDF(project, selectedReportStyle, opts);
+            } else if (format === 'png') {
+                await PM_REPORT_EXPORT.exportPNG(project, selectedReportStyle, opts);
             }
         }
 
@@ -543,10 +551,13 @@
                         PM_REPORT_EXPORT.exportHTML(project, selectedReportStyle, opts);
                     } else if (format === 'pdf') {
                         await PM_REPORT_EXPORT.exportPDF(project, selectedReportStyle, opts);
+                    } else if (format === 'png') {
+                        await PM_REPORT_EXPORT.exportPNG(project, selectedReportStyle, opts);
                     }
                     
                     // 每个项目之间延迟，让浏览器有时间处理下载
-                    await new Promise(r => setTimeout(r, 1000));
+                    // PNG导出需要更长时间
+                    await new Promise(r => setTimeout(r, format === 'png' ? 3000 : 1000));
                 }
                 
                 progressText.textContent = `✅ 完成！已导出 ${projects.length} 个项目报告`;
@@ -771,9 +782,11 @@
                 a.click();
                 URL.revokeObjectURL(url);
             } else if (format === 'pdf') {
-                // 使用html2canvas和jsPDF导出PDF
                 const container = document.getElementById('daily-report');
                 await exportElementToPDF(container, `PM日报_${dailyReportData.date}.pdf`);
+            } else if (format === 'png') {
+                const container = document.getElementById('daily-report');
+                await exportElementToPNG(container, `PM日报_${dailyReportData.date}.png`);
             }
         }
 
@@ -928,6 +941,26 @@ th{background:#f5f5f5;color:#666;font-size:13px}
                 script.onerror = reject;
                 document.head.appendChild(script);
             });
+        }
+
+        // PNG导出辅助函数
+        async function exportElementToPNG(element, filename) {
+            if (!window.html2canvas) {
+                await loadScript('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js');
+            }
+            const buttons = element.querySelectorAll('.export-btn');
+            buttons.forEach(btn => btn.style.visibility = 'hidden');
+            const canvas = await html2canvas(element, {
+                scale: 1.5,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
+            });
+            buttons.forEach(btn => btn.style.visibility = 'visible');
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
         }
 
         async function loadWeeklyReport() {
@@ -1142,6 +1175,20 @@ th{background:#f5f5f5;color:#666;font-size:13px}
         function drawTrendChart(canvasId, trendData) {
             const canvas = document.getElementById(canvasId);
             if (!canvas) return;
+
+            // 人员聚合（按全年完成总数降序，稳定配色）
+            const palette = ['#667eea', '#4caf50', '#ff9800', '#2196f3', '#9b59b6', '#009688', '#e91e63', '#795548', '#607d8b', '#cddc39', '#00bcd4', '#8bc34a'];
+            const personTotals = {};
+            trendData.forEach(d => (d.by_person || []).forEach(p => { personTotals[p.name] = (personTotals[p.name] || 0) + (p.count || 0); }));
+            const personList = Object.keys(personTotals).sort((a, b) => personTotals[b] - personTotals[a]);
+            const personColor = {};
+            personList.forEach((name, i) => { personColor[name] = palette[i % palette.length]; });
+
+            // 画布高度 = 图表220 + 图例行
+            const legendRows = Math.max(1, Math.ceil((personList.length + 1) / 6));
+            const legendH = legendRows * 22 + 10;
+            canvas.style.height = (220 + legendH) + 'px';
+
             const dpr = window.devicePixelRatio || 1;
             const rect = canvas.getBoundingClientRect();
             canvas.width = rect.width * dpr;
@@ -1151,7 +1198,7 @@ th{background:#f5f5f5;color:#666;font-size:13px}
             const W = rect.width, H = rect.height;
             const pad = { top: 30, right: 20, bottom: 40, left: 45 };
             const chartW = W - pad.left - pad.right;
-            const chartH = H - pad.top - pad.bottom;
+            const chartH = H - legendH - pad.top - pad.bottom;
 
             const completed = trendData.map(d => d.completed || 0);
             const overdue = trendData.map(d => d.overdue || 0);
@@ -1202,55 +1249,59 @@ th{background:#f5f5f5;color:#666;font-size:13px}
             const barGroupW = chartW / labels.length;
             labels.forEach((label, i) => {
                 const x = pad.left + i * barGroupW + barGroupW / 2;
-                ctx.fillText(label, x, H - pad.bottom + 20);
+                ctx.fillText(label, x, H - legendH - pad.bottom + 20);
             });
 
-            // 柱状图
+            // 堆叠柱状图：完成任务按人员分布 + 延期柱
             const barW = Math.min(barGroupW * 0.3, 24);
             const gap = 3;
-            completed.forEach((val, i) => {
+            trendData.forEach((d, i) => {
                 const x = pad.left + i * barGroupW + barGroupW / 2 - barW - gap / 2;
-                const barH = Math.max(0, (val / yMax) * chartH);
-                const y = pad.top + chartH - barH;
-                const grad = ctx.createLinearGradient(x, y, x, pad.top + chartH);
-                grad.addColorStop(0, '#667eea');
-                grad.addColorStop(1, '#764ba2');
-                ctx.fillStyle = grad;
-                drawBar(x, y, barW, barH, 3);
-                if (val > 0) {
-                    ctx.fillStyle = '#667eea';
+                let yCursor = pad.top + chartH;
+                (d.by_person || []).forEach(p => {
+                    const segH = ((p.count || 0) / yMax) * chartH;
+                    if (segH > 0) {
+                        ctx.fillStyle = personColor[p.name] || '#999';
+                        ctx.fillRect(x, yCursor - segH, barW, segH);
+                        yCursor -= segH;
+                    }
+                });
+                const total = d.completed || 0;
+                if (total > 0) {
+                    ctx.fillStyle = '#555';
                     ctx.font = 'bold 11px sans-serif';
                     ctx.textAlign = 'center';
-                    ctx.fillText(val, x + barW / 2, y - 5);
+                    ctx.fillText(total, x + barW / 2, yCursor - 5);
                 }
-            });
 
-            overdue.forEach((val, i) => {
-                const x = pad.left + i * barGroupW + barGroupW / 2 + gap / 2;
-                const barH = Math.max(0, (val / yMax) * chartH);
-                const y = pad.top + chartH - barH;
-                ctx.fillStyle = val > 0 ? '#f44336' : '#ffcdd2';
-                drawBar(x, y, barW, barH, 3);
-                if (val > 0) {
+                const oval = d.overdue || 0;
+                const x2 = pad.left + i * barGroupW + barGroupW / 2 + gap / 2;
+                const oH = Math.max(0, (oval / yMax) * chartH);
+                ctx.fillStyle = oval > 0 ? '#f44336' : '#ffcdd2';
+                drawBar(x2, pad.top + chartH - oH, barW, oH, 3);
+                if (oval > 0) {
                     ctx.fillStyle = '#f44336';
                     ctx.font = 'bold 11px sans-serif';
                     ctx.textAlign = 'center';
-                    ctx.fillText(val, x + barW / 2, y - 5);
+                    ctx.fillText(oval, x2 + barW / 2, pad.top + chartH - oH - 5);
                 }
             });
 
-            // 图例
+            // 图例：人员配色（每行最多6个，自动换行）+ 延期
+            const legendTop = H - legendH + 8;
+            const items = personList.map(name => ({ label: name, color: personColor[name] })).concat([{ label: '延期', color: '#f44336' }]);
             ctx.font = '12px sans-serif';
-            const legendX = pad.left + chartW - 160;
-            ctx.fillStyle = '#764ba2';
-            ctx.fillRect(legendX, 8, 14, 14);
-            ctx.fillStyle = '#555';
             ctx.textAlign = 'left';
-            ctx.fillText('完成任务', legendX + 20, 20);
-            ctx.fillStyle = '#f44336';
-            ctx.fillRect(legendX + 90, 8, 14, 14);
-            ctx.fillStyle = '#555';
-            ctx.fillText('延期', legendX + 110, 20);
+            const itemW = chartW / 6;
+            items.forEach((item, li) => {
+                const row = Math.floor(li / 6), col = li % 6;
+                const lx = pad.left + col * itemW;
+                const ly = legendTop + row * 22;
+                ctx.fillStyle = item.color;
+                ctx.fillRect(lx, ly, 12, 12);
+                ctx.fillStyle = '#555';
+                ctx.fillText(item.label, lx + 16, ly + 10);
+            });
         }
 
         function renderPeriodReport(prefix, report) {
@@ -1376,7 +1427,7 @@ td{padding:10px;border-bottom:1px solid #eee}
 <div class="stat"><div class="num" style="color:${(s.overdue_tasks||0)>0?'#f44336':themeColor}">${s.overdue_tasks||0}</div><div class="label">延期任务</div></div>
 <div class="stat"><div class="num">${s.resolved_issues||0}</div><div class="label">解决问题</div></div>
 </div>
-${(()=>{const t=r.monthly_trend||[];if(t.length===0)return'';const maxV=Math.max(5,...t.map(m=>m.completed||0),...t.map(m=>m.overdue||0));const yMax=Math.ceil(maxV/5)*5;const W=700,H=200,pad={t:25,r:15,b:35,l:40};const cW=W-pad.l-pad.r,cH=H-pad.t-pad.b;const gW=cW/t.length;const bW=Math.min(gW*0.3,22);let svg=`<h2>📈 月度趋势</h2><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="max-width:100%">`;for(let i=0;i<=5;i++){const y=pad.t+cH-(i/5)*cH;svg+=`<line x1="${pad.l}" y1="${y}" x2="${pad.l+cW}" y2="${y}" stroke="#e8e8e8" stroke-width="1"/>`;svg+=`<text x="${pad.l-6}" y="${y+4}" text-anchor="end" fill="#999" font-size="11">${Math.round(yMax*i/5)}</text>`;}t.forEach((m,i)=>{const x=pad.l+i*gW+gW/2;svg+=`<text x="${x}" y="${H-pad.b+18}" text-anchor="middle" fill="#666" font-size="11">${m.month||''}</text>`;const cH2=Math.max(0,(m.completed||0)/yMax*cH);svg+=`<rect x="${x-bW-1.5}" y="${pad.t+cH-cH2}" width="${bW}" height="${cH2}" rx="3" fill="#764ba2"/>`;if(m.completed>0)svg+=`<text x="${x-bW/2-1.5}" y="${pad.t+cH-cH2-4}" text-anchor="middle" fill="#667eea" font-size="10" font-weight="bold">${m.completed}</text>`;const oH=Math.max(0,(m.overdue||0)/yMax*cH);svg+=`<rect x="${x+1.5}" y="${pad.t+cH-oH}" width="${bW}" height="${oH}" rx="3" fill="${m.overdue>0?'#f44336':'#ffcdd2'}"/>`;if(m.overdue>0)svg+=`<text x="${x+bW/2+1.5}" y="${pad.t+cH-oH-4}" text-anchor="middle" fill="#f44336" font-size="10" font-weight="bold">${m.overdue}</text>`;});svg+=`<rect x="${pad.l+cW-140}" y="6" width="12" height="12" fill="#764ba2"/><text x="${pad.l+cW-124}" y="16" fill="#555" font-size="11">完成任务</text>`;svg+=`<rect x="${pad.l+cW-60}" y="6" width="12" height="12" fill="#f44336"/><text x="${pad.l+cW-44}" y="16" fill="#555" font-size="11">延期</text>`;svg+='</svg>';return svg;})()}
+${(()=>{const t=r.monthly_trend||[];if(t.length===0)return'';const pal=['#667eea','#4caf50','#ff9800','#2196f3','#9b59b6','#009688','#e91e63','#795548','#607d8b','#cddc39','#00bcd4','#8bc34a'];const pt={};t.forEach(m=>(m.by_person||[]).forEach(p=>{pt[p.name]=(pt[p.name]||0)+(p.count||0);}));const pl=Object.keys(pt).sort((a,b)=>pt[b]-pt[a]);const pc={};pl.forEach((n,i)=>{pc[n]=pal[i%pal.length];});const lgRows=Math.max(1,Math.ceil((pl.length+1)/6));const lgH=lgRows*20+10;const maxV=Math.max(5,...t.map(m=>m.completed||0),...t.map(m=>m.overdue||0));const yMax=Math.ceil(maxV/5)*5;const W=700,H=200+lgH,pad={t:25,r:15,b:35,l:40};const cW=W-pad.l-pad.r,cH=H-lgH-pad.t-pad.b;const gW=cW/t.length;const bW=Math.min(gW*0.3,22);let svg=`<h2>📈 月度趋势（完成任务按人员分布）</h2><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="max-width:100%">`;for(let i=0;i<=5;i++){const y=pad.t+cH-(i/5)*cH;svg+=`<line x1="${pad.l}" y1="${y}" x2="${pad.l+cW}" y2="${y}" stroke="#e8e8e8" stroke-width="1"/>`;svg+=`<text x="${pad.l-6}" y="${y+4}" text-anchor="end" fill="#999" font-size="11">${Math.round(yMax*i/5)}</text>`;}t.forEach((m,i)=>{const x=pad.l+i*gW+gW/2;svg+=`<text x="${x}" y="${H-lgH-pad.b+18}" text-anchor="middle" fill="#666" font-size="11">${m.month||''}</text>`;let yC=pad.t+cH;(m.by_person||[]).forEach(p=>{const sH=(p.count||0)/yMax*cH;if(sH>0){svg+=`<rect x="${x-bW-1.5}" y="${yC-sH}" width="${bW}" height="${sH}" fill="${pc[p.name]||'#999'}"/>`;yC-=sH;}});if((m.completed||0)>0)svg+=`<text x="${x-bW/2-1.5}" y="${yC-4}" text-anchor="middle" fill="#555" font-size="10" font-weight="bold">${m.completed}</text>`;const oH=Math.max(0,(m.overdue||0)/yMax*cH);svg+=`<rect x="${x+1.5}" y="${pad.t+cH-oH}" width="${bW}" height="${oH}" rx="3" fill="${m.overdue>0?'#f44336':'#ffcdd2'}"/>`;if(m.overdue>0)svg+=`<text x="${x+bW/2+1.5}" y="${pad.t+cH-oH-4}" text-anchor="middle" fill="#f44336" font-size="10" font-weight="bold">${m.overdue}</text>`;});const lgTop=H-lgH+8;const iw=cW/6;pl.forEach((n,li)=>{const row=Math.floor(li/6),col=li%6;const lx=pad.l+col*iw,ly=lgTop+row*20;svg+=`<rect x="${lx}" y="${ly}" width="12" height="12" fill="${pc[n]}"/><text x="${lx+16}" y="${ly+10}" fill="#555" font-size="11">${n}</text>`;});{const li=pl.length;const row=Math.floor(li/6),col=li%6;const lx=pad.l+col*iw,ly=lgTop+row*20;svg+=`<rect x="${lx}" y="${ly}" width="12" height="12" fill="#f44336"/><text x="${lx+16}" y="${ly+10}" fill="#555" font-size="11">延期</text>`;}svg+='</svg>';return svg;})()}
 ${(r.overdue_tasks||[]).length>0?`<h2 style="color:#f44336">🔴 延期任务</h2><table><tr><th>任务</th><th>项目</th><th>负责人</th><th>截止日</th><th>进度</th></tr>${r.overdue_tasks.map(t=>`<tr class="overdue"><td>${t.name}</td><td>${t.project_name||'-'}</td><td>${t.assignee_name||'-'}</td><td>${t.due_date||'-'}</td><td>${t.progress||0}%</td></tr>`).join('')}</table>`:''}
 <h2>📋 活跃项目</h2>
 ${(r.active_projects||[]).map(p=>`<div style="margin:8px 0"><strong>${p.name}</strong> <span style="color:#666">· ${p.owner_name||'-'} · 任务:${p.done_tasks||0}/${p.total_tasks||0} · ${p.progress||0}%</span></div>`).join('')||'<p style="color:#999">暂无</p>'}
@@ -1396,6 +1447,10 @@ ${(()=>{const rs=r.rating_stats||{};const dist=rs.distribution||{};const byP=rs.
             const periodKey = r.period.replace(/[^0-9Q年月季度]/g,'');
             if (format === 'pdf') {
                 await PM_REPORT_EXPORT.htmlToPDF(html, `${reportType === 'quarterly' ? '季度报' : '年度报'}_${periodKey}_${exportDate}.pdf`);
+            } else if (format === 'png') {
+                const containerId = reportType === 'quarterly' ? 'quarterly-report' : 'annual-report';
+                const container = document.getElementById(containerId);
+                await exportElementToPNG(container, `${reportType === 'quarterly' ? '季度报' : '年度报'}_${periodKey}.png`);
             } else {
                 const blob = new Blob([html], {type: 'text/html;charset=utf-8'});
                 const url = URL.createObjectURL(blob);
@@ -1462,6 +1517,9 @@ ${(r.active_projects||[]).map(p=>`<div style="margin:10px 0"><strong>${p.name}</
             const exportDate = new Date().toISOString().slice(0,10).replace(/-/g,'');
             if (format === 'pdf') {
                 await PM_REPORT_EXPORT.htmlToPDF(html, `周报_${r.period.replace(/ ~ /,'_').replace(/-/g,'')}_${exportDate}.pdf`);
+            } else if (format === 'png') {
+                const container = document.getElementById('weekly-report');
+                await exportElementToPNG(container, `PM周报_${r.period.replace(/ ~ /,'_')}.png`);
             } else {
                 const blob = new Blob([html], {type: 'text/html;charset=utf-8'});
                 const url = URL.createObjectURL(blob);
@@ -1542,6 +1600,9 @@ return h;})()}
             const exportDate = new Date().toISOString().slice(0,10).replace(/-/g,'');
             if (format === 'pdf') {
                 await PM_REPORT_EXPORT.htmlToPDF(html, `月报_${(s.month||'').replace('-','')}_${exportDate}.pdf`);
+            } else if (format === 'png') {
+                const container = document.getElementById('monthly-report');
+                await exportElementToPNG(container, `PM月报_${s.month||month}.png`);
             } else {
                 const blob = new Blob([html], {type: 'text/html;charset=utf-8'});
                 const url = URL.createObjectURL(blob);
