@@ -1096,7 +1096,14 @@ th{background:#f5f5f5;color:#666;font-size:13px}
                     const rate = total > 0 ? Math.round(done / total * 100) : 0;
                     const delays = p.delay_count || 0;
                     const delayTag = delays > 0 ? `<span style="color:#e74c3c;font-size:0.85em;margin-left:8px;" title="延期${delays}次，涉及${p.delayed_tasks||0}个任务">🔄延期${delays}次</span>` : '<span style="color:#4caf50;font-size:0.85em;margin-left:8px;">✅无延期</span>';
-                    return `<div class="person-card"><h4>${p.name}${delayTag}</h4><div class="stats">总任务: ${total} · 完成: ${done} · 完成率: ${rate}%</div><div class="progress-bar" style="margin-top:8px"><div class="progress-fill" style="width:${rate}%;background:${rate>=80?'#4caf50':rate>=50?'#ff9800':'#2196f3'}"></div></div></div>`;
+                    // 参与任务+负荷分数（Phase C 新增）
+                    const participate = p.participate_count || 0;
+                    const totalTasks = p.total_task_count || (total + participate);
+                    const workload = p.workload_score || 0;
+                    const workloadColor = workload >= 10 ? '#e74c3c' : workload >= 6 ? '#ff9800' : '#4caf50';
+                    const participateRow = participate > 0 ? `<span style="color:#9c27b0;margin-left:8px;">👥 参与 ${participate}</span>` : '';
+                    const workloadTag = totalTasks > 0 ? `<span style="color:${workloadColor};margin-left:8px;font-weight:600;" title="负荷分数=总任务数+延期次数×2">📊 负荷 ${workload}</span>` : '';
+                    return `<div class="person-card"><h4>${p.name}${delayTag}${participateRow}${workloadTag}</h4><div class="stats">负责: ${total} · 参与: ${participate} · 总任务: ${totalTasks} · 完成: ${done} · 完成率: ${rate}%</div><div class="progress-bar" style="margin-top:8px"><div class="progress-fill" style="width:${rate}%;background:${rate>=80?'#4caf50':rate>=50?'#ff9800':'#2196f3'}"></div></div></div>`;
                 }).join('')
                 : '<div class="empty-state">暂无人员数据</div>';
 
@@ -1345,13 +1352,17 @@ th{background:#f5f5f5;color:#666;font-size:13px}
             // 人员工作量与绩效（table，支持PDF导出）
             const persons = report.person_stats || [];
             document.getElementById(`${prefix}-person-stats`).innerHTML = persons.length > 0
-                ? `<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#764ba2;color:white"><th style="padding:8px;text-align:left">人员</th><th style="padding:8px">条线</th><th style="padding:8px">总任务</th><th style="padding:8px">完成</th><th style="padding:8px">进行中</th><th style="padding:8px">待处理</th><th style="padding:8px">完成率</th><th style="padding:8px">延期</th><th style="padding:8px">评价</th></tr></thead><tbody>${persons.map(p => {
+                ? `<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#764ba2;color:white"><th style="padding:8px;text-align:left">人员</th><th style="padding:8px">条线</th><th style="padding:8px">负责</th><th style="padding:8px">参与</th><th style="padding:8px">总任务</th><th style="padding:8px">完成</th><th style="padding:8px">进行中</th><th style="padding:8px">待处理</th><th style="padding:8px">完成率</th><th style="padding:8px">延期</th><th style="padding:8px">负荷</th><th style="padding:8px">评价</th></tr></thead><tbody>${persons.map(p => {
                     const total=p.task_count||0, done=p.completed_count||0, inp=p.in_progress_count||0, pend=p.pending_count||0;
                     const rate=total>0?Math.round(done/total*100):0;
                     const delays=p.delay_count||0;
+                    const participate=p.participate_count||0;
+                    const totalTasks=p.total_task_count||(total+participate);
+                    const workload=p.workload_score||0;
+                    const workloadColor=workload>=10?'#e74c3c':workload>=6?'#ff9800':'#4caf50';
                     const rd=p.rating_detail||{};
                     const ratingStr=Object.entries(rd).map(([l,c])=>`<span style="color:${l==='卓越'?'#9b59b6':l==='优秀'?'#27ae60':l==='不足'?'#e74c3c':'#3498db'}">${l}:${c}</span>`).join(' ') || '-';
-                    return `<tr style="border-bottom:1px solid #eee"><td style="padding:8px"><strong>${p.name}</strong></td><td style="padding:8px;color:#666">${p.line||'-'}</td><td style="padding:8px;text-align:center">${total}</td><td style="padding:8px;text-align:center;color:#4caf50">${done}</td><td style="padding:8px;text-align:center;color:#ff9800">${inp}</td><td style="padding:8px;text-align:center">${pend}</td><td style="padding:8px;text-align:center;font-weight:bold;color:${rate>=80?'#4caf50':rate>=50?'#ff9800':'#2196f3'}">${rate}%</td><td style="padding:8px;text-align:center;color:${delays>0?'#f44336':'#4caf50'}">${delays>0?'🔴'+delays:'✅0'}</td><td style="padding:8px;font-size:0.85em">${ratingStr}</td></tr>`;
+                    return `<tr style="border-bottom:1px solid #eee"><td style="padding:8px"><strong>${p.name}</strong></td><td style="padding:8px;color:#666">${p.line||'-'}</td><td style="padding:8px;text-align:center">${total}</td><td style="padding:8px;text-align:center;color:${participate>0?'#9c27b0':'#999'}">${participate}</td><td style="padding:8px;text-align:center;font-weight:bold">${totalTasks}</td><td style="padding:8px;text-align:center;color:#4caf50">${done}</td><td style="padding:8px;text-align:center;color:#ff9800">${inp}</td><td style="padding:8px;text-align:center">${pend}</td><td style="padding:8px;text-align:center;font-weight:bold;color:${rate>=80?'#4caf50':rate>=50?'#ff9800':'#2196f3'}">${rate}%</td><td style="padding:8px;text-align:center;color:${delays>0?'#f44336':'#4caf50'}">${delays>0?'🔴'+delays:'✅0'}</td><td style="padding:8px;text-align:center;color:${workloadColor};font-weight:600" title="总任务数+延期次数×2">${workload}</td><td style="padding:8px;font-size:0.85em">${ratingStr}</td></tr>`;
                 }).join('')}</tbody></table>`
                 : '<div class="empty-state">暂无人员数据</div>';
 
@@ -1432,8 +1443,8 @@ ${(r.overdue_tasks||[]).length>0?`<h2 style="color:#f44336">🔴 延期任务</h
 <h2>📋 活跃项目</h2>
 ${(r.active_projects||[]).map(p=>`<div style="margin:8px 0"><strong>${p.name}</strong> <span style="color:#666">· ${p.owner_name||'-'} · 任务:${p.done_tasks||0}/${p.total_tasks||0} · ${p.progress||0}%</span></div>`).join('')||'<p style="color:#999">暂无</p>'}
 <h2>📊 人员工作量与绩效</h2>
-<table><tr><th>人员</th><th>条线</th><th>总任务</th><th>完成</th><th>完成率</th><th>延期</th><th>换人</th><th>评价</th></tr>
-${(r.person_stats||[]).map(p=>{const t=p.task_count||0,d=p.completed_count||0,rate=t>0?Math.round(d/t*100):0,delays=p.delay_count||0,ac=p.assignee_change_count||0;const rd=p.rating_detail||{};const rs=Object.entries(rd).map(([l,c])=>`${l}:${c}`).join(' ')||'-';return `<tr><td><strong>${p.name}</strong></td><td>${p.line||'-'}</td><td>${t}</td><td>${d}</td><td style="font-weight:bold;color:${rate>=80?'#4caf50':rate>=50?'#ff9800':'#2196f3'}">${rate}%</td><td style="color:${delays>0?'#f44336':'#4caf50'}">${delays}</td><td style="color:${ac>0?'#ff9800':'#999'}">${ac>0?'🔄'+ac:'-'}</td><td style="font-size:0.85em">${rs}</td></tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;color:#999">暂无数据</td></tr>'}
+<table><tr><th>人员</th><th>条线</th><th>负责</th><th>参与</th><th>总任务</th><th>完成</th><th>完成率</th><th>延期</th><th>负荷</th><th>换人</th><th>评价</th></tr>
+${(r.person_stats||[]).map(p=>{const t=p.task_count||0,participate=p.participate_count||0,totalTasks=p.total_task_count||(t+participate),d=p.completed_count||0,rate=t>0?Math.round(d/t*100):0,delays=p.delay_count||0,ac=p.assignee_change_count||0,workload=p.workload_score||0;const rd=p.rating_detail||{};const rs=Object.entries(rd).map(([l,c])=>`${l}:${c}`).join(' ')||'-';const wlColor=workload>=10?'#e74c3c':workload>=6?'#ff9800':'#4caf50';return `<tr><td><strong>${p.name}</strong></td><td>${p.line||'-'}</td><td>${t}</td><td style="color:${participate>0?'#9c27b0':'#999'}">${participate}</td><td style="font-weight:bold">${totalTasks}</td><td>${d}</td><td style="font-weight:bold;color:${rate>=80?'#4caf50':rate>=50?'#ff9800':'#2196f3'}">${rate}%</td><td style="color:${delays>0?'#f44336':'#4caf50'}">${delays}</td><td style="color:${wlColor};font-weight:600">${workload}</td><td style="color:${ac>0?'#ff9800':'#999'}">${ac>0?'🔄'+ac:'-'}</td><td style="font-size:0.85em">${rs}</td></tr>`;}).join('')||'<tr><td colspan="11" style="text-align:center;color:#999">暂无数据</td></tr>'}
 </table>
 <h2>✅ 完成任务</h2>
 <table><tr><th>任务</th><th>项目</th><th>负责人</th><th>完成日期</th><th>评价</th></tr>
@@ -1574,11 +1585,11 @@ ${(r.overdue_tasks||[]).length>0?`<h2 style="color:#f44336">🔴 延期任务</h
 <h2>📋 活跃项目</h2>
 ${(r.active_projects||[]).map(p=>`<div style="margin:10px 0"><strong>${p.name}</strong> <span style="color:#666">· 负责人:${p.owner_name||'-'} · 任务:${p.done_tasks||0}/${p.total_tasks||0}</span><div class="progress-bar"><div class="progress-fill" style="width:${p.progress}%;background:${p.progress>=80?'#4caf50':p.progress>=50?'#ff9800':'#2196f3'}"></div></div><span style="font-size:13px;color:#666">${p.progress}%</span></div>`).join('')||'<p style="color:#999">暂无活跃项目</p>'}
 <h2>📊 人员工作量统计</h2>
-<table><tr><th>人员</th><th>总任务</th><th>完成</th><th>完成率</th><th>延期次数</th><th>换人</th></tr>
+<table><tr><th>人员</th><th>负责</th><th>参与</th><th>总任务</th><th>完成</th><th>完成率</th><th>延期次数</th><th>负荷</th><th>换人</th></tr>
 ${(r.person_stats||[]).map(p=>{
-    const total=p.task_count||0;const done=p.completed_count||0;const rate=total>0?Math.round(done/total*100):0;const delays=p.delay_count||0;const ac=p.assignee_change_count||0;
-    return `<tr><td><strong>${p.name}</strong></td><td>${total}</td><td>${done}</td><td>${rate}%</td><td style="color:${delays>0?'#f44336':'#4caf50'}">${delays>0?'🔴 '+delays:'✅ 0'}</td><td style="color:${ac>0?'#ff9800':'#999'}">${ac>0?'🔄'+ac:'-'}</td></tr>`;
-}).join('')||'<tr><td colspan="6" style="text-align:center;color:#999">暂无数据</td></tr>'}
+    const total=p.task_count||0;const participate=p.participate_count||0;const totalTasks=p.total_task_count||(total+participate);const done=p.completed_count||0;const rate=total>0?Math.round(done/total*100):0;const delays=p.delay_count||0;const ac=p.assignee_change_count||0;const workload=p.workload_score||0;const wlColor=workload>=10?'#e74c3c':workload>=6?'#ff9800':'#4caf50';
+    return `<tr><td><strong>${p.name}</strong></td><td>${total}</td><td style="color:${participate>0?'#9c27b0':'#999'}">${participate}</td><td style="font-weight:bold">${totalTasks}</td><td>${done}</td><td>${rate}%</td><td style="color:${delays>0?'#f44336':'#4caf50'}">${delays>0?'🔴 '+delays:'✅ 0'}</td><td style="color:${wlColor};font-weight:600">${workload}</td><td style="color:${ac>0?'#ff9800':'#999'}">${ac>0?'🔄'+ac:'-'}</td></tr>`;
+}).join('')||'<tr><td colspan="9" style="text-align:center;color:#999">暂无数据</td></tr>'}
 </table>
 <h2>✅ 本月完成任务</h2>
 <table><tr><th>任务</th><th>项目</th><th>负责人</th><th>完成日期</th><th>评价</th></tr>

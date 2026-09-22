@@ -69,3 +69,62 @@ tr:hover { background: #f5f5f5; }
 
 /* 空状态 */
 .empty { color: #999; text-align: center; padding: 20px; }
+/* ========== 任务参与人 chip 样式 (Phase 3) ========== */
+.participants-chips {
+    min-height: 36px;
+    padding: 6px;
+    border: 1px dashed #ddd;
+    border-radius: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+.participants-chips:empty::before {
+    content: '暂未添加参与人';
+    color: #999;
+    font-style: italic;
+    font-size: 0.85em;
+}
+.participant-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 0.85em;
+    font-weight: 500;
+}
+.participant-chip[data-role="participant"] {
+    background: #e3f2fd; color: #1976d2;
+}
+.participant-chip[data-role="reviewer"] {
+    background: #fff3e0; color: #f57c00;
+}
+.participant-chip[data-role="support"] {
+    background: #f3e5f5; color: #7b1fa2;
+}
+.participant-chip .role-badge {
+    font-size: 0.7em;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.6);
+}
+.participant-chip .remove-btn {
+    cursor: pointer;
+    font-weight: bold;
+    opacity: 0.6;
+    margin-left: 2px;
+}
+.participant-chip .remove-btn:hover {
+    opacity: 1;
+    color: #f44336;
+}
+.col-participate {
+    background-color: #f0f7ff !important;
+    color: #1976d2 !important;
+}
+.col-workload {
+    background-color: #fff8e1 !important;
+    font-weight: 600 !important;
+}

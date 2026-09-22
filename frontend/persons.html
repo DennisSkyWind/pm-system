@@ -292,6 +292,18 @@
         </div>
     </div>
     
+    <!-- 参与任务详情模态框 -->
+    <div class="modal" id="participating-tasks-modal">
+        <div class="modal-content" style="max-width:800px;">
+            <div class="modal-title">👥 <span id="participating-person-name">-</span> 的参与任务</div>
+            <div id="participating-tasks-stats" style="margin-bottom:12px;color:#666;font-size:13px;"></div>
+            <div id="participating-tasks-list" style="max-height:480px;overflow-y:auto;"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeParticipatingTasksModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+    
     <script src="auth.js"></script>
     <script>
         
@@ -488,6 +500,14 @@
                             <div class="num">-</div>
                             <div class="label">负责任务</div>
                         </div>
+                        <div class="stat-box">
+                            <div class="num">-</div>
+                            <div class="label">参与任务</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="num">-</div>
+                            <div class="label">工作量</div>
+                        </div>
                     </div>
                     <div style="display: flex; gap: 10px; margin-top: 15px;">
                         <button class="btn btn-secondary" onclick="editPerson(${p.id})">编辑</button>
@@ -507,6 +527,8 @@
                 if (data.person) {
                     const statsEl = document.getElementById(`stats-${personId}`);
                     if (statsEl) {
+                        const ws = data.person.workload_score || 0;
+                        const wsColor = ws >= 15 ? '#f44336' : ws >= 10 ? '#ff9800' : ws >= 5 ? '#2196f3' : '#4caf50';
                         statsEl.innerHTML = `
                             <div class="stat-box">
                                 <div class="num">${data.person.project_count || 0}</div>
@@ -516,10 +538,81 @@
                                 <div class="num">${data.person.task_count || 0}</div>
                                 <div class="label">负责任务</div>
                             </div>
+                            <div class="stat-box" style="cursor:pointer" onclick="showParticipatingTasks(${personId})" title="点击查看参与任务详情">
+                                <div class="num" style="color:#9c27b0">${data.person.participate_count || 0}</div>
+                                <div class="label">参与任务 ›</div>
+                            </div>
+                            <div class="stat-box" style="border-color:${wsColor}">
+                                <div class="num" style="color:${wsColor}">${ws}</div>
+                                <div class="label">工作量评分</div>
+                            </div>
                         `;
                     }
                 }
             } catch (e) {}
+        }
+        
+        async function showParticipatingTasks(personId) {
+            const modal = document.getElementById('participating-tasks-modal');
+            const listEl = document.getElementById('participating-tasks-list');
+            const nameEl = document.getElementById('participating-person-name');
+            const statsEl = document.getElementById('participating-tasks-stats');
+            if (!modal) return;
+            nameEl.textContent = '-';
+            listEl.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">加载中...</div>';
+            statsEl.textContent = '';
+            modal.style.display = 'block';
+            try {
+                const res = await authFetch(`${API}/persons/${personId}/participating-tasks`);
+                const data = await res.json();
+                if (!data.success) {
+                    listEl.innerHTML = `<div style="color:#f44336;padding:20px;">${data.error || '加载失败'}</div>`;
+                    return;
+                }
+                nameEl.textContent = data.person_name;
+                const tasks = data.tasks || [];
+                const statusLabel = {pending:'⏳待开始', in_progress:'🔄进行中', completed:'✅已完成', cancelled:'❌已取消', paused:'⏸️已暂停'};
+                const roleLabel = {participant:'参与者', reviewer:'审阅者', support:'协助者'};
+                const roleColor = {participant:'#2196f3', reviewer:'#ff9800', support:'#9c27b0'};
+                const priorityLabel = {high:'🔴高', medium:'🟡中', low:'🟢低'};
+                statsEl.innerHTML = `共参与 <strong style="color:#9c27b0">${tasks.length}</strong> 个任务　|　点击任务名称可跳转 tasks.html`;
+                if (tasks.length === 0) {
+                    listEl.innerHTML = '<div class="empty-state" style="padding:40px;text-align:center;color:#999;">暂无参与任务</div>';
+                    return;
+                }
+                listEl.innerHTML = `<table style="width:100%;border-collapse:collapse;">
+                    <thead><tr style="background:#f5f5f5">
+                        <th style="padding:8px;text-align:left">任务</th>
+                        <th style="padding:8px">项目</th>
+                        <th style="padding:8px">角色</th>
+                        <th style="padding:8px">状态</th>
+                        <th style="padding:8px">优先级</th>
+                        <th style="padding:8px">截止</th>
+                        <th style="padding:8px">进度</th>
+                    </tr></thead>
+                    <tbody>${tasks.map(t => {
+                        const today = new Date().toISOString().slice(0,10);
+                        const overdue = t.due_date && t.due_date < today && t.status === 'in_progress';
+                        const dueColor = overdue ? '#f44336' : (t.due_date ? '#666' : '#999');
+                        const role = t.role || 'participant';
+                        return `<tr style="border-bottom:1px solid #eee">
+                            <td style="padding:8px"><a href="tasks.html?highlight=${t.task_id}" style="color:#667eea;text-decoration:none;font-weight:500">${t.task_name || '-'}</a></td>
+                            <td style="padding:8px;color:#666">${t.project_name || '-'}</td>
+                            <td style="padding:8px"><span style="color:${roleColor[role]||'#666'};font-weight:500">${roleLabel[role]||role}</span></td>
+                            <td style="padding:8px;color:#666">${statusLabel[t.status]||t.status}</td>
+                            <td style="padding:8px">${priorityLabel[t.priority]||t.priority||'-'}</td>
+                            <td style="padding:8px;color:${dueColor}">${t.due_date || '-'}</td>
+                            <td style="padding:8px;text-align:center;color:${(t.progress||0)>=80?'#4caf50':(t.progress||0)>=50?'#ff9800':'#2196f3'}">${t.progress||0}%</td>
+                        </tr>`;
+                    }).join('')}</tbody></table>`;
+            } catch (e) {
+                listEl.innerHTML = `<div style="color:#f44336;padding:20px;">加载异常: ${e.message || e}</div>`;
+            }
+        }
+        
+        function closeParticipatingTasksModal() {
+            const modal = document.getElementById('participating-tasks-modal');
+            if (modal) modal.style.display = 'none';
         }
         
         function filterPersons() {

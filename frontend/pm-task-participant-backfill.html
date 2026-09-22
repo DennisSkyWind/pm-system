@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>参与人回填工具 - 项目管理系统</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; }
+        header h1 { font-size: 22px; }
+        nav { display: flex; gap: 15px; margin-top: 15px; flex-wrap: wrap; }
+        nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; background: rgba(255,255,255,0.2); font-size: 14px; }
+        nav a:hover { background: rgba(255,255,255,0.3); }
+        nav a.active { background: rgba(255,255,255,0.4); }
+        main { padding: 20px; max-width: 1400px; margin: 0 auto; }
+        .toolbar { background: white; padding: 16px; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+        .toolbar select, .toolbar input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .btn { padding: 8px 16px; border-radius: 8px; cursor: pointer; border: none; font-size: 14px; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a6fd6; }
+        .btn-secondary { background: #e0e0e0; color: #333; }
+        .btn-danger { background: #f44336; color: white; }
+        .btn-small { padding: 4px 10px; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-radius: 12px; overflow: hidden; }
+        thead tr { background: #667eea; color: white; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
+        tbody tr:hover { background: #f8f9ff; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; }
+        .badge-completed { background: #e8f5e9; color: #4caf50; }
+        .badge-in_progress { background: #fff3e0; color: #ff9800; }
+        .badge-pending { background: #f3f0ff; color: #667eea; }
+        .badge-cancelled { background: #ffebee; color: #f44336; }
+        .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background: #f3f0ff; color: #667eea; border-radius: 12px; font-size: 12px; margin: 2px; }
+        .chip-participant { background: #e3f2fd; color: #2196f3; }
+        .chip-reviewer { background: #fff3e0; color: #ff9800; }
+        .chip-support { background: #f3e5f5; color: #9c27b0; }
+        .participant-list { display: flex; flex-wrap: wrap; gap: 4px; min-height: 24px; }
+        .empty-state { padding: 40px; text-align: center; color: #999; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .modal-content { background: white; border-radius: 12px; padding: 24px; max-width: 500px; margin: 80px auto; }
+        .modal-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; border-bottom: 2px solid #667eea; padding-bottom: 8px; }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 12px; border-top: 1px solid #eee; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; margin-bottom: 4px; color: #666; font-size: 13px; }
+        .form-group select, .form-group input { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .role-tag { font-size: 11px; padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+        .toast { position: fixed; top: 80px; right: 20px; padding: 12px 20px; background: #4caf50; color: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 9999; display: none; font-size: 14px; }
+        .toast.error { background: #f44336; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <link rel="stylesheet" href="common.css">
+    <link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+    <header>
+        <h1>📥 参与人回填工具</h1>
+        <nav>
+            <a href="index.html">Dashboard</a>
+            <a href="tasks.html">任务管理</a>
+            <a href="persons.html">👥 人员</a>
+            <a href="report.html">📊 报告</a>
+            <a href="performance.html">📊 绩效</a>
+            <a href="pm-task-participant-backfill.html" class="active">📥 回填工具</a>
+            <span style="margin-left:auto;cursor:pointer;opacity:0.7;font-size:13px" onclick="location.reload()">🔄 刷新</span>
+        </nav>
+    </header>
+
+    <main>
+        <!-- 工具栏 -->
+        <div class="toolbar">
+            <label>项目：<select id="filter-project"><option value="">全部</option></select></label>
+            <label>状态：<select id="filter-status">
+                <option value="">全部</option>
+                <option value="pending">待开始</option>
+                <option value="in_progress">进行中</option>
+                <option value="completed">已完成</option>
+            </select></label>
+            <label>未填参与：<select id="filter-empty">
+                <option value="all">全部任务</option>
+                <option value="empty" selected>仅未填参与人</option>
+                <option value="has">已有参与人</option>
+            </select></label>
+            <input type="text" id="search-input" placeholder="搜索任务名..." style="flex:1;min-width:180px">
+            <button class="btn btn-secondary" onclick="loadData()">🔄 刷新</button>
+        </div>
+
+        <!-- 任务表格 -->
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:60px">ID</th>
+                    <th>任务名</th>
+                    <th style="width:120px">项目</th>
+                    <th style="width:80px">负责人</th>
+                    <th style="width:90px">状态</th>
+                    <th style="width:90px">截止</th>
+                    <th>参与人</th>
+                    <th style="width:160px">操作</th>
+                </tr>
+            </thead>
+            <tbody id="tasks-tbody">
+                <tr><td colspan="8" class="empty-state">加载中...</td></tr>
+            </tbody>
+        </table>
+    </main>
+
+    <!-- 添加参与人模态框 -->
+    <div class="modal" id="add-participant-modal">
+        <div class="modal-content">
+            <div class="modal-title">➕ 添加参与人</div>
+            <div id="add-task-info" style="background:#f5f5f5;padding:10px;border-radius:6px;margin-bottom:16px;font-size:13px;color:#666;"></div>
+            <div class="form-group">
+                <label>选择人员</label>
+                <select id="add-person-select"></select>
+            </div>
+            <div class="form-group">
+                <label>角色</label>
+                <select id="add-role-select">
+                    <option value="participant">参与者</option>
+                    <option value="reviewer">审阅者</option>
+                    <option value="support">协助者</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeAddModal()">取消</button>
+                <button class="btn btn-primary" onclick="submitAddParticipant()">添加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 提示 -->
+    <div id="toast" class="toast"></div>
+
+    <script src="auth.js"></script>
+    <script>
+        const API = '/api';
+        let allTasks = [];
+        let allProjects = [];
+        let allPersons = [];
+        let participantsCache = {};  // {task_id: [...]}
+
+        function showToast(msg, isError) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast' + (isError ? ' error' : '');
+            t.style.display = 'block';
+            setTimeout(() => { t.style.display = 'none'; }, 2500);
+        }
+
+        async function authFetch(url, options = {}) {
+            const token = localStorage.getItem('pm_token');
+            if (!token) { window.location.href = 'login.html'; return; }
+            const headers = { 'Authorization': 'Bearer ' + token, ...(options.headers || {}) };
+            if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+                options.body = JSON.stringify(options.body);
+                headers['Content-Type'] = 'application/json';
+            }
+            const res = await fetch(url, { ...options, headers });
+            if (res.status === 401) { localStorage.removeItem('pm_token'); window.location.href = 'login.html'; return; }
+            return res;
+        }
+
+        async function loadData() {
+            try {
+                // 并行拉取任务/项目/人员
+                const [tasksRes, projectsRes, personsRes] = await Promise.all([
+                    authFetch(`${API}/tasks`),
+                    authFetch(`${API}/projects`),
+                    authFetch(`${API}/persons`)
+                ]);
+                allTasks = (await tasksRes.json()).tasks || (await tasksRes.json()) || [];
+                allProjects = (await projectsRes.json()).projects || (await projectsRes.json()) || [];
+                allPersons = (await personsRes.json()).persons || (await personsRes.json()) || [];
+                // 填充项目筛选
+                const projSel = document.getElementById('filter-project');
+                projSel.innerHTML = '<option value="">全部</option>' + allProjects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+                // 填充添加参与人的人员下拉（排除每个任务的负责人）
+                const personSel = document.getElementById('add-person-select');
+                personSel.innerHTML = allPersons.filter(p => p.status === 'active').map(p => `<option value="${p.id}">${p.name}${p.line ? ' ('+p.line+')' : ''}</option>`).join('');
+                // 拉所有参与人缓存
+                await loadAllParticipants();
+                renderTasks();
+            } catch (e) {
+                showToast('加载失败：' + (e.message || e), true);
+            }
+        }
+
+        async function loadAllParticipants() {
+            // 对每个任务拉一次参与人（任务量小，<200ms总开销）
+            participantsCache = {};
+            await Promise.all(allTasks.map(async t => {
+                try {
+                    const res = await authFetch(`${API}/tasks/${t.id}/participants`);
+                    const data = await res.json();
+                    participantsCache[t.id] = data.participants || [];
+                } catch (e) {
+                    participantsCache[t.id] = [];
+                }
+            }));
+        }
+
+        function renderTasks() {
+            const projFilter = document.getElementById('filter-project').value;
+            const statusFilter = document.getElementById('filter-status').value;
+            const emptyFilter = document.getElementById('filter-empty').value;
+            const search = document.getElementById('search-input').value.toLowerCase().trim();
+            const tbody = document.getElementById('tasks-tbody');
+            const filtered = allTasks.filter(t => {
+                if (projFilter && String(t.project_id) !== projFilter) return false;
+                if (statusFilter && t.status !== statusFilter) return false;
+                if (emptyFilter === 'empty' && (participantsCache[t.id] || []).length > 0) return false;
+                if (emptyFilter === 'has' && (participantsCache[t.id] || []).length === 0) return false;
+                if (search && !(t.name || '').toLowerCase().includes(search) && !(t.assignee_name || '').toLowerCase().includes(search)) return false;
+                return true;
+            });
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="empty-state">无符合条件任务</td></tr>';
+                return;
+            }
+            const statusLabel = {pending:'待开始', in_progress:'进行中', completed:'已完成', cancelled:'已取消', paused:'已暂停'};
+            tbody.innerHTML = filtered.map(t => {
+                const parts = participantsCache[t.id] || [];
+                const partChips = parts.length === 0
+                    ? '<span style="color:#999;font-size:12px;">未填</span>'
+                    : parts.map(p => `<span class="chip chip-${p.role || 'participant'}" title="${roleLabel(p.role)} · 添加于${(p.added_at||'').slice(0,10)}">${p.name}<span class="role-tag">${roleShortLabel(p.role)}</span></span>`).join('');
+                const today = new Date().toISOString().slice(0,10);
+                const overdue = t.due_date && t.due_date < today && t.status === 'in_progress';
+                const dueColor = overdue ? '#f44336' : (t.due_date ? '#666' : '#999');
+                return `<tr>
+                    <td>${t.id}</td>
+                    <td><a href="tasks.html?highlight=${t.id}" style="color:#667eea;text-decoration:none">${t.name || '-'}</a></td>
+                    <td style="font-size:12px;color:#666">${t.project_name || t.project_id || '-'}</td>
+                    <td style="font-size:12px;color:#666">${t.assignee_name || '-'}</td>
+                    <td><span class="badge badge-${t.status || 'pending'}">${statusLabel[t.status] || t.status || '-'}</span></td>
+                    <td style="font-size:12px;color:${dueColor}">${t.due_date || '-'}</td>
+                    <td><div class="participant-list">${partChips}</div></td>
+                    <td>
+                        <button class="btn btn-primary btn-small" onclick="openAddModal(${t.id})">➕ 添加</button>
+                        <button class="btn btn-secondary btn-small" onclick="refreshOne(${t.id})">🔄</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function roleLabel(r) { return {participant:'参与者', reviewer:'审阅者', support:'协助者'}[r] || r || '参与者'; }
+        function roleShortLabel(r) { return {participant:'参与', reviewer:'审阅', support:'协助'}[r] || r || '参与'; }
+
+        let currentTaskId = null;
+        function openAddModal(taskId) {
+            currentTaskId = taskId;
+            const task = allTasks.find(t => t.id === taskId);
+            const parts = participantsCache[taskId] || [];
+            const excluded = new Set([task && task.assignee_id, ...parts.map(p => p.person_id)].filter(Boolean));
+            // 过滤掉已参与的人
+            const sel = document.getElementById('add-person-select');
+            const opts = Array.from(sel.options).filter(o => !excluded.has(parseInt(o.value)));
+            if (opts.length === 0) {
+                showToast('该任务已包含所有在职人员', true);
+                return;
+            }
+            sel.innerHTML = opts.map(o => o.outerHTML).join('');
+            document.getElementById('add-task-info').innerHTML = `<strong>任务 #${taskId}</strong>：${task ? task.name : '-'}<br>负责人：${task && task.assignee_name || '-'}<br>已有参与人：${parts.length}人`;
+            document.getElementById('add-participant-modal').style.display = 'block';
+        }
+        function closeAddModal() { document.getElementById('add-participant-modal').style.display = 'none'; }
+
+        async function submitAddParticipant() {
+            const personId = parseInt(document.getElementById('add-person-select').value);
+            const role = document.getElementById('add-role-select').value;
+            if (!personId || !currentTaskId) return;
+            try {
+                const res = await authFetch(`${API}/tasks/${currentTaskId}/participants`, {
+                    method: 'POST',
+                    body: { participants: [{ person_id: personId, role: role }] }
+                });
+                const data = await res.json();
+                if (!data.success) { showToast(data.error || '添加失败', true); return; }
+                showToast(`✓ 已添加参与人`);
+                closeAddModal();
+                await refreshOne(currentTaskId);
+            } catch (e) { showToast('异常：' + (e.message || e), true); }
+        }
+
+        async function refreshOne(taskId) {
+            try {
+                const res = await authFetch(`${API}/tasks/${taskId}/participants`);
+                const data = await res.json();
+                participantsCache[taskId] = data.participants || [];
+                renderTasks();
+            } catch (e) {}
+        }
+
+        // 事件绑定
+        document.getElementById('filter-project').onchange = renderTasks;
+        document.getElementById('filter-status').onchange = renderTasks;
+        document.getElementById('filter-empty').onchange = renderTasks;
+        document.getElementById('search-input').oninput = renderTasks;
+
+        // 入口
+        if (!localStorage.getItem('pm_token')) { window.location.href = 'login.html'; }
+        else { loadData(); }
+    </script>
+</body>
+</html>

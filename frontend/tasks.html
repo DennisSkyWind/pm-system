@@ -347,6 +347,11 @@
                     <input type="hidden" id="filter-assignee">
                     <div class="search-select-dropdown" id="filter-assignee-dropdown"></div>
                 </div>
+                <div class="search-select" style="width: 180px;">
+                    <input type="text" id="filter-participant-search" placeholder="搜索参与人..." onclick="toggleFilterParticipantDropdown()" oninput="filterParticipantDropdownFilter()">
+                    <input type="hidden" id="filter-participant">
+                    <div class="search-select-dropdown" id="filter-participant-dropdown"></div>
+                </div>
                 <input type="date" id="filter-date-start" placeholder="开始日期" onchange="applyFilters()">
                 <input type="date" id="filter-date-end" placeholder="截止日期" onchange="applyFilters()">
                 <input type="text" id="filter-search" placeholder="搜索任务名称..." onkeyup="applyFilters()" style="width: 200px;">
@@ -389,6 +394,7 @@
                         <th>任务名称</th>
                         <th>所属项目</th>
                         <th>负责人</th>
+                        <th>参与人</th>
                         <th>优先级</th>
                         <th>状态</th>
                         <th>进度</th>
@@ -397,7 +403,7 @@
                     </tr>
                 </thead>
                 <tbody id="tasks-body">
-                    <tr><td colspan="9" style="text-align:center;color:#999;padding:30px;">加载中...</td></tr>
+                    <tr><td colspan="10" style="text-align:center;color:#999;padding:30px;">加载中...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -434,6 +440,19 @@
                     <input type="hidden" id="task-assignee">
                     <div class="search-select-dropdown" id="task-assignee-dropdown"></div>
                 </div>
+            </div>
+            <div class="form-group">
+                <label>参与人 <span style="color:#999;font-size:0.85em">（可添加多个，标注角色）</span></label>
+                <div id="task-participants-list" class="participants-chips"></div>
+                <div style="display:flex;gap:8px;margin-top:8px">
+                    <input type="text" id="task-participant-search" placeholder="搜索添加参与人..." style="flex:1" onclick="toggleParticipantDropdown('task')" oninput="filterParticipantDropdown('task')">
+                    <select id="task-participant-role" style="width:90px">
+                        <option value="participant">参与</option>
+                        <option value="reviewer">审阅</option>
+                        <option value="support">协助</option>
+                    </select>
+                </div>
+                <div class="search-select-dropdown" id="task-participant-dropdown"></div>
             </div>
             <div class="form-group">
                 <label>优先级</label>
@@ -512,7 +531,20 @@
                     <div class="search-select-dropdown" id="edit-task-assignee-dropdown"></div>
                 </div>
             </div>
-            <div class="form-group">
+                            <div class="form-group">
+                    <label>参与人 <span style="color:#999;font-size:0.85em">（可添加多个，标注角色）</span></label>
+                    <div id="edit-task-participants-list" class="participants-chips"></div>
+                    <div style="display:flex;gap:8px;margin-top:8px">
+                        <input type="text" id="edit-task-participant-search" placeholder="搜索添加参与人..." style="flex:1" onclick="toggleParticipantDropdown('edit-task')" oninput="filterParticipantDropdown('edit-task')">
+                        <select id="edit-task-participant-role" style="width:90px">
+                            <option value="participant">参与</option>
+                            <option value="reviewer">审阅</option>
+                            <option value="support">协助</option>
+                        </select>
+                    </div>
+                    <div class="search-select-dropdown" id="edit-task-participant-dropdown"></div>
+                </div>
+                <div class="form-group">
                 <label>优先级</label>
                 <select id="edit-task-priority">
                     <option value="high">高</option>
@@ -1233,6 +1265,56 @@
             document.getElementById('filter-assignee-dropdown').classList.remove('show');
             applyFilters();
         }
+
+        // 参与人筛选下拉框 (Phase 4)
+        function toggleFilterParticipantDropdown() {
+            const dropdown = document.getElementById('filter-participant-dropdown');
+            if (dropdown.classList.contains('show')) {
+                dropdown.classList.remove('show');
+            } else {
+                renderFilterParticipantDropdown('');
+                dropdown.classList.add('show');
+            }
+        }
+
+        function filterParticipantDropdownFilter() {
+            const input = document.getElementById('filter-participant-search');
+            renderFilterParticipantDropdown(input.value);
+        }
+
+        function renderFilterParticipantDropdown(filter) {
+            const dropdown = document.getElementById('filter-participant-dropdown');
+            const keyword = filter ? filter.toLowerCase() : '';
+            const grouped = {};
+            (persons || personsList || []).forEach(p => {
+                const line = p.line || '其他';
+                if (!keyword || p.name.toLowerCase().includes(keyword)) {
+                    if (!grouped[line]) grouped[line] = [];
+                    grouped[line].push(p);
+                }
+            });
+            let html = '<div class="search-select-option" onclick="selectFilterParticipant('', '所有参与人')" style="font-weight:500;">所有参与人</div>';
+            if (keyword && Object.keys(grouped).length === 0) {
+                html = '<div class="search-select-option" style="color:#999;padding:20px;text-align:center;">无匹配人员</div>';
+            } else {
+                Object.keys(grouped).sort().forEach(line => {
+                    if (Object.keys(grouped).length > 1) {
+                        html += `<div class="search-select-group">${line}</div>`;
+                    }
+                    grouped[line].forEach(p => {
+                        html += `<div class="search-select-option" onclick="selectFilterParticipant(${p.id}, '${p.name.replace(/'/g, "\\'")}')">${p.name}</div>`;
+                    });
+                });
+            }
+            dropdown.innerHTML = html;
+        }
+
+        function selectFilterParticipant(id, name) {
+            document.getElementById('filter-participant').value = id;
+            document.getElementById('filter-participant-search').value = id ? name : '';
+            document.getElementById('filter-participant-dropdown').classList.remove('show');
+            applyFilters();
+        }
         
         // 点击外部关闭下拉框
         document.addEventListener('click', function(e) {
@@ -1258,6 +1340,7 @@
             currentFilters.project = document.getElementById('filter-project').value;
             currentFilters.priority = document.getElementById('filter-priority').value;
             currentFilters.assignee = document.getElementById('filter-assignee').value;
+            currentFilters.participant = document.getElementById('filter-participant').value;
             currentFilters.dateStart = document.getElementById('filter-date-start').value;
             currentFilters.dateEnd = document.getElementById('filter-date-end').value;
             currentFilters.search = document.getElementById('filter-search').value.toLowerCase();
@@ -1269,6 +1352,7 @@
                 if (currentFilters.project && t.project_id != currentFilters.project) return false;
                 if (currentFilters.priority && t.priority !== currentFilters.priority) return false;
                 if (currentFilters.assignee && t.assignee_id != currentFilters.assignee) return false;
+                if (currentFilters.participant && !(t.participants || []).some(p => p.person_id == currentFilters.participant)) return false;
                 if (currentFilters.dateStart && t.due_date && t.due_date < currentFilters.dateStart) return false;
                 if (currentFilters.dateEnd && t.due_date && t.due_date > currentFilters.dateEnd) return false;
                 if (currentFilters.search && !t.name.toLowerCase().includes(currentFilters.search)) return false;
@@ -1280,11 +1364,13 @@
         }
         
         function clearAllFilters() {
-            currentFilters = { status: '', project: '', priority: '', assignee: '', dateStart: '', dateEnd: '', search: '' };
+            currentFilters = { status: '', project: '', priority: '', assignee: '', participant: '', dateStart: '', dateEnd: '', search: '' };
             document.getElementById('filter-project').value = '';
             document.getElementById('filter-priority').value = '';
             document.getElementById('filter-assignee').value = '';
             document.getElementById('filter-assignee-search').value = '';
+            document.getElementById('filter-participant').value = '';
+            document.getElementById('filter-participant-search').value = '';
             document.getElementById('filter-date-start').value = '';
             document.getElementById('filter-date-end').value = '';
             document.getElementById('filter-search').value = '';
@@ -1414,7 +1500,7 @@
             const today = new Date().toISOString().split('T')[0];
             
             if (filteredTasks.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#999;padding:30px;">暂无符合条件的任务</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#999;padding:30px;">暂无符合条件的任务</td></tr>';
                 return;
             }
             
@@ -1437,6 +1523,7 @@
                         </td>
                         <td>${t.project_name || '-'}</td>
                         <td>${t.assignee_name || '未指定'}</td>
+                        <td>${renderParticipantsList(t.participants || [])}</td>
                         <td>
                             <span class="priority-${t.priority || 'medium'}">
                                 ${t.priority === 'high' ? '🔴 高' : t.priority === 'medium' ? '🟠 中' : '🟢 低'}
@@ -1706,6 +1793,10 @@
             document.getElementById('edit-task-assignee').value = task.assignee_id || '';
             document.getElementById('edit-task-assignee-search').value = task.assignee_name || '';
             
+            
+            // 加载参与人 (Phase 3)
+            await loadTaskParticipants(id, 'edit');
+
             // 加载阶段列表
             if (task.project_id) {
                 await loadPhasesForSelect(task.project_id, 'edit-task-phase');
@@ -1965,6 +2056,37 @@
                 });
                 const result = await res.json();
                 if (result.success) {
+                    
+                    // 同步参与人
+                    const existingRes = await authFetch(`${API}/tasks/${taskId}/participants`);
+                    const existingData = await existingRes.json();
+                    const existing = existingData.participants || [];
+                    const existingIds = new Set(existing.map(e => e.person_id));
+                    for (const ep of existing) {
+                        if (!taskParticipantsEdit.find(p => p.person_id === ep.person_id)) {
+                            await authFetch(`${API}/tasks/${taskId}/participants/${ep.person_id}`, { method: 'DELETE' });
+                        }
+                    }
+                    const toAdd = taskParticipantsEdit.filter(p => !existingIds.has(p.person_id));
+                    if (toAdd.length > 0) {
+                        await authFetch(`${API}/tasks/${taskId}/participants`, {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                participants: toAdd,
+                                operator_id: JSON.parse(localStorage.getItem('pm_user') || '{}').person_id
+                            })
+                        });
+                    }
+                    for (const np of taskParticipantsEdit) {
+                        const ep = existing.find(e => e.person_id === np.person_id);
+                        if (ep && ep.role !== np.role) {
+                            await authFetch(`${API}/tasks/${taskId}/participants/${np.person_id}`, {
+                                method: 'PUT',
+                                body: JSON.stringify({ role: np.role })
+                            });
+                        }
+                    }
+
                     hideEditTaskModal();
                     await loadTasks();
                 } else {
@@ -1986,6 +2108,9 @@
             document.getElementById('task-priority').value = 'medium';
             document.getElementById('task-due').value = '';
             document.getElementById('task-phase').innerHTML = '<option value="">-- 请先选择项目 --</option>';
+            // 重置参与人 (Phase 3)
+            taskParticipantsNew = [];
+            renderParticipantChips('task');
             document.getElementById('new-task-modal').classList.add('show');
         }
         
@@ -2050,7 +2175,8 @@
                 phase_id: document.getElementById('task-phase').value || null,
                 assignee_id: document.getElementById('task-assignee').value || null,
                 priority: document.getElementById('task-priority').value,
-                due_date: document.getElementById('task-due').value || null
+                due_date: document.getElementById('task-due').value || null,
+                participants: taskParticipantsNew
             };
             
             await authFetch(`${API}/tasks`, {
@@ -2080,17 +2206,21 @@
             const timestamp = new Date().toISOString().split('T')[0];
             
             if (format === 'csv') {
-                const headers = ['任务名称', '项目', '负责人', '优先级', '状态', '进度', '截止日期', '描述'];
-                const rows = filteredTasks.map(t => [
-                    t.name,
-                    t.project_name || '',
-                    t.assignee_name || '',
-                    t.priority || 'medium',
-                    t.status || 'pending',
-                    t.progress || 0,
-                    t.due_date || '',
-                    t.description || ''
-                ]);
+                const headers = ['任务名称', '项目', '负责人', '参与人', '优先级', '状态', '进度', '截止日期', '描述'];
+                const rows = filteredTasks.map(t => {
+                    const parts = (t.participants || []).map(p => `${p.name}(${p.role === 'reviewer' ? '审阅' : p.role === 'support' ? '协助' : '参与'})`).join('; ');
+                    return [
+                        t.name,
+                        t.project_name || '',
+                        t.assignee_name || '',
+                        parts,
+                        t.priority || 'medium',
+                        t.status || 'pending',
+                        t.progress || 0,
+                        t.due_date || '',
+                        t.description || ''
+                    ];
+                });
                 
                 content = headers.join(',') + '\n' + rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
                 filename = `tasks_${timestamp}.csv`;
@@ -2282,6 +2412,133 @@
             input.value = '';
         }
         
+        // ========== 任务参与人管理 (Phase 3) ==========
+        let taskParticipantsNew = []; // 新建任务时使用
+        let taskParticipantsEdit = []; // 编辑任务时使用
+
+        async function loadTaskParticipants(taskId, target) {
+            try {
+                const res = await authFetch(`${API}/tasks/${taskId}/participants`);
+                const data = await res.json();
+                const list = (data.participants || []).map(p => ({
+                    person_id: p.person_id, name: p.name, role: p.role
+                }));
+                if (target === 'edit') {
+                    taskParticipantsEdit = list;
+                    renderParticipantChips('edit-task');
+                }
+                return list;
+            } catch (e) {
+                console.error('loadTaskParticipants error:', e);
+                return [];
+            }
+        }
+
+        function addParticipant(prefix) {
+            // 优先使用 select 选中的用户
+            const dropdown = document.getElementById(`${prefix}-participant-dropdown`);
+            const search = document.getElementById(`${prefix}-participant-search`);
+            const roleSel = document.getElementById(`${prefix}-participant-role`);
+            // 简单做法：从下拉框取第一个匹配项（如果有）
+            // 这里使用搜索关键字直接查找
+            const query = search.value.trim();
+            if (!query) { alert('请输入参与人姓名'); return; }
+            // 查找人员
+            const person = persons.find(p => p.status === 'active' && p.name.includes(query));
+            if (!person) { alert('未找到匹配的人员: ' + query); return; }
+            const role = roleSel.value;
+            const target = prefix === 'task' ? taskParticipantsNew : taskParticipantsEdit;
+            if (target.find(p => p.person_id === person.id)) {
+                alert(person.name + ' 已是参与人'); return;
+            }
+            target.push({ person_id: person.id, name: person.name, role: role });
+            renderParticipantChips(prefix);
+            search.value = '';
+            // 关闭下拉框
+            dropdown.style.display = 'none';
+        }
+
+        function removeParticipant(prefix, personId) {
+            const target = prefix === 'task' ? taskParticipantsNew : taskParticipantsEdit;
+            const targetIdx = target.findIndex(p => p.person_id === personId);
+            if (targetIdx >= 0) {
+                target.splice(targetIdx, 1);
+                renderParticipantChips(prefix);
+            }
+        }
+
+        function renderParticipantChips(prefix) {
+            const listEl = document.getElementById(`${prefix}-participants-list`);
+            if (!listEl) return;
+            const target = prefix === 'task' ? taskParticipantsNew : taskParticipantsEdit;
+            const roleLabels = { participant: '参与', reviewer: '审阅', support: '协助' };
+            listEl.innerHTML = target.map(p => `
+                <span class="participant-chip" data-role="${p.role}">
+                    ${p.name}
+                    <span class="role-badge">${roleLabels[p.role]}</span>
+                    <span class="remove-btn" onclick="removeParticipant('${prefix}', ${p.person_id})">×</span>
+                </span>
+            `).join('');
+        }
+
+        // 下拉框支持
+        function toggleParticipantDropdown(prefix) {
+            const dropdown = document.getElementById(`${prefix}-participant-dropdown`);
+            if (!dropdown) return;
+            const isVisible = dropdown.style.display === 'block';
+            dropdown.style.display = isVisible ? 'none' : 'block';
+            if (!isVisible) filterParticipantDropdown(prefix);
+        }
+
+        function filterParticipantDropdown(prefix) {
+            const search = document.getElementById(`${prefix}-participant-search`);
+            const dropdown = document.getElementById(`${prefix}-participant-dropdown`);
+            const roleSel = document.getElementById(`${prefix}-participant-role`);
+            if (!search || !dropdown) return;
+            const query = search.value.trim().toLowerCase();
+            const target = prefix === 'task' ? taskParticipantsNew : taskParticipantsEdit;
+            // 排除已添加的人
+            const filtered = persons.filter(p =>
+                p.status === 'active' &&
+                !target.find(t => t.person_id === p.id) &&
+                (query === '' || p.name.toLowerCase().includes(query))
+            ).slice(0, 10);
+            const roleLabels = { participant: '参与', reviewer: '审阅', support: '协助' };
+            const role = roleSel ? roleSel.value : 'participant';
+            dropdown.innerHTML = filtered.map(p =>
+                `<div class="search-select-item" onclick="document.getElementById('${prefix}-participant-search').value='${p.name.replace(/'/g, "\\'")}'; document.getElementById('${prefix}-participant-dropdown').style.display='none';">
+                    ${p.name} <span style="color:#999;font-size:0.85em">(${p.line || '无条线'})</span>
+                </div>`
+            ).join('') || '<div class="search-select-item" style="color:#999">无匹配</div>';
+            dropdown.style.display = 'block';
+        }
+
+        // 点击外部关闭
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.search-select')) {
+                document.querySelectorAll('.search-select-dropdown').forEach(d => d.style.display = 'none');
+            }
+        });
+
+        // 渲染任务列表中的参与人列
+        function renderParticipantsList(participants) {
+            if (!participants || participants.length === 0) {
+                return '<span style="color:#999;font-size:0.85em">-</span>';
+            }
+            const max = 3;
+            const shown = participants.slice(0, max);
+            const more = participants.length - max;
+            const colors = { participant: '#1976d2', reviewer: '#f57c00', support: '#7b1fa2' };
+            const roleLabels = { participant: '', reviewer: '审', support: '助' };
+            let html = shown.map(p =>
+                `<span style="background:${colors[p.role]}20;color:${colors[p.role]};padding:2px 8px;border-radius:10px;font-size:0.75em;margin:1px;display:inline-block">${roleLabels[p.role] ? '<span style="opacity:0.7">[' + roleLabels[p.role] + ']</span> ' : ''}${p.name}</span>`
+            ).join('');
+            if (more > 0) {
+                html += `<span style="color:#999;font-size:0.75em">+${more}</span>`;
+            }
+            return html;
+        }
+
         start();
     </script>
     <script src="dark-mode.js"></script>

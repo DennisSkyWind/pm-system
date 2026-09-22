@@ -183,6 +183,89 @@ def get_rating_stats(cursor, start_date=None, end_date=None):
         'by_project': project_ratings
     }
 
+
+def get_participate_stats(cursor, start_date, end_date=None):
+    """获取人员参与任务统计（不含已取消、机密项目）
+    返回: list of dict, 每个dict包含 person_id, name, line, position, participate_count, participate_completed, participate_in_progress, participate_overdue
+    """
+    end_str = end_date or '9999-12-31'
+    cursor.execute('''
+        SELECT per.id as person_id, per.name, per.line, per.position,
+               COUNT(DISTINCT CASE WHEN tp.id IS NOT NULL AND (t.id IS NULL OR t.status != 'cancelled') THEN tp.id END) as participate_count,
+               COUNT(DISTINCT CASE WHEN t.status='completed' THEN tp.id END) as participate_completed,
+               COUNT(DISTINCT CASE WHEN t.status='in_progress' THEN tp.id END) as participate_in_progress,
+               COUNT(DISTINCT CASE WHEN t.status='pending' THEN tp.id END) as participate_pending,
+               COUNT(DISTINCT CASE WHEN t.due_date < ? AND t.status='in_progress' THEN tp.id END) as participate_overdue
+        FROM person per
+        LEFT JOIN task_participant tp ON tp.person_id = per.id
+        LEFT JOIN task t ON tp.task_id = t.id
+            AND t.status != 'cancelled'
+            AND t.project_id NOT IN (SELECT id FROM project WHERE COALESCE(confidential,0)=1)
+        WHERE per.status = 'active'
+        GROUP BY per.id
+        HAVING participate_count > 0
+        ORDER BY participate_count DESC
+    ''', (start_date,))
+    result = [dict(r) for r in cursor.fetchall()]
+    # 修复None值
+    for p in result:
+        for k in ['line', 'position']:
+            if p.get(k) is None:
+                p[k] = ''
+    return result
+
+
+def merge_participate_into_person_stats(person_stats, participate_stats):
+    """合并参与数据到负责人统计中（含去重计算）"""
+    p_map = {p['person_id']: p for p in participate_stats}
+    existing_ids = set()
+    for ps in person_stats:
+        pid = ps.get('person_id') or ps.get('id')
+        existing_ids.add(pid)
+        p_data = p_map.get(pid, {})
+        ps['participate_count'] = p_data.get('participate_count', 0)
+        ps['participate_completed'] = p_data.get('participate_completed', 0)
+        ps['participate_in_progress'] = p_data.get('participate_in_progress', 0)
+        ps['participate_pending'] = p_data.get('participate_pending', 0)
+        ps['participate_overdue'] = p_data.get('participate_overdue', 0)
+        # 总任务数（参与数；简化去重）
+        responsible = ps.get('task_count', ps.get('total_tasks', ps.get('responsible_count', 0)))
+        ps['total_task_count'] = responsible + ps['participate_count']
+        # 工作负荷分数（任务数 + 延期*2）
+        ps['workload_score'] = ps['total_task_count'] + ps.get('delay_count', 0) * 2
+    
+    # 只参与不负责的人：补进 person_stats（保证报表能看到纯参与人）
+    for p_data in participate_stats:
+        pid = p_data.get('person_id')
+        if pid in existing_ids:
+            continue
+        # 构造新person_stats条目（多数字段为0/空，呼号有name/line/position）
+        new_entry = {
+            'name': p_data.get('name', ''),
+            'person_id': pid,
+            'line': p_data.get('line', '') or '',
+            'position': p_data.get('position', '') or '',
+            'task_count': 0,
+            'completed_count': 0,
+            'in_progress_count': 0,
+            'pending_count': 0,
+            'avg_progress': 0,
+            'delay_count': 0,
+            'delayed_tasks': 0,
+            'rating_detail': {},
+            'rating_total': 0,
+            'assignee_change_count': 0,
+            'participate_count': p_data.get('participate_count', 0),
+            'participate_completed': p_data.get('participate_completed', 0),
+            'participate_in_progress': p_data.get('participate_in_progress', 0),
+            'participate_pending': p_data.get('participate_pending', 0),
+            'participate_overdue': p_data.get('participate_overdue', 0),
+        }
+        new_entry['total_task_count'] = new_entry['task_count'] + new_entry['participate_count']
+        new_entry['workload_score'] = new_entry['total_task_count'] + new_entry['delay_count'] * 2
+        person_stats.append(new_entry)
+    return person_stats
+
 def generate_username(name: str, existing_names: set) -> str:
     """生成用户名（姓名拼音缩写）"""
     from pypinyin import lazy_pinyin, Style
@@ -200,9 +283,32 @@ def generate_username(name: str, existing_names: set) -> str:
         counter += 1
     return f"{base_name}{counter:02d}"
 
+def init_participant_table():
+    """任务参与人中间表"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS task_participant (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            person_id INTEGER NOT NULL,
+            role TEXT DEFAULT 'participant',
+            added_by INTEGER,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (task_id) REFERENCES task(id) ON DELETE CASCADE,
+            FOREIGN KEY (person_id) REFERENCES person(id),
+            UNIQUE(task_id, person_id)
+        )
+    ''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_task_participant_task ON task_participant(task_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_task_participant_person ON task_participant(person_id)')
+    conn.commit()
+    conn.close()
+
 def create_users_from_persons():
     """根据person表创建用户账号"""
     init_user_table()
+    init_participant_table()
     conn = get_db()
     cursor = conn.cursor()
     
@@ -1114,9 +1220,26 @@ def get_tasks():
         delay_map = {row['task_id']: row['delay_count'] for row in cursor.fetchall()}
         for t in tasks:
             t['delay_count'] = delay_map.get(t['id'], 0)
-    
+
+        # Phase 3: 查询每个任务的参与人
+        task_id_list = [t['id'] for t in tasks]
+        if task_id_list:
+            placeholders_p = ','.join(['?'] * len(task_id_list))
+            cursor.execute(
+                f'SELECT tp.task_id, tp.person_id, tp.role, p.name FROM task_participant tp LEFT JOIN person p ON tp.person_id = p.id WHERE tp.task_id IN ({placeholders_p}) ORDER BY tp.added_at',
+                task_id_list
+            )
+            part_map = {}
+            for r in cursor.fetchall():
+                tid = r['task_id']
+                if tid not in part_map:
+                    part_map[tid] = []
+                part_map[tid].append({'person_id': r['person_id'], 'name': r['name'], 'role': r['role']})
+            for t in tasks:
+                t['participants'] = part_map.get(t['id'], [])
+
     conn.close()
-    
+
     return jsonify({'success': True, 'tasks': ensure_task_start_date(tasks)})
 
 @app.route('/api/tasks', methods=['POST'])
@@ -1142,6 +1265,18 @@ def create_task():
           data.get('due_date'), data.get('start_date'), data.get('assignee_id')))
     
     task_id = cursor.lastrowid
+
+    # 处理参与人（Phase 2）
+    participants = data.get('participants', [])
+    operator_for_p = getattr(request, 'current_user', {}) or {}
+    operator_id_p = operator_for_p.get('person_id') or data.get('operator_id')
+    for p in participants:
+        pid = p.get('person_id')
+        role = p.get('role', 'participant')
+        if not pid:
+            continue
+        cursor.execute('INSERT OR IGNORE INTO task_participant (task_id, person_id, role, added_by) VALUES (?, ?, ?, ?)', (task_id, pid, role, operator_id_p))
+
     conn.commit()
     conn.close()
     
@@ -2476,6 +2611,150 @@ def handle_attendance():
             conn.close()
             return jsonify({'success': False, 'error': str(e)}), 400
 
+# ============================================================
+# 任务参与人 API
+# ============================================================
+
+@app.route('/api/tasks/<int:task_id>/participants', methods=['GET'])
+@check_auth
+def get_task_participants(task_id):
+    """获取任务的参与人列表"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT tp.id, tp.task_id, tp.person_id, tp.role, tp.added_at,
+               p.name, p.line, p.position,
+               adder.name as added_by_name
+        FROM task_participant tp
+        LEFT JOIN person p ON tp.person_id = p.id
+        LEFT JOIN person adder ON tp.added_by = adder.id
+        WHERE tp.task_id = ?
+        ORDER BY tp.added_at
+    ''', (task_id,))
+    participants = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return jsonify({'success': True, 'participants': participants})
+
+
+@app.route('/api/tasks/<int:task_id>/participants', methods=['POST'])
+@check_auth
+def add_task_participants(task_id):
+    """添加参与人（支持批量）"""
+    data = request.get_json(silent=True) or request.json or {}
+    participants = data.get('participants', [])
+    operator_id = data.get('operator_id')
+
+    if not participants:
+        return jsonify({'success': False, 'error': '请提供参与人列表'}), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        added = []
+        for p in participants:
+            person_id = p.get('person_id')
+            role = p.get('role', 'participant')
+            if not person_id:
+                continue
+            cursor.execute('''
+                INSERT OR IGNORE INTO task_participant
+                (task_id, person_id, role, added_by) VALUES (?, ?, ?, ?)
+            ''', (task_id, person_id, role, operator_id))
+            if cursor.rowcount > 0:
+                added.append(person_id)
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'added_count': len(added), 'added': added})
+    except Exception as e:
+        conn.close()
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/api/tasks/<int:task_id>/participants/<int:person_id>', methods=['DELETE'])
+@check_auth
+def remove_task_participant(task_id, person_id):
+    """移除单个参与人"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM task_participant WHERE task_id = ? AND person_id = ?', (task_id, person_id))
+    deleted = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'deleted': deleted})
+
+
+@app.route('/api/tasks/<int:task_id>/participants/<int:person_id>', methods=['PUT'])
+@check_auth
+def update_task_participant(task_id, person_id):
+    """更新参与人角色"""
+    data = request.get_json(silent=True) or request.json or {}
+    new_role = data.get('role')
+    if new_role not in ['participant', 'reviewer', 'support']:
+        return jsonify({'success': False, 'error': '无效角色'}), 400
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE task_participant SET role = ? WHERE task_id = ? AND person_id = ?',
+                   (new_role, task_id, person_id))
+    updated = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'updated': updated})
+
+
+# 批量回填工具API（Phase 5）
+@app.route('/api/tasks/backfill-participants', methods=['POST'])
+@check_auth
+def backfill_participants():
+    """批量回填参与人"""
+    data = request.get_json(silent=True) or request.json or {}
+    task_ids = data.get('task_ids', [])
+    person_ids = data.get('person_ids', [])
+    role = data.get('role', 'participant')
+    operator_id = data.get('operator_id')
+
+    if not task_ids or not person_ids:
+        return jsonify({'success': False, 'error': 'task_ids和people_ids不能为空'}), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+    added = 0
+    for task_id in task_ids:
+        for person_id in person_ids:
+            cursor.execute('''
+                INSERT OR IGNORE INTO task_participant
+                (task_id, person_id, role, added_by) VALUES (?, ?, ?, ?)
+            ''', (task_id, person_id, role, operator_id))
+            added += cursor.rowcount
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'added_count': added})
+
+
+@app.route('/api/persons/<int:person_id>/suggested-tasks', methods=['GET'])
+@check_auth
+def suggest_tasks_for_person(person_id):
+    """智能推荐参与人"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT DISTINCT t.id, t.name, t.status, t.due_date,
+               p.name as project_name, per.name as assignee_name
+        FROM task t
+        LEFT JOIN project p ON t.project_id = p.id
+        LEFT JOIN project_viewer pv ON pv.project_id = p.id
+        LEFT JOIN person per ON t.assignee_id = per.id
+        WHERE (pv.person_id = ? OR t.id IN (
+                SELECT task_id FROM task_participant WHERE person_id = ?
+            ))
+            AND t.status NOT IN ('completed', 'cancelled')
+        ORDER BY t.due_date
+        LIMIT 50
+    ''', (person_id, person_id))
+    tasks = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return jsonify({'success': True, 'tasks': tasks})
+
+
 @app.route('/api/attendance/<int:record_id>', methods=['PUT'])
 @check_auth
 def update_attendance(record_id):
@@ -2766,15 +3045,56 @@ def get_person(person_id):
         project_count = cursor.fetchone()[0]
         cursor.execute('SELECT COUNT(*) FROM task WHERE assignee_id = ?', (person_id,))
         task_count = cursor.fetchone()[0]
-        
+        # Phase 4: 参与人任务数 + 工作量统计
+        cursor.execute('SELECT COUNT(*) FROM task_participant WHERE person_id = ?', (person_id,))
+        participate_count = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM task_participant tp JOIN task t ON tp.task_id = t.id WHERE tp.person_id = ? AND t.status NOT IN ("completed", "cancelled")', (person_id,))
+        active_participate = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM task WHERE assignee_id = ? AND status NOT IN ("completed", "cancelled")', (person_id,))
+        active_responsible = cursor.fetchone()[0]
+        workload_score = active_responsible + active_participate
+
         person = dict(row)
         person['project_count'] = project_count
         person['task_count'] = task_count
+        person['participate_count'] = participate_count
+        person['active_responsible'] = active_responsible
+        person['active_participate'] = active_participate
+        person['workload_score'] = workload_score
         conn.close()
         return jsonify({'success': True, 'person': person})
     
     conn.close()
     return jsonify({'success': False, 'error': 'Person not found'}), 404
+
+@app.route('/api/persons/<int:person_id>/participating-tasks', methods=['GET'])
+@check_auth
+def get_person_participating_tasks(person_id):
+    """获取某人的参与任务列表（含任务详情+角色）"""
+    conn = get_db()
+    cursor = conn.cursor()
+    # 确认人员存在
+    cursor.execute('SELECT id, name FROM person WHERE id = ?', (person_id,))
+    person = cursor.fetchone()
+    if not person:
+        conn.close()
+        return jsonify({'success': False, 'error': '人员不存在'}), 404
+    
+    cursor.execute('''
+        SELECT tp.role, tp.added_at,
+               t.id as task_id, t.name as task_name, t.status, t.priority, t.due_date, t.progress,
+               p.id as project_id, p.name as project_name, p.status as project_status
+        FROM task_participant tp
+        LEFT JOIN task t ON tp.task_id = t.id
+        LEFT JOIN project p ON t.project_id = p.id
+        WHERE tp.person_id = ?
+        ORDER BY
+            CASE WHEN t.status='in_progress' THEN 1 WHEN t.status='pending' THEN 2 WHEN t.status IS NULL THEN 4 ELSE 3 END,
+            t.due_date ASC
+    ''', (person_id,))
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return jsonify({'success': True, 'person_name': person['name'], 'tasks': rows, 'count': len(rows)})
 
 @app.route('/api/persons/<int:person_id>', methods=['PUT'])
 @check_auth
@@ -3766,6 +4086,11 @@ def get_period_report(report_type):
     for p in person_stats:
         p['assignee_change_count'] = assignee_change_map.get(p.get('person_id'), 0)
     
+    # 任务参与人统计（合并到person_stats，含去重+负荷分数）
+    # 排除已取消+机密项目；统计期间内"有动态"或"在期间内仍活跃"的参与任务
+    participate_stats = get_participate_stats(cursor, start_str, end_str)
+    merge_participate_into_person_stats(person_stats, participate_stats)
+    
     # 当前延期任务（排除已中止项目）
     today_str = today.strftime('%Y-%m-%d')
     cursor.execute('''
@@ -4274,18 +4599,37 @@ def export_tasks():
     
     tasks = [dict(row) for row in cursor.fetchall()]
     conn.close()
-    
+
+    # 查询每个任务的参与人 (Phase 4)
+    if tasks:
+        task_ids = [t['id'] for t in tasks]
+        placeholders_p = ','.join(['?'] * len(task_ids))
+        conn2 = get_db()
+        cursor2 = conn2.cursor()
+        cursor2.execute(f'SELECT tp.task_id, p.name, tp.role FROM task_participant tp LEFT JOIN person p ON tp.person_id = p.id WHERE tp.task_id IN ({placeholders_p}) ORDER BY tp.added_at', task_ids)
+        part_map = {}
+        role_map = {'participant': '参与', 'reviewer': '审阅', 'support': '协助'}
+        for r in cursor2.fetchall():
+            tid = r['task_id']
+            if tid not in part_map:
+                part_map[tid] = []
+            part_map[tid].append(f"{r['name']}({role_map.get(r['role'], r['role'])})")
+        conn2.close()
+        for t in tasks:
+            t['participants_str'] = '; '.join(part_map.get(t['id'], []))
+
     wb = Workbook()
     ws = wb.active
     ws.title = '任务列表'
-    headers = ['ID', '任务名称', '项目', '阶段', '负责人', '优先级', '状态', '进度%', '截止日期', '描述']
+    headers = ['ID', '任务名称', '项目', '阶段', '负责人', '参与人', '优先级', '状态', '进度%', '截止日期', '描述']
     ws.append(headers)
-    
+
     status_map = {'pending': '待处理', 'in_progress': '进行中', 'completed': '已完成', 'cancelled': '已中止'}
     priority_map = {'high': '高', 'medium': '中', 'low': '低'}
-    
+
     for t in tasks:
         ws.append([t['id'], t['name'], t['project'] or '', t['phase'] or '', t['assignee'] or '',
+                   t.get('participants_str', ''),
                    priority_map.get(t['priority'], t['priority']), status_map.get(t['status'], t['status']),
                    t['progress'] or 0, t['due_date'] or '', t['description'] or ''])
     
