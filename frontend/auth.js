@@ -99,12 +99,26 @@ async function authFetch(url, options = {}) {
         // 返回一个永不resolve的Promise，阻止后续代码执行
         return new Promise(() => {});
     }
-    
+
     const headers = {
         ...options.headers,
         'Authorization': 'Bearer ' + token
     };
-    
+
+    // 修复415问题：如果有body且未设置Content-Type，自动设为 application/json
+    if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+        options.body = JSON.stringify(options.body);
+        headers['Content-Type'] = 'application/json';
+    } else if (options.body && typeof options.body === 'string' && !headers['Content-Type']) {
+        // 字符串body没有Content-Type时，尝试作为JSON
+        try {
+            JSON.parse(options.body);
+            headers['Content-Type'] = 'application/json';
+        } catch (e) {
+            // 不是JSON，保持默认
+        }
+    }
+
     let res;
     try {
         res = await fetch(url, { ...options, headers });
