@@ -445,12 +445,13 @@
                 <label>参与人 <span style="color:#999;font-size:0.85em">（可添加多个，标注角色）</span></label>
                 <div id="task-participants-list" class="participants-chips"></div>
                 <div style="display:flex;gap:8px;margin-top:8px">
-                    <input type="text" id="task-participant-search" placeholder="搜索添加参与人..." style="flex:1" onclick="toggleParticipantDropdown('task')" oninput="filterParticipantDropdown('task')">
-                    <select id="task-participant-role" style="width:90px">
+                    <input type="text" id="task-participant-search" placeholder="搜索姓名或条线，从下拉列表选择..." style="flex:1" onclick="toggleParticipantDropdown('task')" oninput="filterParticipantDropdown('task')" onkeydown="if(event.key==='Enter'){event.preventDefault();addParticipant('task');}">
+                    <select id="task-participant-role" style="width:90px" title="选择参与角色">
                         <option value="participant">参与</option>
                         <option value="reviewer">审阅</option>
                         <option value="support">协助</option>
                     </select>
+                    <button type="button" class="btn btn-secondary" onclick="addParticipant('task')" title="添加当前选中的参与人" style="padding:8px 12px;white-space:nowrap">+ 添加</button>
                 </div>
                 <div class="search-select-dropdown" id="task-participant-dropdown"></div>
             </div>
@@ -535,12 +536,13 @@
                     <label>参与人 <span style="color:#999;font-size:0.85em">（可添加多个，标注角色）</span></label>
                     <div id="edit-task-participants-list" class="participants-chips"></div>
                     <div style="display:flex;gap:8px;margin-top:8px">
-                        <input type="text" id="edit-task-participant-search" placeholder="搜索添加参与人..." style="flex:1" onclick="toggleParticipantDropdown('edit-task')" oninput="filterParticipantDropdown('edit-task')">
-                        <select id="edit-task-participant-role" style="width:90px">
+                        <input type="text" id="edit-task-participant-search" placeholder="搜索姓名或条线，从下拉列表选择..." style="flex:1" onclick="toggleParticipantDropdown('edit-task')" oninput="filterParticipantDropdown('edit-task')" onkeydown="if(event.key==='Enter'){event.preventDefault();addParticipant('edit-task');}">
+                        <select id="edit-task-participant-role" style="width:90px" title="选择参与角色">
                             <option value="participant">参与</option>
                             <option value="reviewer">审阅</option>
                             <option value="support">协助</option>
                         </select>
+                        <button type="button" class="btn btn-secondary" onclick="addParticipant('edit-task')" title="添加当前选中的参与人" style="padding:8px 12px;white-space:nowrap">+ 添加</button>
                     </div>
                     <div class="search-select-dropdown" id="edit-task-participant-dropdown"></div>
                 </div>
@@ -2444,27 +2446,42 @@
         }
 
         function addParticipant(prefix) {
-            // 优先使用 select 选中的用户
-            const dropdown = document.getElementById(`${prefix}-participant-dropdown`);
+            // 通过下拉框选中的真实人员添加（不再用文本模糊匹配，避免拼错）
             const search = document.getElementById(`${prefix}-participant-search`);
             const roleSel = document.getElementById(`${prefix}-participant-role`);
-            // 简单做法：从下拉框取第一个匹配项（如果有）
-            // 这里使用搜索关键字直接查找
-            const query = search.value.trim();
-            if (!query) { alert('请输入参与人姓名'); return; }
-            // 查找人员
-            const person = persons.find(p => p.status === 'active' && p.name.includes(query));
-            if (!person) { alert('未找到匹配的人员: ' + query); return; }
-            const role = roleSel.value;
+            const query = search.value.trim().toLowerCase();
+            if (!query) { alert('请先在搜索框输入人员姓名关键字'); return; }
+            // 优先从下拉框"高亮"项（键盘上下选中）取，否则取第一个匹配项
+            const dropdown = document.getElementById(`${prefix}-participant-dropdown`);
+            const highlighted = dropdown && dropdown.querySelector('.search-select-item.selected');
+            let person = null;
+            if (highlighted) {
+                const pid = parseInt(highlighted.getAttribute('data-pid'));
+                person = persons.find(p => p.id === pid);
+            } else {
+                person = persons.find(p => p.status === 'active' && p.name.toLowerCase().includes(query));
+            }
+            if (!person) { alert('未找到匹配的人员，请从下拉列表中选择'); return; }
+            addParticipantById(prefix, person.id);
+        }
+
+        function addParticipantById(prefix, personId) {
+            const search = document.getElementById(`${prefix}-participant-search`);
+            const roleSel = document.getElementById(`${prefix}-participant-role`);
+            const person = persons.find(p => p.id === personId);
+            if (!person) { alert('人员不存在'); return; }
+            if (person.status !== 'active') { alert(person.name + ' 已不是在职人员'); return; }
+            const role = roleSel ? roleSel.value : 'participant';
             const target = prefix === 'task' ? taskParticipantsNew : taskParticipantsEdit;
             if (target.find(p => p.person_id === person.id)) {
                 alert(person.name + ' 已是参与人'); return;
             }
             target.push({ person_id: person.id, name: person.name, role: role });
             renderParticipantChips(prefix);
-            search.value = '';
+            if (search) search.value = '';
             // 关闭下拉框
-            dropdown.style.display = 'none';
+            const dropdown = document.getElementById(`${prefix}-participant-dropdown`);
+            if (dropdown) dropdown.style.display = 'none';
         }
 
         function removeParticipant(prefix, personId) {
@@ -2482,13 +2499,24 @@
             const target = prefix === 'task' ? taskParticipantsNew : taskParticipantsEdit;
             const roleLabels = { participant: '参与', reviewer: '审阅', support: '协助' };
             listEl.innerHTML = target.map(p => `
-                <span class="participant-chip" data-role="${p.role}">
+                <span class="participant-chip" data-role="${p.role}" data-prefix="${prefix}" data-pid="${p.person_id}" style="cursor:default;">
                     ${p.name}
                     <span class="role-badge">${roleLabels[p.role]}</span>
-                    <span class="remove-btn" onclick="removeParticipant('${prefix}', ${p.person_id})">×</span>
+                    <span class="remove-btn" style="cursor:pointer;padding:0 4px;">×</span>
                 </span>
-            `).join('');
+            `).join('') || '<span style="color:#999;font-size:0.85em">（暂无参与人，从下方搜索添加）</span>';
         }
+
+        // 事件委托：点击 chip 的 × 按钮删除参与人（避免内联onclick引号嵌套）
+        document.addEventListener('click', function(e) {
+            if (e.target.classList && e.target.classList.contains('remove-btn')) {
+                const chip = e.target.closest('.participant-chip');
+                if (!chip) return;
+                const prefix = chip.getAttribute('data-prefix');
+                const personId = parseInt(chip.getAttribute('data-pid'));
+                if (prefix && personId) removeParticipant(prefix, personId);
+            }
+        });
 
         // 下拉框支持
         function toggleParticipantDropdown(prefix) {
@@ -2506,19 +2534,20 @@
             if (!search || !dropdown) return;
             const query = search.value.trim().toLowerCase();
             const target = prefix === 'task' ? taskParticipantsNew : taskParticipantsEdit;
-            // 排除已添加的人
+            // 排除已添加的人 + 排除当前任务的负责人（避免冗余）
+            const assigneeId = parseInt(document.getElementById(`${prefix === 'task' ? 'task' : 'edit-task'}-assignee`)?.value || 0);
             const filtered = persons.filter(p =>
                 p.status === 'active' &&
+                p.id !== assigneeId &&
                 !target.find(t => t.person_id === p.id) &&
-                (query === '' || p.name.toLowerCase().includes(query))
-            ).slice(0, 10);
-            const roleLabels = { participant: '参与', reviewer: '审阅', support: '协助' };
-            const role = roleSel ? roleSel.value : 'participant';
+                (query === '' || p.name.toLowerCase().includes(query) || (p.line || '').toLowerCase().includes(query))
+            ).slice(0, 15);
             dropdown.innerHTML = filtered.map(p =>
-                `<div class="search-select-item" onclick="document.getElementById('${prefix}-participant-search').value='${p.name.replace(/'/g, "\\'")}'; document.getElementById('${prefix}-participant-dropdown').style.display='none';">
-                    ${p.name} <span style="color:#999;font-size:0.85em">(${p.line || '无条线'})</span>
+                `<div class="search-select-item" data-pid="${p.id}" onclick="addParticipantById('${prefix}', ${p.id})" style="cursor:pointer;padding:8px 12px;">
+                    <strong>${p.name}</strong>
+                    <span style="color:#999;font-size:0.85em">${p.line || '无条线'}${p.position ? ' · ' + p.position : ''}</span>
                 </div>`
-            ).join('') || '<div class="search-select-item" style="color:#999">无匹配</div>';
+            ).join('') || '<div class="search-select-item" style="color:#999;padding:12px">无匹配人员</div>';
             dropdown.style.display = 'block';
         }
 
