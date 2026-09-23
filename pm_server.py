@@ -5295,13 +5295,15 @@ def export_tasks_pdf():
     project_name = data.get('project_name', '全部项目')
     landscape = data.get('landscape', False)
     status_filter = data.get('status', 'all')
-    
+
     # 根据状态筛选任务
-    if status_filter != 'all':
+    # 前端已经做过 'uncompleted' 这种合成状态的过滤（status != 'completed' && status != 'cancelled'）
+    # 后端只做字面状态过滤，避免重复过滤导致空数组
+    if status_filter != 'all' and status_filter != 'uncompleted':
         tasks = [t for t in tasks if t.get('status') == status_filter]
-    
+
     if not tasks:
-        status_names = {'all': '全部', 'pending': '待处理', 'in_progress': '进行中', 'completed': '已完成', 'cancelled': '已中止'}
+        status_names = {'all': '全部', 'pending': '待处理', 'in_progress': '进行中', 'completed': '已完成', 'cancelled': '已中止', 'uncompleted': '未完成'}
         return jsonify({'error': f'没有{status_names.get(status_filter, status_filter)}状态的任务'}), 400
     
     try:
