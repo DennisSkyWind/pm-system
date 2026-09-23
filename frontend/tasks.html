@@ -2387,9 +2387,15 @@
         
         // 初始化
         async function start() {
-            const user = await initAuthPage();
-            if (!user) return;
-            init();
+            try {
+                const user = await initAuthPage();
+                if (!user) return;
+                init();
+            } catch (e) {
+                console.error('[start] 初始化异常:', e);
+                // 即使auth失败也尝试初始化（保证下拉等基础功能可用）
+                try { init(); } catch(e2) { console.error('[init]', e2); }
+            }
         }
         
         // ========== 任务导入 ==========
@@ -2532,6 +2538,12 @@
             const dropdown = document.getElementById(`${prefix}-participant-dropdown`);
             const roleSel = document.getElementById(`${prefix}-participant-role`);
             if (!search || !dropdown) return;
+            // 防御：personsList 可能还没加载（极端情况）
+            if (typeof personsList === 'undefined' || !Array.isArray(personsList)) {
+                dropdown.innerHTML = '<div class="search-select-item" style="color:#e74c3c;padding:12px">人员数据未加载，请刷新页面重试</div>';
+                dropdown.style.display = 'block';
+                return;
+            }
             const query = search.value.trim().toLowerCase();
             const target = prefix === 'task' ? taskParticipantsNew : taskParticipantsEdit;
             // 排除已添加的人 + 排除当前任务的负责人（避免冗余）
