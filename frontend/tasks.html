@@ -134,7 +134,7 @@
         .search-select { position: relative; }
         .search-select input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; cursor: pointer; }
         .search-select input:focus { border-color: #667eea; outline: none; }
-        .search-select-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-radius: 6px; max-height: 300px; overflow-y: auto; z-index: 100; display: none; }
+        .search-select-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-radius: 6px; max-height: 300px; overflow-y: auto; z-index: 9999; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
         .search-select-dropdown.show { display: block; }
         .search-select-option { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; }
         .search-select-option:last-child { border-bottom: none; }
@@ -444,16 +444,18 @@
             <div class="form-group">
                 <label>参与人 <span style="color:#999;font-size:0.85em">（可添加多个，标注角色）</span></label>
                 <div id="task-participants-list" class="participants-chips"></div>
-                <div style="display:flex;gap:8px;margin-top:8px">
-                    <input type="text" id="task-participant-search" placeholder="搜索姓名或条线，从下拉列表选择..." style="flex:1" onclick="toggleParticipantDropdown('task')" oninput="filterParticipantDropdown('task')" onkeydown="if(event.key==='Enter'){event.preventDefault();addParticipant('task');}">
-                    <select id="task-participant-role" style="width:90px" title="选择参与角色">
-                        <option value="participant">参与</option>
-                        <option value="reviewer">审阅</option>
-                        <option value="support">协助</option>
-                    </select>
-                    <button type="button" class="btn btn-secondary" onclick="addParticipant('task')" title="添加当前选中的参与人" style="padding:8px 12px;white-space:nowrap">+ 添加</button>
+                <div class="search-select" style="margin-top:8px">
+                    <div style="display:flex;gap:8px">
+                        <input type="text" id="task-participant-search" placeholder="搜索姓名或条线，从下拉列表选择..." style="flex:1" onclick="toggleParticipantDropdown('task')" oninput="filterParticipantDropdown('task')" onkeydown="if(event.key==='Enter'){event.preventDefault();addParticipant('task');}">
+                        <select id="task-participant-role" style="width:90px" title="选择参与角色">
+                            <option value="participant">参与</option>
+                            <option value="reviewer">审阅</option>
+                            <option value="support">协助</option>
+                        </select>
+                        <button type="button" class="btn btn-secondary" onclick="addParticipant('task')" title="添加当前选中的参与人" style="padding:8px 12px;white-space:nowrap">+ 添加</button>
+                    </div>
+                    <div class="search-select-dropdown" id="task-participant-dropdown"></div>
                 </div>
-                <div class="search-select-dropdown" id="task-participant-dropdown"></div>
             </div>
             <div class="form-group">
                 <label>优先级</label>
@@ -535,16 +537,18 @@
                             <div class="form-group">
                     <label>参与人 <span style="color:#999;font-size:0.85em">（可添加多个，标注角色）</span></label>
                     <div id="edit-task-participants-list" class="participants-chips"></div>
-                    <div style="display:flex;gap:8px;margin-top:8px">
-                        <input type="text" id="edit-task-participant-search" placeholder="搜索姓名或条线，从下拉列表选择..." style="flex:1" onclick="toggleParticipantDropdown('edit-task')" oninput="filterParticipantDropdown('edit-task')" onkeydown="if(event.key==='Enter'){event.preventDefault();addParticipant('edit-task');}">
-                        <select id="edit-task-participant-role" style="width:90px" title="选择参与角色">
-                            <option value="participant">参与</option>
-                            <option value="reviewer">审阅</option>
-                            <option value="support">协助</option>
-                        </select>
-                        <button type="button" class="btn btn-secondary" onclick="addParticipant('edit-task')" title="添加当前选中的参与人" style="padding:8px 12px;white-space:nowrap">+ 添加</button>
+                    <div class="search-select" style="margin-top:8px">
+                        <div style="display:flex;gap:8px">
+                            <input type="text" id="edit-task-participant-search" placeholder="搜索姓名或条线，从下拉列表选择..." style="flex:1" onclick="toggleParticipantDropdown('edit-task')" oninput="filterParticipantDropdown('edit-task')" onkeydown="if(event.key==='Enter'){event.preventDefault();addParticipant('edit-task');}">
+                            <select id="edit-task-participant-role" style="width:90px" title="选择参与角色">
+                                <option value="participant">参与</option>
+                                <option value="reviewer">审阅</option>
+                                <option value="support">协助</option>
+                            </select>
+                            <button type="button" class="btn btn-secondary" onclick="addParticipant('edit-task')" title="添加当前选中的参与人" style="padding:8px 12px;white-space:nowrap">+ 添加</button>
+                        </div>
+                        <div class="search-select-dropdown" id="edit-task-participant-dropdown"></div>
                     </div>
-                    <div class="search-select-dropdown" id="edit-task-participant-dropdown"></div>
                 </div>
                 <div class="form-group">
                 <label>优先级</label>
