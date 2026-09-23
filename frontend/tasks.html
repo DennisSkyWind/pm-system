@@ -2457,9 +2457,9 @@
             let person = null;
             if (highlighted) {
                 const pid = parseInt(highlighted.getAttribute('data-pid'));
-                person = persons.find(p => p.id === pid);
+                person = personsList.find(p => p.id === pid);
             } else {
-                person = persons.find(p => p.status === 'active' && p.name.toLowerCase().includes(query));
+                person = personsList.find(p => p.status === 'active' && p.name.toLowerCase().includes(query));
             }
             if (!person) { alert('未找到匹配的人员，请从下拉列表中选择'); return; }
             addParticipantById(prefix, person.id);
@@ -2468,7 +2468,7 @@
         function addParticipantById(prefix, personId) {
             const search = document.getElementById(`${prefix}-participant-search`);
             const roleSel = document.getElementById(`${prefix}-participant-role`);
-            const person = persons.find(p => p.id === personId);
+            const person = personsList.find(p => p.id === personId);
             if (!person) { alert('人员不存在'); return; }
             if (person.status !== 'active') { alert(person.name + ' 已不是在职人员'); return; }
             const role = roleSel ? roleSel.value : 'participant';
@@ -2536,7 +2536,7 @@
             const target = prefix === 'task' ? taskParticipantsNew : taskParticipantsEdit;
             // 排除已添加的人 + 排除当前任务的负责人（避免冗余）
             const assigneeId = parseInt(document.getElementById(`${prefix === 'task' ? 'task' : 'edit-task'}-assignee`)?.value || 0);
-            const filtered = persons.filter(p =>
+            const filtered = personsList.filter(p =>
                 p.status === 'active' &&
                 p.id !== assigneeId &&
                 !target.find(t => t.person_id === p.id) &&
