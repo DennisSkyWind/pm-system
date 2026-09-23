@@ -1293,7 +1293,7 @@
                     grouped[line].push(p);
                 }
             });
-            let html = '<div class="search-select-option" onclick="selectFilterParticipant('', '所有参与人')" style="font-weight:500;">所有参与人</div>';
+            let html = '<div class="search-select-option" data-pid="" data-pname="所有参与人" style="font-weight:500;">所有参与人</div>';
             if (keyword && Object.keys(grouped).length === 0) {
                 html = '<div class="search-select-option" style="color:#999;padding:20px;text-align:center;">无匹配人员</div>';
             } else {
@@ -1302,7 +1302,7 @@
                         html += `<div class="search-select-group">${line}</div>`;
                     }
                     grouped[line].forEach(p => {
-                        html += `<div class="search-select-option" onclick="selectFilterParticipant(${p.id}, '${p.name.replace(/'/g, "\\'")}')">${p.name}</div>`;
+                        html += `<div class="search-select-option" data-pid="${p.id}" data-pname="${(p.name||'').replace(/"/g, '&quot;')}">${p.name}</div>`;
                     });
                 });
             }
@@ -1315,6 +1315,15 @@
             document.getElementById('filter-participant-dropdown').classList.remove('show');
             applyFilters();
         }
+        
+        // 事件委托：点击下拉项时调用selectFilterParticipant（避免内联onclick引号嵌套问题）
+        document.getElementById('filter-participant-dropdown').addEventListener('click', function(e) {
+            const opt = e.target.closest('.search-select-option');
+            if (!opt) return;
+            const pid = opt.getAttribute('data-pid') || '';
+            const pname = opt.getAttribute('data-pname') || '';
+            selectFilterParticipant(pid, pname);
+        });
         
         // 点击外部关闭下拉框
         document.addEventListener('click', function(e) {
