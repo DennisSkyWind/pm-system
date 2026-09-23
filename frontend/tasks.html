@@ -982,7 +982,7 @@
             const highlightId = urlParams.get('highlight');
             const editId = urlParams.get('edit');
             const targetId = highlightId || editId;
-            
+
             if (targetId) {
                 // 先清除所有筛选条件，确保目标任务可见
                 currentFilters = { status: '', project: '', priority: '', assignee: '', dateStart: '', dateEnd: '', search: '' };
@@ -992,8 +992,14 @@
                 const fs = document.getElementById('filter-status'); if (fs) fs.value = '';
                 const fse = document.getElementById('filter-search'); if (fse) fse.value = '';
             }
-            
-            await loadTasks();
+
+            try {
+                await loadTasks();
+                console.log('[init] loadTasks 完成');
+            } catch(e) {
+                console.error('[init] loadTasks 失败:', e);
+                console.error('[init] loadTasks 失败堆栈:', e?.stack);
+            }
             
             if (targetId) {
                 // loadTasks内部applyFilters已从DOM读取了清空后的筛选值，目标任务应该可见
