@@ -1194,18 +1194,32 @@
         // 切换项目下拉框显示
         function toggleProjectDropdown(type) {
             const dropdown = document.getElementById(`${type}-project-dropdown`);
+            if (!dropdown) return;
             const allDropdowns = document.querySelectorAll('.search-select-dropdown');
-            allDropdowns.forEach(d => { if (d.id !== `${type}-project-dropdown`) d.classList.remove('show'); });
+            allDropdowns.forEach(d => {
+                if (d.id !== `${type}-project-dropdown`) {
+                    d.classList.remove('show');
+                    d.style.display = '';
+                }
+            });
             dropdown.classList.toggle('show');
+            dropdown.style.display = '';
             if (dropdown.classList.contains('show')) renderProjectDropdown(type, '');
         }
-        
+
         // 切换负责人下拉框显示
         function toggleAssigneeDropdown(type) {
             const dropdown = document.getElementById(`${type}-assignee-dropdown`);
+            if (!dropdown) return;
             const allDropdowns = document.querySelectorAll('.search-select-dropdown');
-            allDropdowns.forEach(d => { if (d.id !== `${type}-assignee-dropdown`) d.classList.remove('show'); });
+            allDropdowns.forEach(d => {
+                if (d.id !== `${type}-assignee-dropdown`) {
+                    d.classList.remove('show');
+                    d.style.display = '';
+                }
+            });
             dropdown.classList.toggle('show');
+            dropdown.style.display = '';
             if (dropdown.classList.contains('show')) renderAssigneeDropdown(type, '');
         }
         
@@ -2548,7 +2562,7 @@
             if (search) search.value = '';
             // 关闭下拉框
             const dropdown = document.getElementById(`${prefix}-participant-dropdown`);
-            if (dropdown) dropdown.style.display = 'none';
+            if (dropdown) { dropdown.classList.remove('show'); dropdown.style.display = ''; }
         }
 
         function removeParticipant(prefix, personId) {
@@ -2589,8 +2603,8 @@
         function toggleParticipantDropdown(prefix) {
             const dropdown = document.getElementById(`${prefix}-participant-dropdown`);
             if (!dropdown) return;
-            const isVisible = dropdown.style.display === 'block';
-            dropdown.style.display = isVisible ? 'none' : 'block';
+            const isVisible = dropdown.classList.contains('show');
+            dropdown.classList.toggle('show');
             if (!isVisible) filterParticipantDropdown(prefix);
         }
 
@@ -2602,7 +2616,7 @@
             // 防御：personsList 可能还没加载（极端情况）
             if (typeof personsList === 'undefined' || !Array.isArray(personsList)) {
                 dropdown.innerHTML = '<div class="search-select-item" style="color:#e74c3c;padding:12px">人员数据未加载，请刷新页面重试</div>';
-                dropdown.style.display = 'block';
+                dropdown.classList.add('show');
                 return;
             }
             const query = search.value.trim().toLowerCase();
@@ -2621,13 +2635,17 @@
                     <span style="color:#999;font-size:0.85em">${p.line || '无条线'}${p.position ? ' · ' + p.position : ''}</span>
                 </div>`
             ).join('') || '<div class="search-select-item" style="color:#999;padding:12px">无匹配人员</div>';
-            dropdown.style.display = 'block';
+            dropdown.classList.add('show');
         }
 
-        // 点击外部关闭
+        // 点击外部关闭 - 用 .show class（避免和 .style.display 内联样式冲突）
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.search-select')) {
-                document.querySelectorAll('.search-select-dropdown').forEach(d => d.style.display = 'none');
+            // 如果点击的是下拉项本身，也不关闭（让点击下拉项的事件先处理）
+            if (!e.target.closest('.search-select') && !e.target.closest('.search-select-item')) {
+                document.querySelectorAll('.search-select-dropdown').forEach(d => {
+                    d.classList.remove('show');
+                    d.style.display = '';  // 清除可能的旧内联样式
+                });
             }
         });
 
