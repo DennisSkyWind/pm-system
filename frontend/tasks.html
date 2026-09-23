@@ -1114,30 +1114,67 @@
         // ========== 可搜索下拉框函数 ==========
         
         // 渲染项目下拉列表
-        function renderProjectDropdown(type, filter) {
+
+        // 通用下拉事件委托（避免内联onclick引号嵌套问题）
+        function bindDropdownClick(dropdown, idAttr, callback) {
+            if (!dropdown || dropdown._bound === idAttr) return;
+            dropdown._bound = idAttr;
+            dropdown.addEventListener('click', function(e) {
+                const opt = e.target.closest('.search-select-option');
+                if (!opt || !opt.hasAttribute(idAttr)) return;
+                const id = opt.getAttribute(idAttr);
+                const name = opt.getAttribute(idAttr.replace('-id', '-name')) || '';
+                const type = opt.getAttribute('data-select-type') || '';
+                callback(type, id, name);
+            });
+        }
+        
+        function selectProjectFromData(type, id, name) {
+            selectProject(type, String(id), name);
+        }
+        
+        function selectAssigneeFromData(type, id, name) {
+            selectAssignee(type, String(id), name);
+        }
+
+                function renderProjectDropdown(type, filter) {
             const dropdown = document.getElementById(`${type}-project-dropdown`);
+            if (!dropdown) return;
+            if (typeof projectsList === 'undefined' || !Array.isArray(projectsList)) {
+                dropdown.innerHTML = '<div class="search-select-option" style="color:#e74c3c;padding:12px">项目数据未加载，请刷新</div>';
+                return;
+            }
             const keyword = filter ? filter.toLowerCase() : '';
             const filtered = projectsList.filter(p => p.status !== 'archived' && (!keyword || p.name.toLowerCase().includes(keyword)));
             
             let html = '<div class="search-select-option" onclick="selectProject(\''+type+'\', \'\', \'无项目\')">无项目</div>';
             filtered.forEach(p => {
-                html += `<div class="search-select-option" onclick="selectProject('${type}', '${p.id}', '${p.name}')">${p.name}</div>`;
+                const safeName = (p.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                html += `<div class="search-select-option" data-project-id="${p.id}" data-project-name="${safeName}" data-select-type="${type}" style="cursor:pointer;">${safeName}</div>`;
             });
             dropdown.innerHTML = html;
+            bindDropdownClick(dropdown, 'data-project-id', selectProjectFromData);
         }
         
         // 渲染负责人下拉列表
         function renderAssigneeDropdown(type, filter) {
             const dropdown = document.getElementById(`${type}-assignee-dropdown`);
+            if (!dropdown) return;
+            if (typeof personsList === 'undefined' || !Array.isArray(personsList)) {
+                dropdown.innerHTML = '<div class="search-select-option" style="color:#e74c3c;padding:12px">人员数据未加载，请刷新</div>';
+                return;
+            }
             const keyword = filter ? filter.toLowerCase() : '';
             const filtered = personsList.filter(p => !keyword || p.name.toLowerCase().includes(keyword));
             
             let html = '<div class="search-select-option" onclick="selectAssignee(\''+type+'\', \'\', \'未指定\')">未指定</div>';
             filtered.forEach(p => {
                 const label = `${p.name}${p.position ? ' (' + p.position + ')' : ''}`;
-                html += `<div class="search-select-option" onclick="selectAssignee('${type}', '${p.id}', '${label}')">${label}</div>`;
+                const safeLabel = label.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                html += `<div class="search-select-option" data-assignee-id="${p.id}" data-assignee-name="${safeLabel}" data-select-type="${type}" style="cursor:pointer;">${safeLabel}</div>`;
             });
             dropdown.innerHTML = html;
+            bindDropdownClick(dropdown, 'data-assignee-id', selectAssigneeFromData);
         }
         
         // 切换项目下拉框显示
@@ -1230,6 +1267,11 @@
         
         function renderFilterAssigneeDropdown(filter) {
             const dropdown = document.getElementById('filter-assignee-dropdown');
+            if (!dropdown) return;
+            if (typeof personsList === 'undefined' || !Array.isArray(personsList)) {
+                dropdown.innerHTML = '<div class="search-select-option" style="color:#e74c3c;padding:12px">人员数据未加载，请刷新</div>';
+                return;
+            }
             const keyword = filter ? filter.toLowerCase() : '';
             
             // 按条线分组
@@ -1286,9 +1328,14 @@
 
         function renderFilterParticipantDropdown(filter) {
             const dropdown = document.getElementById('filter-participant-dropdown');
+            if (!dropdown) return;
+            if (typeof personsList === 'undefined' || !Array.isArray(personsList)) {
+                dropdown.innerHTML = '<div class="search-select-option" style="color:#e74c3c;padding:12px">人员数据未加载，请刷新</div>';
+                return;
+            }
             const keyword = filter ? filter.toLowerCase() : '';
             const grouped = {};
-            (persons || personsList || []).forEach(p => {
+            personsList.forEach(p => {
                 const line = p.line || '其他';
                 if (!keyword || p.name.toLowerCase().includes(keyword)) {
                     if (!grouped[line]) grouped[line] = [];
