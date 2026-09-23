@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>PM系统诊断工具</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #0f0; }
+        .ok { color: #0f0; }
+        .err { color: #f00; font-weight: bold; }
+        .warn { color: #ff0; }
+        pre { background: #000; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        button { padding: 10px 20px; margin: 5px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🔍 PM系统诊断工具</h1>
+    <p>用于定位 tasks.html 下拉菜单不显示的真正原因</p>
+
+    <button onclick="runDiagnostics()">🚀 运行诊断</button>
+    <button onclick="location.href='tasks.html'">→ 回到 tasks.html</button>
+
+    <h2>诊断结果：</h2>
+    <pre id="result">点击上方按钮开始诊断...</pre>
+
+    <h2>手动验证：</h2>
+    <pre id="manual">在 tasks.html 页面，按 F12 → Console → 输入下面任一指令：
+    typeof projectsList           // 应返回 "object"
+    projectsList.length            // 应返回 5 左右
+    typeof personsList            // 应返回 "object"
+    personsList.length            // 应返回 40+
+    typeof renderProjectDropdown  // 应返回 "function"
+    typeof filterParticipantDropdown  // 应返回 "function"
+    localStorage.getItem('pm_token')  // 应返回一串字符，不是 null</pre>
+
+    <script>
+    async function runDiagnostics() {
+        const r = document.getElementById('result');
+        const out = [];
+        function add(s, cls='') { out.push(`<span class="${cls}">${s}</span>`); r.innerHTML = out.join('\n'); }
+
+        add('=== 1. 基础环境 ===');
+        add('当前URL: ' + location.href);
+        add('localStorage.pm_token: ' + (localStorage.getItem('pm_token') ? '存在' : '❌ 不存在'));
+        add('localStorage.pm_user: ' + (localStorage.getItem('pm_user') ? '存在' : '❌ 不存在'));
+        add('');
+
+        // 测试API连接
+        add('=== 2. API连通性 ===');
+        const token = localStorage.getItem('pm_token');
+        const headers = token ? {'Authorization': 'Bearer ' + token} : {};
+
+        try {
+            const r1 = await fetch('/api/projects', {headers});
+            const d1 = await r1.json();
+            add(`GET /api/projects: HTTP ${r1.status}, 返回 ${d1.projects ? d1.projects.length : 'N/A'} 个项目`, r1.ok ? 'ok' : 'err');
+        } catch(e) { add('GET /api/projects: ❌ ' + e.message, 'err'); }
+
+        try {
+            const r2 = await fetch('/api/persons', {headers});
+            const d2 = await r2.json();
+            add(`GET /api/persons: HTTP ${r2.status}, 返回 ${d2.persons ? d2.persons.length : 'N/A'} 个人员`, r2.ok ? 'ok' : 'err');
+        } catch(e) { add('GET /api/persons: ❌ ' + e.message, 'err'); }
+
+        add('');
+
+        // 加载tasks.html的JS（用iframe）
+        add('=== 3. tasks.html JS状态 ===');
+        const iframe = document.createElement('iframe');
+        iframe.src = 'tasks.html';
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+
+        await new Promise(resolve => {
+            iframe.onload = () => setTimeout(resolve, 4000);  // 等4秒让init跑完
+        });
+
+        try {
+            const iframeWin = iframe.contentWindow;
+            add('iframe是否加载: ' + (iframeWin ? '是' : '否'));
+            add('typeof projectsList: ' + typeof iframeWin.projectsList, iframeWin.projectsList ? 'ok' : 'err');
+            add('projectsList.length: ' + (iframeWin.projectsList ? iframeWin.projectsList.length : 'N/A'));
+            add('typeof personsList: ' + typeof iframeWin.personsList, iframeWin.personsList ? 'ok' : 'err');
+            add('personsList.length: ' + (iframeWin.personsList ? iframeWin.personsList.length : 'N/A'));
+            add('typeof renderProjectDropdown: ' + typeof iframeWin.renderProjectDropdown);
+            add('typeof renderAssigneeDropdown: ' + typeof iframeWin.renderAssigneeDropdown);
+            add('typeof filterParticipantDropdown: ' + typeof iframeWin.filterParticipantDropdown);
+
+            // 触发下拉看是否报错
+            try {
+                iframeWin.renderProjectDropdown('task', '');
+                const dd = iframeWin.document.getElementById('task-project-dropdown');
+                add(`项目下拉内容长度: ${dd.innerHTML.length}, 选项数: ${dd.querySelectorAll('.search-select-option').length}`);
+            } catch(e) {
+                add('❌ renderProjectDropdown 抛错: ' + e.message, 'err');
+            }
+
+            try {
+                iframeWin.filterParticipantDropdown('task');
+                const dd = iframeWin.document.getElementById('task-participant-dropdown');
+                add(`参与人下拉内容长度: ${dd.innerHTML.length}, 选项数: ${dd.querySelectorAll('.search-select-item').length}`);
+            } catch(e) {
+                add('❌ filterParticipantDropdown 抛错: ' + e.message, 'err');
+            }
+
+        } catch(e) {
+            add('iframe诊断失败: ' + e.message, 'err');
+        }
+
+        iframe.remove();
+    }
+    </script>
+</body>
+</html>

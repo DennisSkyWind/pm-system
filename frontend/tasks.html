@@ -965,9 +965,17 @@
         
         // 加载初始数据
         async function init() {
-            await initUserInfo();
-            await loadProjects();
-            await loadPersons();
+            try {
+                await initUserInfo();
+            } catch(e) { console.error('[init] initUserInfo 失败:', e); }
+            try {
+                await loadProjects();
+                console.log('[init] loadProjects 完成, projectsList.length =', projectsList.length);
+            } catch(e) { console.error('[init] loadProjects 失败:', e); }
+            try {
+                await loadPersons();
+                console.log('[init] loadPersons 完成, personsList.length =', personsList.length);
+            } catch(e) { console.error('[init] loadPersons 失败:', e); }
             
             // Ctrl+K搜索跳转定位：在loadTasks之前先读取highlight参数
             const urlParams = new URLSearchParams(window.location.search);
