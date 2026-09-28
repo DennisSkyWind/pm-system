@@ -2505,14 +2505,14 @@ def export_performance():
     """导出绩效数据（Excel）"""
     import openpyxl
     from io import BytesIO
-    
+
     period_type = request.args.get('period_type', 'monthly')
     year = request.args.get('year', type=int)
     period = request.args.get('period', type=int)
-    
+
     conn = get_db()
     cursor = conn.cursor()
-    
+
     query = '''SELECT p.*, per.name as person_name, per.line, per.position
                FROM performance p
                LEFT JOIN person per ON p.person_id = per.id
@@ -2525,11 +2525,30 @@ def export_performance():
         query += ' AND p.period = ?'
         params.append(period)
     query += ' ORDER BY per.line, per.name'
-    
+
     cursor.execute(query, params)
     records = cursor.fetchall()
+
+    # 没有数据时返回友好提示（而不是空xlsx，避免误导用户）
+    if not records:
+        conn.close()
+        period_names = {'monthly': '月度', 'quarterly': '季度', 'annual': '年度'}
+        period_label = period_names.get(period_type, period_type)
+        period_desc = f"{year or '全部年份'}年"
+        if period_type == 'quarterly' and period is not None:
+            period_desc += f"Q{period}"
+        elif period_type == 'annual':
+            period_desc += "全年"
+        elif period_type == 'monthly' and period is not None:
+            period_desc += f"{period}月"
+        return jsonify({
+            'success': False,
+            'error': f'{period_desc} 暂无{period_label}绩效数据。请先录入后再导出。',
+            'hint': '可考虑后续添加"自动从月度汇总季度/年度"的功能（暂未实现）'
+        }), 404
+
     conn.close()
-    
+
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = '绩效数据'
