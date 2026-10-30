@@ -2007,14 +2007,19 @@ def write_issue_to_memos(issue_id, data):
     subprocess.run(['python3', MEMOS_SCRIPT, content], capture_output=True)
 
 def send_dingtalk_notification(message):
-    """发送钉钉通知"""
+    """发送钉钉通知（copaw channel send；旧版 copaw notify 命令已不存在）"""
     try:
-        # 使用copaw发送钉钉消息
-        result = subprocess.run(
-            ['copaw', 'notify', '--channel', 'dingtalk', '--message', message],
-            capture_output=True, text=True, timeout=30
-        )
-        return result.returncode == 0
+        cmd = ['copaw', 'channel', 'send',
+               '--agent-id', os.environ.get('PM_AGENT_ID', 'default'),
+               '--channel', 'dingtalk',
+               '--target-user', os.environ.get('PM_TARGET_USER', '周泓武#vQ=='),
+               '--target-session', os.environ.get('PM_TARGET_SESSION', 'Ux/CHNs='),
+               '--text', message]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
+        if result.returncode != 0:
+            print(f"钉钉通知发送失败 rc={result.returncode}: {result.stderr[:200]}")
+            return False
+        return '"success": true' in result.stdout
     except Exception as e:
         print(f"钉钉通知发送失败: {e}")
         return False
@@ -2030,7 +2035,7 @@ def get_reminders():
     conn = get_db()
     cursor = conn.cursor()
     
-    query = 'SELECT r.*, t.name as task_name, t.due_date as task_due_date FROM reminder r LEFT JOIN task t ON r.task_id = t.id WHERE 1=1'
+    query = 'SELECT r.*, t.name as task_name, t.due_date as task_due_date, t.status as task_status, t.progress as task_progress FROM reminder r LEFT JOIN task t ON r.task_id = t.id WHERE 1=1'
     params = []
     
     if status:
@@ -2040,11 +2045,38 @@ def get_reminders():
         query += ' AND r.task_id = ?'
         params.append(task_id)
     
+    # upcoming=1：仅返回“即将到期/当前确实逾期”且任务仍未完成的提醒（Dashboard 用）
+    if request.args.get('upcoming') == '1':
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        horizon = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d')
+        query += (" AND t.status IN ('in_progress', 'pending')"
+                  " AND (COALESCE(t.due_date, r.reminder_date) BETWEEN ? AND ?"
+                  "      OR COALESCE(t.due_date, r.reminder_date) < ?)")
+        params.extend([today_str, horizon, today_str])
+    
     query += ' ORDER BY r.reminder_date ASC'
     cursor.execute(query, params)
     
     reminders = [dict(row) for row in cursor.fetchall()]
     conn.close()
+    
+    # 同一任务可能有多条提醒记录（不同档位/历史快照），Dashboard 需按任务去重取最新一条
+    if request.args.get('upcoming') == '1':
+        latest = {}
+        for item in reminders:
+            tid = item.get('task_id')
+            if tid not in latest or (item.get('id') or 0) > (latest[tid].get('id') or 0):
+                latest[tid] = item
+        reminders = sorted(latest.values(), key=lambda x: (x.get('due_date') or '', x.get('id') or 0))
+    
+    # 前端 Dashboard 渲染依赖 name / due_date / is_delayed，这里补齐别名，避免 undefined
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    for item in reminders:
+        item['name'] = item.get('task_name') or ''
+        item['due_date'] = item.get('task_due_date') or item.get('reminder_date') or ''
+        # 延期标记以“当前实际截止日是否已过”为准，不沿用历史 reminder_type 快照
+        item['is_delayed'] = 1 if (item['due_date'] and item['due_date'] < today_str) else 0
+        item['is_overdue_type'] = 1 if item.get('reminder_type') == 'overdue' else 0
     
     return jsonify({'success': True, 'reminders': reminders})
 

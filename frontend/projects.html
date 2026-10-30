@@ -132,6 +132,7 @@
                         <th>状态</th>
                         <th>进度</th>
                         <th>优先级</th>
+                        <th>分类</th>
                         <th>负责人</th>
                         <th>目标截止</th>
                         <th>操作</th>
@@ -162,6 +163,12 @@
                     <option value="high">高</option>
                     <option value="medium" selected>中</option>
                     <option value="low">低</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>项目分类</label>
+                <select id="project-category">
+                    <option value="">未分类</option>
                 </select>
             </div>
             <div class="form-group">
@@ -218,6 +225,12 @@
                     <option value="high">高</option>
                     <option value="medium">中</option>
                     <option value="low">低</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>项目分类</label>
+                <select id="edit-project-category">
+                    <option value="">未分类</option>
                 </select>
             </div>
             <div class="form-group">
@@ -396,7 +409,10 @@
                 const statusClass = `status-${p.status}`;
                 const statusText = p.status === 'in_progress' ? '进行中' : p.status === 'completed' ? '已完成' : p.status === 'archived' ? '已结项' : '待开始';
                 const priorityText = p.priority === 'high' ? '高' : p.priority === 'medium' ? '中' : '低';
-                
+                const categoryBadge = p.category_name
+                    ? `<span class="category-badge" style="background:${p.category_color||'#667eea'};color:white;padding:2px 8px;border-radius:10px;font-size:11px">${p.category_name}</span>`
+                    : '<span style="color:#bbb;font-size:12px">-</span>';
+
                 // 延期警告
                 const isOverdue = p.target_end_date && p.target_end_date < today && p.status !== 'completed' && p.status !== 'archived';
                 const overdueWarning = isOverdue ? '<span class="overdue-badge">延期</span>' : '';
@@ -414,6 +430,7 @@
                             <span style="font-size:12px">${p.progress}%</span>
                         </td>
                         <td><span class="${priorityClass}">${priorityText}</span></td>
+                        <td>${categoryBadge}</td>
                         <td>${p.owner_name || '-'}</td>
                         <td class="${endDateClass}">${p.target_end_date || '-'}${overdueWarning}</td>
                         <td>
@@ -462,6 +479,8 @@
                     // 填充负责人搜索框
                     document.getElementById('edit-project-owner').value = p.owner_id || '';
                     document.getElementById('edit-project-owner-search').value = p.owner_name || '';
+                    // 填充分类
+                    document.getElementById('edit-project-category').value = p.category_id || '';
                     document.getElementById('edit-project-modal').classList.add('show');
                 });
         }
@@ -478,6 +497,26 @@
             renderOwnerDropdown('new', '');
             renderOwnerDropdown('edit', '');
         }
+
+        async function loadProjectCategories() {
+            const res = await authFetch(`${API}/project-categories`);
+            if (!res || !res.ok) return;
+            const data = await res.json();
+            categoriesList = data.categories || [];
+            renderCategoryDropdown('new', categoriesList);
+            renderCategoryDropdown('edit', categoriesList);
+        }
+
+        function renderCategoryDropdown(type, categories) {
+            const sel = document.getElementById(`${type}-project-category`);
+            if (!sel) return;
+            sel.innerHTML = '<option value="">未分类</option>';
+            categories.forEach(c => {
+                sel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+            });
+        }
+
+        let categoriesList = [];
         
         // 渲染负责人下拉列表
         function renderOwnerDropdown(type, filter) {
@@ -532,19 +571,20 @@
             const status = document.getElementById('new-project-status').value;
             const endDate = document.getElementById('project-end-date').value;
             const ownerId = document.getElementById('new-project-owner').value;
-            
+            const categoryId = document.getElementById('project-category').value;
+
             if (!name) { alert('请输入项目名称'); return; }
-            
+
             await authFetch(`${API}/projects`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, description: desc, priority, status, target_end_date: endDate, owner_id: ownerId || null })
+                body: JSON.stringify({ name, description: desc, priority, status, target_end_date: endDate, owner_id: ownerId || null, category_id: categoryId || null })
             });
-            
+
             hideModal('new-project-modal');
             loadProjects();
         }
-        
+
         async function updateProject() {
             const id = document.getElementById('edit-project-id').value;
             const name = document.getElementById('edit-project-name').value;
@@ -553,25 +593,26 @@
             const priority = document.getElementById('edit-project-priority').value;
             const endDate = document.getElementById('edit-project-end-date').value;
             const ownerId = document.getElementById('edit-project-owner').value;
-            
+            const categoryId = document.getElementById('edit-project-category').value;
+
             if (!name) { alert('请输入项目名称'); return; }
-            
+
             await authFetch(`${API}/projects/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, description: desc, status, priority, target_end_date: endDate, owner_id: ownerId || null })
+                body: JSON.stringify({ name, description: desc, status, priority, target_end_date: endDate, owner_id: ownerId || null, category_id: categoryId || null })
             });
-            
+
             hideModal('edit-project-modal');
             loadProjects();
         }
-        
+
         async function deleteProject(id) {
             if (!confirm('确定删除此项目？')) return;
             await authFetch(`${API}/projects/${id}`, { method: 'DELETE' });
             loadProjects();
         }
-        
+
         // ========== 结项功能 ==========
         
         async function showArchiveModal(id) {
@@ -803,7 +844,7 @@
             URL.revokeObjectURL(csvUrl);
         }
         
-        document.addEventListener('DOMContentLoaded', async () => { const u = await initAuthPage(); if (u) { loadProjects(); loadPersons(); } });
+        document.addEventListener('DOMContentLoaded', async () => { const u = await initAuthPage(); if (u) { loadProjects(); loadPersons(); loadProjectCategories(); } });
     </script>
     <script src="dark-mode.js"></script>
 </body>
