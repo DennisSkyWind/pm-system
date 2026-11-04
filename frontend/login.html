@@ -161,8 +161,15 @@
         }
     </style>
     <link rel="stylesheet" href="mobile.css">
+    <link rel="stylesheet" href="theme-tech.css">
+    <link rel="stylesheet" href="theme-enterprise.css">
 </head>
 <body>
+    <!-- 主题切换按钮（登录页浮动） -->
+    <div style="position:fixed;top:16px;right:16px;z-index:9999;display:flex;align-items:center;gap:8px;">
+        <span class="dark-mode-btn" title="切换主题">🌙</span>
+    </div>
+
     <div class="login-container">
         <div class="login-header">
             <h1>📋 项目管理系统</h1>
@@ -285,5 +292,6 @@
         // 页面加载检查登录状态
         checkAlreadyLogin();
     </script>
+    <script src="dark-mode.js"></script>
 </body>
 </html>

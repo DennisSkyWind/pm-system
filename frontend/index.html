@@ -90,6 +90,8 @@
         .btn-secondary { background: #e0e0e0; color: #333; border: none; }
     </style>
     <link rel="stylesheet" href="dark-mode.css">
+    <link rel="stylesheet" href="theme-tech.css">
+    <link rel="stylesheet" href="theme-enterprise.css">
     <link rel="stylesheet" href="common.css">
     <link rel="stylesheet" href="mobile.css">
 </head>
@@ -442,7 +444,7 @@
                 renderWorkload(allTasks, personsData.persons);
                 
                 // 提醒
-                const remindersRes = await authFetch(API + '/reminders');
+                const remindersRes = await authFetch(API + '/reminders?upcoming=1');
                 const remindersData = await remindersRes.json();
                 renderReminders(remindersData.reminders);
                 
@@ -634,8 +636,8 @@
             
             container.innerHTML = reminders.map(r => `
                 <div class="task-item">
-                    <span class="task-name">${r.name}</span>
-                    <span class="task-due">${r.due_date}</span>
+                    <span class="task-name">${r.name || r.task_name || '未命名任务'}</span>
+                    <span class="task-due">${r.due_date || r.task_due_date || '无截止日期'}</span>
                     ${r.is_delayed ? '<span class="delayed-badge">延期</span>' : '<span class="warning-badge">即将到期</span>'}
                 </div>
             `).join('');

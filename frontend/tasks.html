@@ -43,7 +43,8 @@
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e0e0e0; }
         th { background: #f9f9f9; font-weight: 600; color: #666; font-size: 13px; }
-        tr:hover { background: #f5f5f5; }
+        tr:hover { background: #f0f4ff !important; cursor: pointer; }
+        tbody tr:not(.selected):hover td { background: #f0f4ff !important; }
         tr.selected { background: #e3f2fd; }
         
         /* 复选框 */
@@ -98,7 +99,7 @@
         .stat-card.delayed .number { color: #f44336; }
         
         /* 新增按钮 */
-        .new-btn { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 50%; font-size: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .new-btn { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 50%; font-size: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9997; }
         
         /* 模态框 */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
@@ -243,15 +244,26 @@
         .preview-handwritten .p-card { display: flex; gap: 3px; font-size: 6px; }
         .preview-handwritten .p-task { padding: 3px 0; font-size: 7px; display: flex; align-items: center; }
         .preview-handwritten .p-check { width: 6px; height: 6px; border: 1px solid #666; border-radius: 50%; margin-right: 4px; }
+
+        /* ===== Toast 提示系统 ===== */
+        .toast-container { position: fixed; top: 80px; right: 20px; z-index: 100000; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+        .toast { padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: toastIn 0.3s ease; pointer-events: auto; max-width: 320px; line-height: 1.4; }
+        .toast.success { background: #2e7d32; color: white; border-left: 4px solid #66bb6a; }
+        .toast.error { background: #c62828; color: white; border-left: 4px solid #ef5350; }
+        .toast.info { background: #1565c0; color: white; border-left: 4px solid #42a5f5; }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(20px); } }
     </style>
     <link rel="stylesheet" href="dark-mode.css">
+    <link rel="stylesheet" href="theme-tech.css">
+    <link rel="stylesheet" href="theme-enterprise.css">
     <link rel="stylesheet" href="common.css">
     <link rel="stylesheet" href="mobile.css">
 </head>
 <body>
     <header>
         <h1>📊 任务管理</h1>
-        <nav><a href="index.html">Dashboard</a><a href="projects.html">项目列表</a><a href="tasks.html" class="active">任务管理</a><a href="gantt.html">甘特图</a><a href="issues.html">问题追踪</a><a href="report.html">📊 报告</a><a href="performance.html">📊 绩效</a><a href="persons.html">👥 人员</a><a href="phases.html">阶段管理</a><a href="templates.html">📋 模板</a><a href="reminders.html">🔔 提醒</a><a href="settings.html">⚙️ 设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span><a href="https://github.com/DennisSkyWind/pm-system" target="_blank" title="GitHub仓库" style="cursor:pointer;font-size:18px;margin-left:8px;color:inherit;text-decoration:none;"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" style="vertical-align:middle;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg></a></nav>
+        <nav><a href="index.html">Dashboard</a><a href="projects.html">项目列表</a><a href="tasks.html" class="active">任务管理</a><a href="gantt.html">甘特图</a><a href="issues.html">问题追踪</a><a href="report.html">📊 报告</a><a href="performance.html">📊 绩效</a><a href="persons.html">👥 人员</a><a href="phases.html">阶段管理</a><a href="templates.html">📋 模板</a><a href="reminders.html">🔔 提醒</a><a href="settings.html">⚙️ 设置</a><span style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)"><span style="font-size:13px;font-weight:500;opacity:0.9">🔍 搜索</span> <span style="background:rgba(255,255,255,0.25);padding:1px 6px;border-radius:4px;font-size:11px;opacity:0.8">Ctrl+K</span></span><span id="notification-bell" style="cursor:pointer;position:relative;font-size:18px;margin-left:8px;" onclick="toggleNotificationPanel()" title="通知">🔔<span id="notification-badge" style="display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;">0</span></span><span class="dark-mode-btn" style="cursor:pointer;font-size:18px;margin-left:8px;" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span><a href="https://github.com/DennisSkyWind/pm-system" target="_blank" title="GitHub仓库" style="cursor:pointer;font-size:18px;margin-left:8px;color:inherit;text-decoration:none;"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" style="vertical-align:middle;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg></a></nav>
     </header>
     
 
@@ -323,16 +335,21 @@
                 <strong>视图：</strong>
                 <button class="filter-btn active" id="view-list-btn" onclick="switchView('list')">📋 列表</button>
                 <button class="filter-btn" id="view-kanban-btn" onclick="switchView('kanban')">📌 看板</button>
+                <button onclick="showNewTaskModal()" style="margin-left:8px;padding:6px 14px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;">+ 新建任务</button>
                 <strong style="margin-left:15px;">状态筛选：</strong>
                 <button class="filter-btn" data-filter="status" data-value="" onclick="setFilter('status', '')">全部</button>
                 <button class="filter-btn" data-filter="status" data-value="uncompleted" onclick="setFilter('status', 'uncompleted')">未完成</button>
                 <button class="filter-btn" data-filter="status" data-value="pending" onclick="setFilter('status', 'pending')">待处理</button>
                 <button class="filter-btn" data-filter="status" data-value="in_progress" onclick="setFilter('status', 'in_progress')">进行中</button>
                 <button class="filter-btn" data-filter="status" data-value="completed" onclick="setFilter('status', 'completed')">已完成</button>
+                <button class="filter-btn" id="filter-unrated-btn" data-filter="status" data-value="unrated" onclick="setFilter('status', 'unrated')" title="显示所有已完成但尚未评价的任务">
+                    ⭐ 未评价 <span id="unrated-count" style="display:inline-block;min-width:18px;padding:0 5px;margin-left:3px;border-radius:9px;background:#e53935;color:#fff;font-size:11px;font-weight:600;line-height:18px;text-align:center;vertical-align:middle;">0</span>
+                </button>
                 <button class="filter-btn" data-filter="status" data-value="cancelled" onclick="setFilter('status', 'cancelled')">已中止</button>
             </div>
             <div class="toolbar-row">
                 <strong>高级筛选：</strong>
+                <span style="font-size:11px;color:#bbb;margin-right:4px;" title="所有筛选条件同时生效（AND关系）">⟨AND⟩</span>
                 <select id="filter-project" onchange="applyFilters()">
                     <option value="">所有项目</option>
                 </select>
@@ -817,14 +834,14 @@
                     _gsData.projects = (await pR.json()).projects || [];
                     _gsData.tasks = (await tR.json()).tasks || [];
                     _gsData.persons = (await peR.json()).persons || [];
-                } catch(e) {}
+                } catch(e) { console.error('搜索数据加载失败', e); }
             }
             const res = [];
             _gsData.projects.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'project',i:'📁',n:p.name,d:`进度 ${p.progress||0}%`,l:`projects.html?highlight=${p.id}`,aid:p.id}));
             _gsData.tasks.filter(t => (t.name||'').toLowerCase().includes(q)).slice(0,8).forEach(t => res.push({t:'task',i:'📋',n:t.name,d:`${t.project_name||''} · ${t.assignee_name||'未分配'}`,l:`tasks.html?highlight=${t.id}`,aid:t.id}));
             _gsData.persons.filter(p => p.name.toLowerCase().includes(q)).slice(0,5).forEach(p => res.push({t:'person',i:'👤',n:p.name,d:`${p.line||''} ${p.position||''}`,l:`persons.html?highlight=${p.id}`,aid:p.id}));
             const c = document.getElementById('global-search-results');
-            if (!res.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#999">未找到相关结果</div>'; return; }
+            if (!res.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#999">没有找到相关结果，试试其他关键词</div>'; return; }
             c.innerHTML = res.map(r => `<a href="${r.l}" onclick="handleSearchClick(event,'${r.t}',${r.aid})" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:8px;text-decoration:none;color:#333" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background=''"><span style="font-size:18px">${r.i}</span><div style="flex:1"><div style="font-weight:500">${r.n}</div><div style="font-size:12px;color:#888">${r.d}</div></div><span style="font-size:11px;color:#bbb;background:#f5f5f5;padding:2px 6px;border-radius:3px">${r.t==='project'?'项目':r.t==='task'?'任务':'人员'}</span></a>`).join('');
         }
         function handleSearchClick(e, type, id) {
@@ -887,7 +904,7 @@
                 const unread = data.unread_count || 0;
                 if (badge) { badge.textContent = unread; badge.style.display = unread > 0 ? 'inline' : 'none'; }
                 const notifs = data.notifications || [];
-                if (!notifs.length) { list.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">暂无通知</div>'; return; }
+                if (!notifs.length) { list.innerHTML = '<div style="padding:30px;text-align:center;color:#999;">暂无新通知</div>'; return; }
                 const typeIcons = { task_assign: '📋', task_complete: '✅', comment: '💬', info: 'ℹ️', warning: '⚠️' };
                 list.innerHTML = notifs.map(n => `<div style="padding:10px 16px;border-bottom:1px solid #f5f5f5;${n.is_read?'':'background:#f0f4ff;'}cursor:pointer;" onclick="handleNotificationClick(${n.id}, '${n.entity_type||''}', ${n.entity_id||0})"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:16px;">${typeIcons[n.type]||'🔔'}</span><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:${n.is_read?'400':'600'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.title||''}</div><div style="font-size:12px;color:#888;margin-top:2px;">${n.content||''}</div><div style="font-size:11px;color:#bbb;margin-top:3px;">${(n.created_at||'').replace('T',' ').substring(0,16)}</div></div></div></div>`).join('');
             } catch(e) { console.error('加载通知失败', e); }
@@ -924,7 +941,7 @@
                     if (data.success && data.user) {
                         localStorage.setItem('pm_user', JSON.stringify(data.user));
                     }
-                } catch(e) {}
+                } catch(e) { console.error('用户信息加载失败', e); }
             }
         }
         
@@ -1109,13 +1126,16 @@
         
         function updateStats() {
             const today = new Date().toISOString().split('T')[0];
-            let pending = 0, inProgress = 0, completed = 0, cancelled = 0, delayed = 0;
+            let pending = 0, inProgress = 0, completed = 0, cancelled = 0, delayed = 0, unrated = 0;
             
             allTasks.forEach(t => {
                 if (t.status === 'pending') pending++;
                 else if (t.status === 'in_progress') inProgress++;
                 else if (t.status === 'completed') completed++;
                 else if (t.status === 'cancelled') cancelled++;
+                
+                // 未评价：已完成但 rating 为空（NULL / 空串都算）
+                if (t.status === 'completed' && !t.rating) unrated++;
                 
                 if (t.due_date && t.due_date < today && t.status !== 'completed' && t.status !== 'cancelled') {
                     delayed++;
@@ -1127,6 +1147,14 @@
             document.getElementById('stat-completed').textContent = completed;
             document.getElementById('stat-cancelled').textContent = cancelled;
             document.getElementById('stat-delayed').textContent = delayed;
+            
+            // 未评价计数徽标
+            const unratedEl = document.getElementById('unrated-count');
+            if (unratedEl) {
+                unratedEl.textContent = unrated;
+                const btn = document.getElementById('filter-unrated-btn');
+                if (btn) btn.style.display = unrated > 0 ? '' : 'none';
+            }
         }
         
         // ========== 可搜索下拉框函数 ==========
@@ -1186,6 +1214,10 @@
             const filtered = personsList.filter(p => !keyword || p.name.toLowerCase().includes(keyword));
             
             let html = '<div class="search-select-option" onclick="selectAssignee(\''+type+'\', \'\', \'未指定\')">未指定</div>';
+            if (filtered.length === 0) {
+                dropdown.innerHTML = '<div class="search-select-option" style="color:#999;padding:12px;text-align:center;">无匹配人员</div>';
+                return;
+            }
             filtered.forEach(p => {
                 const label = `${p.name}${p.position ? ' (' + p.position + ')' : ''}`;
                 const safeLabel = label.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -1423,6 +1455,11 @@
                 if (btn.dataset.value === value) btn.classList.add('active');
             });
             
+            // "未评价"只在列表视图有意义（看板按状态分列，评价不属状态）
+            if (value === 'unrated' && currentView !== 'list') {
+                switchView('list');
+            }
+            
             applyFilters();
         }
         
@@ -1436,7 +1473,10 @@
             currentFilters.search = document.getElementById('filter-search').value.toLowerCase();
             
             filteredTasks = allTasks.filter(t => {
-                if (currentFilters.status === 'uncompleted') {
+                if (currentFilters.status === 'unrated') {
+                    // 未评价 = 已完成 且 rating 为空（NULL 或空串都算未评价）
+                    if (t.status !== 'completed' || t.rating) return false;
+                } else if (currentFilters.status === 'uncompleted') {
                     if (t.status === 'completed' || t.status === 'cancelled') return false;
                 } else if (currentFilters.status && t.status !== currentFilters.status) return false;
                 if (currentFilters.project && t.project_id != currentFilters.project) return false;
@@ -1580,7 +1620,7 @@
                 await loadTasks();
                 renderKanban();
             } else {
-                alert(data.error || '状态更新失败');
+                showToast(data.error || '状态更新失败', 'error');
             }
         }
         
@@ -1590,7 +1630,7 @@
             const today = new Date().toISOString().split('T')[0];
             
             if (filteredTasks.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#999;padding:30px;">暂无符合条件的任务</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#999;padding:30px;">暂无符合条件的任务，试试调整筛选条件或新建一个任务</td></tr>';
                 return;
             }
             
@@ -1624,6 +1664,7 @@
                                 ${t.status === 'completed' ? '✅ 已完成' : t.status === 'cancelled' ? '❌ 已中止' : t.status === 'in_progress' ? '⏳ 进行中' : '⏸️ 待处理'}
                             </span>
                             ${t.rating && ratingLabels[t.rating] ? `<span style="margin-left:4px;font-size:0.8em;" title="${ratingLabels[t.rating]}">${ratingIcons[t.rating]}</span>` : ''}
+                            ${t.status === 'completed' && !t.rating ? `<span style="margin-left:4px;font-size:0.8em;background:#fff3e0;color:#e65100;border:1px solid #ffcc80;border-radius:9px;padding:0 6px;font-weight:600;" title="已完成，尚未评价">待评价</span>` : ''}
                         </td>
                         <td>
                             <div class="progress-cell" style="cursor: pointer;" onclick="showProgressModal(${t.id}, ${t.progress || 0})" title="点击调整进度">
@@ -1699,7 +1740,7 @@
         
         // 批量操作
         function showBatchStatusModal() {
-            if (selectedTasks.length === 0) return alert('请先选择任务');
+            if (selectedTasks.length === 0) showToast('请先选择任务', 'info'); return;
             document.getElementById('batch-status-modal').classList.add('show');
         }
         
@@ -1719,14 +1760,14 @@
                 hideBatchStatusModal();
                 clearSelection();
                 await loadTasks();
-                alert(`已将 ${selectedTasks.length} 个任务状态修改为 "${status}"`);
+                showToast(`已将 ${selectedTasks.length} 个任务状态修改为 "${status}"`, 'success');
             } catch (e) {
-                alert('批量修改失败: ' + e.message);
+                showToast('批量修改失败：' + (e.message || '未知错误'), 'error');
             }
         }
         
         function showBatchAssignModal() {
-            if (selectedTasks.length === 0) return alert('请先选择任务');
+            if (selectedTasks.length === 0) showToast('请先选择任务', 'info'); return;
             document.getElementById('batch-assign-modal').classList.add('show');
         }
         
@@ -1747,14 +1788,14 @@
                 hideBatchAssignModal();
                 clearSelection();
                 await loadTasks();
-                alert(`已分配 ${selectedTasks.length} 个任务`);
+                showToast(`已分配 ${selectedTasks.length} 个任务`, 'success');
             } catch (e) {
-                alert('批量分配失败: ' + e.message);
+                showToast('批量分配失败：' + (e.message || '未知错误'), 'error');
             }
         }
         
         function showBatchPriorityModal() {
-            if (selectedTasks.length === 0) return alert('请先选择任务');
+            if (selectedTasks.length === 0) showToast('请先选择任务', 'info'); return;
             document.getElementById('batch-priority-modal').classList.add('show');
         }
         
@@ -1774,9 +1815,9 @@
                 hideBatchPriorityModal();
                 clearSelection();
                 await loadTasks();
-                alert(`已将 ${selectedTasks.length} 个任务优先级修改为 "${priority}"`);
+                showToast(`已将 ${selectedTasks.length} 个任务优先级修改为 "${priority}"`, 'success');
             } catch (e) {
-                alert('批量修改失败: ' + e.message);
+                showToast('批量修改失败：' + (e.message || '未知错误'), 'error');
             }
         }
         
@@ -1790,9 +1831,9 @@
                 }
                 clearSelection();
                 await loadTasks();
-                alert('已删除所选任务');
+                showToast('已删除所选任务', 'success');
             } catch (e) {
-                alert('批量删除失败: ' + e.message);
+                showToast('批量删除失败：' + (e.message || '未知错误'), 'error');
             }
         }
         
@@ -1850,11 +1891,12 @@
                 const result = await res.json();
                 if (result.success) {
                     await loadTasks();
+                    showToast('任务已删除', 'success');
                 } else {
-                    alert(result.error || '删除失败');
+                    showToast(result.error || '删除失败', 'error');
                 }
             } catch (e) {
-                alert('删除失败: ' + e.message);
+                showToast('删除失败：' + (e.message || '未知错误'), 'error');
             }
         }
         
@@ -1984,7 +2026,7 @@
                 const comments = data.comments || [];
                 
                 if (comments.length === 0) {
-                    container.innerHTML = '<div style="text-align:center;color:#bbb;padding:10px;font-size:13px;">暂无评论</div>';
+                    container.innerHTML = '<div style="text-align:center;color:#bbb;padding:10px;font-size:13px;">暂无评论，点击上方输入框添加</div>';
                     return;
                 }
                 
@@ -2031,11 +2073,11 @@
                     input.value = '';
                     await loadTaskComments(parseInt(taskId));
                 } else {
-                    alert(data.error || '评论失败');
+                    showToast(data.error || '评论失败', 'error');
                 }
-            } catch(e) { alert('评论失败: ' + e.message); }
+            } catch(e) { showToast('评论失败：' + (e.message || '未知错误'), 'error'); }
         }
-        
+
         async function deleteTaskComment(commentId, taskId) {
             if (!confirm('确定删除此评论？')) return;
             try {
@@ -2043,8 +2085,9 @@
                 const data = await res.json();
                 if (data.success) {
                     await loadTaskComments(taskId);
+                    showToast('评论已删除', 'success');
                 }
-            } catch(e) { alert('删除失败'); }
+            } catch(e) { showToast('删除失败', 'error'); }
         }
         
         // ========== 附件功能 ==========
@@ -2056,7 +2099,7 @@
                 const attachments = data.attachments || [];
                 
                 if (attachments.length === 0) {
-                    container.innerHTML = '<div style="color:#bbb;font-size:13px;">暂无附件</div>';
+                    container.innerHTML = '<div style="color:#bbb;font-size:13px;">暂无附件，点击上方按钮上传</div>';
                     return;
                 }
                 
@@ -2084,7 +2127,7 @@
             if (!file) return;
             
             if (file.size > 10 * 1024 * 1024) {
-                alert('文件大小不能超过10MB');
+                showToast('文件大小不能超过10MB', 'info');
                 input.value = '';
                 return;
             }
@@ -2105,12 +2148,13 @@
                 if (data.success) {
                     input.value = '';
                     await loadTaskAttachments(parseInt(taskId));
+                    showToast('文件上传成功', 'success');
                 } else {
-                    alert(data.error || '上传失败');
+                    showToast(data.error || '上传失败', 'error');
                 }
-            } catch(e) { alert('上传失败: ' + e.message); }
+            } catch(e) { showToast('上传失败：' + (e.message || '未知错误'), 'error'); }
         }
-        
+
         async function deleteTaskAttachment(attachmentId, taskId) {
             if (!confirm('确定删除此附件？')) return;
             try {
@@ -2118,14 +2162,15 @@
                 const data = await res.json();
                 if (data.success) {
                     await loadTaskAttachments(taskId);
+                    showToast('附件已删除', 'success');
                 }
-            } catch(e) { alert('删除失败'); }
+            } catch(e) { showToast('删除失败', 'error'); }
         }
         
         async function saveTaskEdit() {
             const taskId = document.getElementById('edit-task-id').value;
             const name = document.getElementById('edit-task-name').value;
-            if (!name) return alert('请输入任务名称');
+            if (!name) { showToast('请输入任务名称', 'info'); return; }
             
             const task = {
                 name,
@@ -2179,11 +2224,12 @@
 
                     hideEditTaskModal();
                     await loadTasks();
+                    showToast('✓ 任务保存成功', 'success');
                 } else {
-                    alert(result.error || '保存失败');
+                    showToast(result.error || '保存失败', 'error');
                 }
             } catch (e) {
-                alert('保存失败: ' + e.message);
+                showToast('保存失败：' + (e.message || '未知错误'), 'error');
             }
         }
         
@@ -2222,10 +2268,10 @@
                 document.getElementById('progress-notes').value = task.notes || '';
                 document.getElementById('progress-modal').classList.add('show');
             } catch (e) {
-                alert('加载任务详情失败');
+                showToast('加载任务详情失败', 'error');
             }
         }
-        
+
         function hideProgressModal() {
             document.getElementById('progress-modal').classList.remove('show');
         }
@@ -2247,17 +2293,17 @@
                     hideProgressModal();
                     await loadTasks();
                 } else {
-                    alert(result.error || '更新失败');
+                    showToast(result.error || '更新失败', 'error');
                 }
             } catch (e) {
-                alert('更新进度失败: ' + e.message);
+                showToast('更新进度失败：' + (e.message || '未知错误'), 'error');
             }
         }
         
         async function createTask() {
             const name = document.getElementById('task-name').value;
-            if (!name) return alert('请输入任务名称');
-            
+            if (!name) { showToast('请输入任务名称', 'error'); return; }
+
             const task = {
                 name,
                 description: document.getElementById('task-desc').value,
@@ -2268,21 +2314,30 @@
                 due_date: document.getElementById('task-due').value || null,
                 participants: taskParticipantsNew
             };
-            
-            await authFetch(`${API}/tasks`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(task)
-            });
-            
-            hideNewTaskModal();
-            await loadTasks();
+
+            try {
+                const res = await authFetch(`${API}/tasks`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(task)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('✓ 任务创建成功', 'success');
+                    hideNewTaskModal();
+                    await loadTasks();
+                } else {
+                    showToast('创建失败：' + (data.error || '未知错误'), 'error');
+                }
+            } catch (e) {
+                showToast('网络异常，创建失败', 'error');
+            }
         }
         
         // 数据导出
         function exportTasks(format) {
             if (filteredTasks.length === 0) {
-                alert('没有可导出的数据');
+                showToast('没有可导出的数据', 'info');
                 return;
             }
             
@@ -2349,7 +2404,7 @@
             a.click();
             URL.revokeObjectURL(url);
             
-            alert(`已导出 ${filteredTasks.length} 个任务`);
+            showToast(`已导出 ${filteredTasks.length} 个任务`, 'success');
         }
         
         // PDF导出相关函数
@@ -2358,7 +2413,7 @@
         
         function showPdfExportModal() {
             if (filteredTasks.length === 0) {
-                alert('没有可导出的数据');
+                showToast('没有可导出的数据', 'info');
                 return;
             }
             // 更新数量显示
@@ -2414,7 +2469,7 @@
             }
             
             if (tasksToExport.length === 0) {
-                alert('没有可导出的数据');
+                showToast('没有可导出的数据', 'info');
                 return;
             }
             
@@ -2454,10 +2509,10 @@
                 hidePdfExportModal();
                 const orientText = landscape ? '横向' : '纵向';
                 const statusText = statusFilter === 'all' ? '全部' : statusFilter === 'uncompleted' ? '未完成' : statusFilter;
-                alert(`已导出 ${tasksToExport.length} 个任务 (${pdfStyleNames[selectedPdfStyle-1]}风格, ${statusText}状态, ${orientText})`);
+                showToast(`已导出 ${tasksToExport.length} 个任务`, 'success');
                 
             } catch (e) {
-                alert('导出失败: ' + e.message);
+                showToast('导出失败：' + (e.message || '未知错误'), 'error');
             } finally {
                 btn.textContent = '生成PDF';
                 btn.disabled = false;
@@ -2497,13 +2552,13 @@
                     if (data.errors && data.errors.length > 0) {
                         msg += `\n\n错误:\n${data.errors.join('\n')}`;
                     }
-                    alert(msg);
+                    showToast(msg, 'info');
                     await loadTasks();
                 } else {
-                    alert('导入失败: ' + (data.error || '未知错误'));
+                    showToast('导入失败：' + (data.error || '未知错误'), 'error');
                 }
             } catch(e) {
-                alert('导入失败: ' + e.message);
+                showToast('导入失败：' + (e.message || '未知错误'), 'error');
             }
             input.value = '';
         }
@@ -2535,7 +2590,7 @@
             const search = document.getElementById(`${prefix}-participant-search`);
             const roleSel = document.getElementById(`${prefix}-participant-role`);
             const query = search.value.trim().toLowerCase();
-            if (!query) { alert('请先在搜索框输入人员姓名关键字'); return; }
+            if (!query) { showToast('请先在搜索框输入人员姓名关键字', 'info'); return; }
             // 优先从下拉框"高亮"项（键盘上下选中）取，否则取第一个匹配项
             const dropdown = document.getElementById(`${prefix}-participant-dropdown`);
             const highlighted = dropdown && dropdown.querySelector('.search-select-item.selected');
@@ -2546,7 +2601,7 @@
             } else {
                 person = personsList.find(p => p.status === 'active' && p.name.toLowerCase().includes(query));
             }
-            if (!person) { alert('未找到匹配的人员，请从下拉列表中选择'); return; }
+            if (!person) { showToast('未找到匹配的人员，请从下拉列表中选择', 'info'); return; }
             addParticipantById(prefix, person.id);
         }
 
@@ -2554,12 +2609,12 @@
             const search = document.getElementById(`${prefix}-participant-search`);
             const roleSel = document.getElementById(`${prefix}-participant-role`);
             const person = personsList.find(p => p.id === personId);
-            if (!person) { alert('人员不存在'); return; }
-            if (person.status !== 'active') { alert(person.name + ' 已不是在职人员'); return; }
+            if (!person) { showToast('人员不存在', 'info'); return; }
+            if (person.status !== 'active') { showToast(person.name + ' 已不是在职人员', 'info'); return; }
             const role = roleSel ? roleSel.value : 'participant';
             const target = prefix === 'task' ? taskParticipantsNew : taskParticipantsEdit;
             if (target.find(p => p.person_id === person.id)) {
-                alert(person.name + ' 已是参与人'); return;
+                showToast(person.name + ' 已是参与人', 'info'); return;
             }
             target.push({ person_id: person.id, name: person.name, role: role });
             renderParticipantChips(prefix);
@@ -2638,7 +2693,7 @@
                     <strong>${p.name}</strong>
                     <span style="color:#999;font-size:0.85em">${p.line || '无条线'}${p.position ? ' · ' + p.position : ''}</span>
                 </div>`
-            ).join('') || '<div class="search-select-item" style="color:#999;padding:12px">无匹配人员</div>';
+            ).join('') || '<div class="search-select-item" style="color:#999;padding:16px 12px;text-align:center;">无匹配人员，请尝试缩短关键词</div>';
             dropdown.classList.add('show');
         }
 
@@ -2676,5 +2731,22 @@
     </script>
     <script src="dark-mode.js"></script>
     <script src="kanban-export.js"></script>
+    <!-- Toast 提示容器 -->
+    <div id="toast-container" class="toast-container"></div>
+    <script>
+        // ===== Toast 提示系统 =====
+        function showToast(msg, type = 'success', duration = 3000) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            toast.textContent = msg;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.animation = 'toastOut 0.3s ease forwards';
+                setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
+            }, duration);
+        }
+    </script>
 </body>
 </html>
