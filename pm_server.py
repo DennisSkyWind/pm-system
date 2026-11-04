@@ -2012,7 +2012,7 @@ def send_dingtalk_notification(message):
         cmd = ['copaw', 'channel', 'send',
                '--agent-id', os.environ.get('PM_AGENT_ID', 'default'),
                '--channel', 'dingtalk',
-               '--target-user', os.environ.get('PM_TARGET_USER', '周泓武#vQ=='),
+               '--target-user', os.environ.get('PM_TARGET_USER', 'YOUR_DINGTALK_USER_ID'),
                '--target-session', os.environ.get('PM_TARGET_SESSION', 'Ux/CHNs='),
                '--text', message]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
@@ -5093,7 +5093,7 @@ def export_report_image():
 API_CATS = [
     {'cat': 'Auth', 'desc': 'Authentication endpoints', 'auth': False,
      'endpoints': [
-         {'m': 'POST', 'p': '/api/auth/login', 'd': 'Login', 'body': '{"username":"zhw","password":"pm2026"}'},
+         {'m': 'POST', 'p': '/api/auth/login', 'd': 'Login', 'body': '{"username":"zhw","password":"changeme"}'},
          {'m': 'POST', 'p': '/api/auth/logout', 'd': 'Logout', 'auth': True},
          {'m': 'GET', 'p': '/api/auth/me', 'd': 'Current user info', 'auth': True},
      ]},
