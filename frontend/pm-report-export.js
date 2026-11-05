@@ -437,14 +437,23 @@ const PM_REPORT_EXPORT = {
     // ========== 报告板块组装（单项目） ==========
     _buildReportSections(project, styleName, opts) {
         const sec = (opts && opts.sections) || { tasks: true, kanban: true, gantt: true, issues: true };
-        const sections = [
-            { name: '报告头', html: this._buildHeader(project, styleName, opts) },
-        ];
-        if (sec.tasks) sections.push({ name: '任务清单', html: this._buildTaskList(project) });
-        if (sec.kanban) sections.push({ name: '看板视图', html: this._buildKanban(project, styleName) });
-        if (sec.gantt) sections.push({ name: '甘特图', html: this._buildGantt(project, styleName, opts) });
-        if (sec.issues) sections.push({ name: '问题清单', html: this._buildIssues(project) });
-        sections.push({ name: '页脚', html: this._buildFooter() });
+        const sections = [];
+        const push = (name, html) => { if (html && html.trim()) sections.push({ name, html }); };
+
+        push('报告头', this._buildHeader(project, styleName, opts));
+        // 空板块不生成，避免 PDF 出现只有一行字的空白页
+        if (sec.tasks && (project.tasks || []).length) push('任务清单', this._buildTaskList(project));
+        if (sec.kanban) push('看板视图', this._buildKanban(project, styleName));
+        if (sec.gantt) push('甘特图', this._buildGantt(project, styleName, opts));
+        if (sec.issues && (project.issues || []).length) push('问题清单', this._buildIssues(project));
+
+        // 页脚并入最后一个板块，不单独占页
+        const footer = this._buildFooter();
+        if (sections.length) {
+            sections[sections.length - 1].html += footer;
+        } else {
+            sections.push({ name: '报告头', html: this._buildHeader(project, styleName, opts) + footer });
+        }
         return sections;
     },
 
@@ -488,12 +497,12 @@ const PM_REPORT_EXPORT = {
             const margin = 5;
             const contentW = pdfPageW - margin * 2;
             const contentH = pdfPageH - margin * 2;
-            let isFirstPage = true;
 
+            // ===== 第一步：逐板块渲染为 canvas =====
+            const rendered = [];
             for (const section of sections) {
                 if (!section.html || !section.html.trim()) continue;
 
-                // 创建隐藏容器渲染当前板块
                 const container = document.createElement('div');
                 container.style.cssText = `position:fixed;left:-9999px;top:0;width:${RENDER_WIDTH}px;background:${s.bg};`;
                 // 报告头不加padding，其他板块加
@@ -518,45 +527,65 @@ const PM_REPORT_EXPORT = {
                         document.body.removeChild(container);
                         continue;
                     }
-
-                    // 计算图片在PDF中的尺寸
-                    const imgW = contentW;
-                    const imgH = canvas.height * imgW / canvas.width;
-
-                    if (imgH <= contentH) {
-                        // 板块可以放在一页内
-                        if (!isFirstPage) pdf.addPage();
-                        pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', margin, margin, imgW, imgH);
-                        isFirstPage = false;
-                    } else {
-                        // 板块需要跨页：按A4页面高度切割
-                        const scale = canvas.width / imgW; // px per mm
-                        const pagePxH = contentH * scale; // 每页可放多少像素高度
-                        const totalSlices = Math.ceil(canvas.height / pagePxH);
-
-                        for (let i = 0; i < totalSlices; i++) {
-                            if (!isFirstPage) pdf.addPage();
-
-                            const srcY = i * pagePxH;
-                            const srcH = Math.min(pagePxH, canvas.height - srcY);
-                            const destH = srcH / scale;
-
-                            // 创建当前切片的canvas
-                            const sliceCanvas = document.createElement('canvas');
-                            sliceCanvas.width = canvas.width;
-                            sliceCanvas.height = srcH;
-                            const ctx = sliceCanvas.getContext('2d');
-                            ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
-
-                            pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 1.0), 'JPEG', margin, margin, imgW, destH);
-                            isFirstPage = false;
-                        }
-                    }
+                    rendered.push(canvas);
                 } catch (e) {
                     console.warn(`渲染板块"${section.name}"失败:`, e);
                 }
                 document.body.removeChild(container);
             }
+
+            if (!rendered.length) {
+                pdf.save(filename);
+                return;
+            }
+
+            // ===== 第二步：纵向流式拼接，填满每页后再翻页 =====
+            const pxPerMm = rendered[0].width / contentW;      // 像素/毫米
+            const pagePxH = Math.floor(contentH * pxPerMm);     // 每页可容纳的像素高
+            const pageW = rendered[0].width;
+
+            const newPageCanvas = () => {
+                const c = document.createElement('canvas');
+                c.width = pageW; c.height = pagePxH;
+                const g = c.getContext('2d');
+                g.fillStyle = '#ffffff';
+                g.fillRect(0, 0, pageW, pagePxH);
+                return c;
+            };
+
+            let pageCanvas = newPageCanvas();
+            let ctx = pageCanvas.getContext('2d');
+            let y = 0;
+            let isFirstPage = true;
+
+            const flush = (usedH) => {
+                if (usedH <= 0) return;
+                const out = document.createElement('canvas');
+                out.width = pageW; out.height = usedH;
+                out.getContext('2d').drawImage(pageCanvas, 0, 0, pageW, usedH, 0, 0, pageW, usedH);
+                if (!isFirstPage) pdf.addPage();
+                const hMm = usedH / pxPerMm;
+                pdf.addImage(out.toDataURL('image/jpeg', 0.92), 'JPEG', margin, margin, contentW, hMm);
+                isFirstPage = false;
+            };
+
+            for (const c of rendered) {
+                let sy = 0;
+                while (sy < c.height) {
+                    const room = pagePxH - y;
+                    const take = Math.min(room, c.height - sy);
+                    ctx.drawImage(c, 0, sy, c.width, take, 0, y, c.width, take);
+                    y += take;
+                    sy += take;
+                    if (y >= pagePxH - 1) {
+                        flush(y);
+                        pageCanvas = newPageCanvas();
+                        ctx = pageCanvas.getContext('2d');
+                        y = 0;
+                    }
+                }
+            }
+            if (y > 0) flush(y);
 
             pdf.save(filename);
         } finally {
