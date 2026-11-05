@@ -623,6 +623,11 @@
             if (!data.success) return;
             allProjects = data.projects || [];
             const sel = document.getElementById('export-project-select');
+            sel.innerHTML = '';  // 防止重复调用时选项累加
+            const allOpt = document.createElement('option');
+            allOpt.value = '';
+            allOpt.textContent = '📦 全部项目（一次性汇总导出）';
+            sel.appendChild(allOpt);
             allProjects.forEach(p => {
                 const opt = document.createElement('option');
                 opt.value = p.id;
@@ -657,13 +662,40 @@
         }
 
         async function exportProjectReport(format) {
-            const projectId = document.getElementById('export-project-select').value;
-            if (!projectId) { alert('请先选择项目'); return; }
-            
+            const sel = document.getElementById('export-project-select');
+            const projectId = sel.value;
+            const opts = getReportOptions();
+
+            // ===== 全部项目：一次性汇总导出 =====
+            if (!projectId) {
+                if (!allProjects.length) { alert('没有可导出的项目'); return; }
+                const loadingEl = document.createElement('div');
+                loadingEl.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:99999;';
+                loadingEl.innerHTML = `<div style="background:white;padding:30px 50px;border-radius:12px;font-size:16px;box-shadow:0 4px 20px rgba(0,0,0,0.3);">📦 正在加载 ${allProjects.length} 个项目数据，请稍候...</div>`;
+                document.body.appendChild(loadingEl);
+                const projects = [];
+                try {
+                    for (const p of allProjects) {
+                        const d = await PM_REPORT_EXPORT.loadProjectData(p.id);
+                        if (d) projects.push(d);
+                    }
+                } finally {
+                    document.body.removeChild(loadingEl);
+                }
+                if (!projects.length) { alert('没有可导出的项目数据'); return; }
+                if (format === 'html') {
+                    PM_REPORT_EXPORT.exportAllHTML(projects, selectedReportStyle, opts);
+                } else if (format === 'pdf') {
+                    await PM_REPORT_EXPORT.exportAllPDF(projects, selectedReportStyle, opts);
+                } else if (format === 'png') {
+                    await PM_REPORT_EXPORT.exportAllPNG(projects, selectedReportStyle, opts);
+                }
+                return;
+            }
+
             const project = await PM_REPORT_EXPORT.loadProjectData(projectId);
             if (!project) return;
 
-            const opts = getReportOptions();
             if (format === 'html') {
                 PM_REPORT_EXPORT.exportHTML(project, selectedReportStyle, opts);
             } else if (format === 'pdf') {

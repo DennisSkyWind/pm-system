@@ -397,6 +397,32 @@ const PM_REPORT_EXPORT = {
     },
 
     // ========== HTML导出 ==========
+    // ========== 全部项目：一次性汇总导出（HTML 单文件） ==========
+    exportAllHTML(projects, styleName, opts) {
+        const s = this.styles[styleName] || this.styles.classic;
+        const sec = (opts && opts.sections) || { tasks: true, kanban: true, gantt: true, issues: true };
+        let html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>全部项目 - 汇总报告</title>
+            <style>* { box-sizing: border-box; margin: 0; padding: 0; } body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', sans-serif; color: #333; } .pg { page-break-after: always; }</style>
+            </head><body style="background:${s.bg};">`;
+        for (const p of projects) {
+            html += '<div class="pg">';
+            html += this._buildHeader(p, styleName, opts);
+            html += '<div style="padding:30px 40px;">';
+            if (sec.tasks) html += this._buildTaskList(p);
+            if (sec.kanban) html += this._buildKanban(p, styleName);
+            if (sec.gantt) html += this._buildGantt(p, styleName, opts);
+            if (sec.issues) html += this._buildIssues(p);
+            html += this._buildFooter();
+            html += '</div></div>';
+        }
+        html += '</body></html>';
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `全部项目_汇总报告_${this._dateStr()}.html`;
+        a.click(); URL.revokeObjectURL(url);
+    },
+
     exportHTML(project, styleName, opts) {
         const html = this.generateReport(project, styleName, opts);
         const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
@@ -408,7 +434,42 @@ const PM_REPORT_EXPORT = {
     },
 
     // ========== PDF导出：分板块渲染 + 正确分页 ==========
+    // ========== 报告板块组装（单项目） ==========
+    _buildReportSections(project, styleName, opts) {
+        const sec = (opts && opts.sections) || { tasks: true, kanban: true, gantt: true, issues: true };
+        const sections = [
+            { name: '报告头', html: this._buildHeader(project, styleName, opts) },
+        ];
+        if (sec.tasks) sections.push({ name: '任务清单', html: this._buildTaskList(project) });
+        if (sec.kanban) sections.push({ name: '看板视图', html: this._buildKanban(project, styleName) });
+        if (sec.gantt) sections.push({ name: '甘特图', html: this._buildGantt(project, styleName, opts) });
+        if (sec.issues) sections.push({ name: '问题清单', html: this._buildIssues(project) });
+        sections.push({ name: '页脚', html: this._buildFooter() });
+        return sections;
+    },
+
+    _dateStr() {
+        return new Date().toISOString().slice(0,10).replace(/-/g,'');
+    },
+
+    // ========== PDF导出：分板块渲染 + 正确分页 ==========
     async exportPDF(project, styleName, opts) {
+        const sections = this._buildReportSections(project, styleName, opts);
+        await this._exportSectionsToPDF(sections, styleName, `${project.name}_项目报告_${this._dateStr()}.pdf`);
+    },
+
+    // ========== 全部项目：一次性汇总导出（PDF 多页） ==========
+    async exportAllPDF(projects, styleName, opts) {
+        const sections = [];
+        for (const p of projects) {
+            const s = this._buildReportSections(p, styleName, opts);
+            if (s[0]) s[0].name = '报告头-' + p.name;
+            sections.push(...s);
+        }
+        await this._exportSectionsToPDF(sections, styleName, `全部项目_汇总报告_${this._dateStr()}.pdf`);
+    },
+
+    async _exportSectionsToPDF(sections, styleName, filename) {
         // 显示加载提示
         const loadingEl = document.createElement('div');
         loadingEl.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:99999;';
@@ -418,17 +479,6 @@ const PM_REPORT_EXPORT = {
         try {
             await this.loadDeps();
             const s = this.styles[styleName] || this.styles.classic;
-            const sec = (opts && opts.sections) || { tasks: true, kanban: true, gantt: true, issues: true };
-
-            // 分板块渲染，按sections配置决定包含哪些板块
-            const sections = [
-                { name: '报告头', html: this._buildHeader(project, styleName, opts) },
-            ];
-            if (sec.tasks) sections.push({ name: '任务清单', html: this._buildTaskList(project) });
-            if (sec.kanban) sections.push({ name: '看板视图', html: this._buildKanban(project, styleName) });
-            if (sec.gantt) sections.push({ name: '甘特图', html: this._buildGantt(project, styleName, opts) });
-            if (sec.issues) sections.push({ name: '问题清单', html: this._buildIssues(project) });
-            sections.push({ name: '页脚', html: this._buildFooter() });
 
             const RENDER_WIDTH = 800;
             const { jsPDF } = window.jspdf;
@@ -508,8 +558,7 @@ const PM_REPORT_EXPORT = {
                 document.body.removeChild(container);
             }
 
-            const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
-            pdf.save(`${project.name}_项目报告_${dateStr}.pdf`);
+            pdf.save(filename);
         } finally {
             document.body.removeChild(loadingEl);
         }
@@ -595,6 +644,14 @@ const PM_REPORT_EXPORT = {
             // 清理临时元素
             document.querySelectorAll('[style*="left:-9999px"]').forEach(el => el.remove());
             document.body.removeChild(loadingEl);
+        }
+    },
+
+    // ========== 全部项目：PNG逐项目导出 ==========
+    async exportAllPNG(projects, styleName, opts) {
+        for (let i = 0; i < projects.length; i++) {
+            await this.exportPNG(projects[i], styleName, opts);
+            if (i < projects.length - 1) await new Promise(r => setTimeout(r, 500));
         }
     },
 
