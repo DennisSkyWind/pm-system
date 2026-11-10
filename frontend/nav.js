@@ -47,6 +47,12 @@
   /* ---------- 2. 统一样式（保证不依赖 common.css，各页观感一致） ---------- */
   var CSS = [
     'nav.pmnav{display:flex;gap:15px;margin-top:15px;margin-left:0;padding:0;flex-wrap:wrap;align-items:center;background:transparent;font-size:14px;}',
+    /* 顶栏用户区（👤姓名 / 🔑改密 / 退出）：index 的样式原为页内联样式，其他页没有 → 公共化 */
+    '.user-area{display:flex;align-items:center;gap:10px;}',
+    '.user-area .user-name{font-size:14px;padding:6px 12px;background:rgba(255,255,255,0.2);border-radius:6px;color:#fff;}',
+    '.user-area .logout-btn{font-size:13px;padding:6px 12px;background:rgba(255,255,255,0.3);border-radius:6px;color:#fff;cursor:pointer;border:none;}',
+    '.user-area .login-link{color:#fff;text-decoration:none;padding:8px 16px;border-radius:6px;background:rgba(255,255,255,0.2);}',
+    '.user-area .login-link:hover{background:rgba(255,255,255,0.3);}',
     'nav.pmnav>a:not(.pm-gh){color:#fff;text-decoration:none;padding:8px 16px;border-radius:6px;background:rgba(255,255,255,0.2);font-size:14px;line-height:1.4;flex-shrink:0;}',
     'nav.pmnav>a:not(.pm-gh):hover{background:rgba(255,255,255,0.3);}',
     'nav.pmnav>a.active{background:rgba(255,255,255,0.4);font-weight:600;}',
@@ -263,6 +269,70 @@
     (document.head || document.documentElement).appendChild(st);
   }
 
+  /* ★ 顶栏用户区：auth.js 的 showUserInHeader() 只在页面存在 #user-area 元素时才填充
+     「👤姓名 / 🔑改密 / 退出」，而原先只有 index / settings / admin 三个页面有这个元素，
+     其余 11 页顶栏右侧整块空白。这里为每页补上该元素，auth.js 即自动填充。 */
+  function ensureUserArea(nav) {
+    var header = nav.parentElement;
+    if (!header || header.tagName !== 'HEADER') return;
+    if (document.getElementById('user-area')) return;   // 页面自带则不动
+
+    var top = header.querySelector('.header-top');
+    if (!top) {
+      top = document.createElement('div');
+      top.className = 'header-top';
+      var h1 = header.querySelector('h1');
+      if (h1) top.appendChild(h1);            // 把 h1 并入 header-top，与 index 版式一致
+      header.insertBefore(top, header.firstChild);
+    }
+    var ua = document.createElement('div');
+    ua.id = 'user-area';
+    ua.className = 'user-area';
+    ua.innerHTML = '<a href="login.html" class="login-link">登录</a>';
+    top.appendChild(ua);
+  }
+
+  /* 用户区统一为「👤姓名 / 🔑改密 / 退出」：
+     admin.html 原来自带一份用户区但少了「🔑改密」按钮，这里补齐并保证全站一致。 */
+  function normalizeUserArea() {
+    var ua = document.getElementById('user-area');
+    if (!ua) return;
+    if (!ua.querySelector('.pm-chpwd')) {
+      var b = document.createElement('button');
+      b.className = 'logout-btn pm-chpwd';
+      b.setAttribute('onclick', 'showChangePasswordModal()');
+      b.setAttribute('style', 'background:rgba(255,255,255,0.15);');
+      b.textContent = '🔑 改密';
+      var lo = ua.querySelector('.logout-btn[onclick*="logout"]');
+      if (lo) ua.insertBefore(b, lo); else ua.appendChild(b);
+    }
+  }
+
+  /* 填充用户名：★ 只有 index.html 调了 initAuthPage()，其余页的 auth.js 从不填用户区
+     → 这里统一调 checkLogin(false)（required=false，不强制跳登录页）填充。
+     已有内容的页面（如 index / admin）不覆盖。 */
+  function fillUserArea() {
+    var ua = document.getElementById('user-area');
+    if (!ua || typeof checkLogin !== 'function') return;
+    var nameEl = ua.querySelector('.user-name');
+    if (nameEl && nameEl.textContent.trim()) return;
+    checkLogin(false).then(function (u) {
+      if (!u) return;
+      var ua2 = document.getElementById('user-area');
+      if (!ua2) return;
+      var ne = ua2.querySelector('.user-name');
+      if (ne && ne.textContent.trim()) return;   // 已被页面自身填充，不覆盖
+      /* ★ 整体替换为标准模板：否则初始的「登录」链接会残留、且缺「退出」按钮 */
+      /* 模板与 auth.js 的 showUserInHeader() 保持同构（含换行，
+         使 DOM 文本与各页原生渲染完全一致，不只是视觉一致） */
+      ua2.innerHTML = `
+                <span class="user-name">👤 ${u.person_name}</span>
+                <button class="logout-btn pm-chpwd" onclick="showChangePasswordModal()" style="background:rgba(255,255,255,0.15);">🔑 改密</button>
+                <button class="logout-btn" onclick="logout()">退出</button>
+            `;
+    }).catch(function () {});
+  }
+
   function buildNavHTML() {
     var cur = currentFile();
     var links = LINKS.map(function (l) {
@@ -311,6 +381,8 @@
     }
     nav.className = 'pmnav';
     nav.innerHTML = buildNavHTML();
+    ensureUserArea(nav);
+    normalizeUserArea();
     /* h1 文案与菜单标签对齐（仅当页面 h1 存在且映射表有该页时才改） */
     var h1map = H1_TITLES[currentFile()];
     if (h1map) {
@@ -355,6 +427,8 @@
     function startBadge() {
       refreshBadge();
       setInterval(refreshBadge, 30000);
+      fillUserArea();          // 用户名（各页原本只有 index 调了 initAuthPage）
+      setTimeout(fillUserArea, 800);   // 兜底：等待各页自身填充完成后再补
     }
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', startBadge);
