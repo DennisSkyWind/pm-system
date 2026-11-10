@@ -56,6 +56,19 @@ path_map = {
 for old, new in path_map.items():
     content = content.replace(old, new)
 
+# ★ 2026-11-10 补：pm_server.py 专属脱敏（personal_map 只作用于 frontend/ 目录，管不到后端）
+#   注意：本段跑在 python3 -c "..." 里，字符串一律用单引号，双引号用 Q 代替
+Q = chr(34)
+_sb = [
+    ('os.environ.get(' + chr(39) + 'PM_TARGET_USER' + chr(39) + ', ' + chr(39) + '周泓武#vQ==' + chr(39) + ')',
+     'os.environ.get(' + chr(39) + 'PM_TARGET_USER' + chr(39) + ', ' + chr(39) + 'YOUR_DINGTALK_USER_ID' + chr(39) + ')'),
+    (Q + 'username' + Q + ':' + Q + 'zhw' + Q + ', ' + Q + 'password' + Q + ':' + Q + 'pm2026' + Q,
+     Q + 'username' + Q + ':' + Q + 'zhw' + Q + ', ' + Q + 'password' + Q + ':' + Q + 'changeme' + Q),
+]
+for _o, _n in _sb:
+    content = content.replace(_o, _n)
+
+
 if 'import os' not in content[:500]:
     content = 'import os\n' + content
 
