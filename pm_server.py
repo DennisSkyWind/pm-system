@@ -294,6 +294,13 @@ def create_users_from_persons():
     
     created_count = 0
     for person in persons:
+        # ★ 按 person_id 去重：同一名员工已有账号就跳过。
+        #   【缺陷修复 2026-11-10】此前只按 username 去重，而 username 撞名时会自动加数字后缀，
+        #   于是「每次同步都给同一批人再建一遍新账号」——服务器每次启动调一次，
+        #   从 2026-05-22 累积 127 次，pm_user 涨到 5603 行（真实在册仅 45 人）。
+        cursor.execute('SELECT id FROM pm_user WHERE person_id = ? LIMIT 1', (person['id'],))
+        if cursor.fetchone():
+            continue
         username = generate_username(person['name'], existing_names)
         try:
             cursor.execute('''
