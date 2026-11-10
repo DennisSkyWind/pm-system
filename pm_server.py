@@ -112,8 +112,112 @@ def init_user_table():
     conn.close()
 
 def hash_password(password: str) -> str:
-    """密码哈希"""
+    """密码哈希（登录校验用，不可逆）"""
     return hashlib.sha256(password.encode()).hexdigest()
+
+
+# ================================================================
+# 密码可逆加密 —— 供管理员查看用户密码（2026-11-10）
+# ================================================================
+# ★ 为什么需要可逆加密：
+#   sha256 散列不可逆，管理员**无法**查看用户密码。
+#   老周要求「管理员可以看到用户密码」+「重置密码可随机生成并显示」，
+#   因此额外存一份可逆密文 password_enc（登录仍用 sha256 校验，不受影响）。
+#
+# ★ 安全设计：
+#   - 主密钥放在服务器本地密钥文件（chmod 600），可用环境变量 PM_PW_KEY 覆盖
+#   - 密钥文件、密文都**不入公开仓库**
+#   - 只有 require_admin 的接口才返回明文，且写操作日志
+import secrets as _secrets
+import string as _string
+
+_PW_KEY_PATH = os.environ.get(
+    'PM_PW_KEY_FILE',
+    os.path.join(os.path.expanduser('~'), '.copaw', 'secret', 'pm_pwkey.key')
+)
+_PW_KEY_CACHE = None
+
+
+def get_pw_key():
+    """取主密钥：环境变量优先，其次本地密钥文件；都没有则生成一个并保存"""
+    global _PW_KEY_CACHE
+    if _PW_KEY_CACHE is not None:
+        return _PW_KEY_CACHE
+    env = os.environ.get('PM_PW_KEY')
+    if env:
+        _PW_KEY_CACHE = env.encode() if isinstance(env, str) else env
+        return _PW_KEY_CACHE
+    try:
+        os.makedirs(os.path.dirname(_PW_KEY_PATH), mode=0o700, exist_ok=True)
+        if os.path.exists(_PW_KEY_PATH):
+            with open(_PW_KEY_PATH, 'rb') as f:
+                _PW_KEY_CACHE = f.read().strip()
+        else:
+            from cryptography.fernet import Fernet
+            _PW_KEY_CACHE = Fernet.generate_key()
+            with open(_PW_KEY_PATH, 'wb') as f:
+                f.write(_PW_KEY_CACHE)
+            os.chmod(_PW_KEY_PATH, 0o600)
+            print(f"   已生成密码主密钥: {_PW_KEY_PATH}")
+    except Exception as e:
+        print(f"   ★ 密码密钥不可用（{e}），管理员查看密码功能将不可用")
+        _PW_KEY_CACHE = b''
+    return _PW_KEY_CACHE
+
+
+def encrypt_password(password: str) -> str:
+    """密码 → 可逆密文"""
+    if not password:
+        return ''
+    key = get_pw_key()
+    if not key:
+        return ''
+    try:
+        from cryptography.fernet import Fernet
+        return Fernet(key).encrypt(password.encode()).decode()
+    except Exception as e:
+        print(f"   ★ 密码加密失败: {e}")
+        return ''
+
+
+def decrypt_password(enc: str) -> str:
+    """可逆密文 → 密码原文"""
+    if not enc:
+        return ''
+    key = get_pw_key()
+    if not key:
+        return ''
+    try:
+        from cryptography.fernet import Fernet
+        return Fernet(key).decrypt(enc.encode()).decode()
+    except Exception:
+        return ''
+
+
+def generate_random_password(length: int = 12) -> str:
+    """随机生成密码：大小写 + 数字 + 符号，避开易混字符(0O1lI)"""
+    lower = ''.join(c for c in _string.ascii_lowercase if c not in 'oil')
+    upper = ''.join(c for c in _string.ascii_uppercase if c not in 'OIL')
+    digits = '23456789'
+    symbols = '!@#$%&*?'
+    pools = [lower, upper, digits, symbols]
+    pwd = [_secrets.choice(p) for p in pools]
+    allc = ''.join(pools)
+    pwd += [_secrets.choice(allc) for _ in range(length - len(pools))]
+    _secrets.SystemRandom().shuffle(pwd)
+    return ''.join(pwd)
+
+
+def ensure_password_enc_column():
+    """给 pm_user 补 password_enc 列（可逆密文，供管理员查看）"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cols = [r['name'] for r in cursor.execute('PRAGMA table_info(pm_user)')]
+    if 'password_enc' not in cols:
+        cursor.execute('ALTER TABLE pm_user ADD COLUMN password_enc TEXT')
+        conn.commit()
+    conn.close()
+    return 'password_enc' in cols
 
 RATING_LABELS = {
     'insufficient': '不足',
@@ -291,6 +395,7 @@ def create_users_from_persons():
     # 默认密码
     default_password = os.environ.get('PM_DEFAULT_PASSWORD', 'changeme')
     password_hash = hash_password(default_password)
+    password_enc = encrypt_password(default_password)
     
     created_count = 0
     for person in persons:
@@ -304,9 +409,9 @@ def create_users_from_persons():
         username = generate_username(person['name'], existing_names)
         try:
             cursor.execute('''
-                INSERT INTO pm_user (person_id, username, password_hash, role)
-                VALUES (?, ?, ?, 'user')
-            ''', (person['id'], username, password_hash))
+                INSERT INTO pm_user (person_id, username, password_hash, password_enc, role)
+                VALUES (?, ?, ?, ?, 'user')
+            ''', (person['id'], username, password_hash, password_enc))
             existing_names.add(username)
             created_count += 1
             print(f"创建账号: {username} -> {person['name']}")
@@ -336,9 +441,9 @@ def create_user_for_person(cursor, person_id, name, existing_names=None):
     username = generate_username(name, existing_names)
     password_hash = hash_password(os.environ.get('PM_DEFAULT_PASSWORD', 'changeme'))
     cursor.execute('''
-        INSERT INTO pm_user (person_id, username, password_hash, role)
-        VALUES (?, ?, ?, 'user')
-    ''', (person_id, username, password_hash))
+        INSERT INTO pm_user (person_id, username, password_hash, password_enc, role)
+        VALUES (?, ?, ?, ?, 'user')
+    ''', (person_id, username, password_hash, encrypt_password(password_hash)))
     return username, True
 
 
@@ -547,8 +652,8 @@ def change_password():
         return jsonify({'success': False, 'error': '原密码错误'})
     
     # 更新密码
-    cursor.execute('UPDATE pm_user SET password_hash = ? WHERE id = ?', 
-                   (hash_password(new_password), user['id'],))
+    cursor.execute('UPDATE pm_user SET password_hash = ?, password_enc = ? WHERE id = ?',
+                   (hash_password(new_password), encrypt_password(new_password), user['id'],))
     conn.commit()
     conn.close()
     
@@ -594,17 +699,81 @@ def update_user_role(user_id):
 @check_auth
 @require_admin
 def admin_reset_password(user_id):
-    """管理员：重置用户密码"""
-    new_password = os.environ.get('PM_DEFAULT_PASSWORD', 'changeme')  # 重置为默认密码
-    
+    """管理员：重置用户密码
+    ★ 默认【随机生成】并把明文回显给管理员（老周要求）；
+      传 mode='default' 则重置为默认密码。"""
+    data = request.get_json(silent=True) or {}
+    mode = data.get('mode', 'random')
+    if mode == 'random':
+        try:
+            length = int(data.get('length', 12))
+        except Exception:
+            length = 12
+        length = max(8, min(32, length))
+        new_password = generate_random_password(length)
+    else:
+        new_password = os.environ.get('PM_DEFAULT_PASSWORD', 'changeme')
+
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('UPDATE pm_user SET password_hash = ? WHERE id = ?', 
-                   (hash_password(new_password), user_id))
+    cursor.execute('SELECT u.username, u.person_id, p.name FROM pm_user u '
+                   'LEFT JOIN person p ON p.id = u.person_id WHERE u.id = ?', (user_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'success': False, 'error': '用户不存在'}), 404
+
+    enc = encrypt_password(new_password)
+    cursor.execute('UPDATE pm_user SET password_hash = ?, password_enc = ? WHERE id = ?',
+                   (hash_password(new_password), enc, user_id))
     conn.commit()
     conn.close()
-    
-    return jsonify({'success': True, 'message': f'密码已重置为默认密码 {new_password}'})
+
+    add_log('user', user_id, 'admin_reset_password', None, None,
+            row['person_id'], row['name'])
+    return jsonify({
+        'success': True,
+        'message': f'已重置 {row["username"]} 的密码',
+        'username': row['username'],
+        'password': new_password,          # ★ 明文回显，供管理员转告本人
+        'mode': mode
+    })
+
+
+@app.route('/api/admin/users/<int:user_id>/password', methods=['GET'])
+@check_auth
+@require_admin
+def admin_view_password(user_id):
+    """管理员：查看用户密码明文
+    ★ 密码以可逆密文(password_enc)存储，本接口解密后返回。"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT u.username, u.password_hash, u.password_enc, u.person_id, p.name '
+                   'FROM pm_user u LEFT JOIN person p ON p.id = u.person_id WHERE u.id = ?',
+                   (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'success': False, 'error': '用户不存在'}), 404
+
+    plain = decrypt_password(row['password_enc'] or '')
+    recoverable = bool(plain)
+    if not recoverable:
+        # 老数据未迁移：若密码仍是默认口令则可推断，否则只能重置
+        default_pw = os.environ.get('PM_DEFAULT_PASSWORD', 'changeme')
+        if row['password_hash'] == hash_password(default_pw):
+            plain = default_pw
+            recoverable = True
+
+    add_log('user', user_id, 'admin_view_password', None, None,
+            row['person_id'], row['name'])
+    return jsonify({
+        'success': True,
+        'username': row['username'],
+        'password': plain if recoverable else None,
+        'recoverable': recoverable,
+        'message': '该账号密码不可恢复，请先重置密码' if not recoverable else ''
+    })
 
 @app.route('/api/admin/stats', methods=['GET'])
 @check_auth
@@ -3150,7 +3319,7 @@ def create_person():
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (data.get('employee_id'), data.get('name'), data.get('role', 'member'), 
           data.get('email'), data.get('phone'), 
-          data.get('department', '<默认部门>'),
+          data.get('department', '智能与数字化中心'),
           data.get('job_sequence'), data.get('line'), data.get('sub_line'), 
           data.get('position'), data.get('status', 'active'), data.get('hire_date'),
           data.get('major'), data.get('school'), data.get('education'), data.get('birthday')))
@@ -5780,7 +5949,7 @@ def create_pdf_style1(tasks, project_name, styles, landscape=False):
     story.append(Paragraph(datetime.now().strftime('%Y年%m月%d日'), signature_style))
     story.append(Spacer(1, 4))
     dept_style = ParagraphStyle('Dept', fontName=FONT_NAME, fontSize=10, textColor=black, alignment=2)
-    story.append(Paragraph("XX公司·XX部门", dept_style))
+    story.append(Paragraph("智能与数字化中心·数据智能", dept_style))
     
     return story
 
@@ -5909,7 +6078,7 @@ def create_pdf_style2(tasks, project_name, styles, landscape=False):
     story.append(Paragraph(datetime.now().strftime('%Y年%m月%d日'), signature_style))
     story.append(Spacer(1, 4))
     dept_style = ParagraphStyle('Dept', fontName=FONT_NAME, fontSize=10, textColor=HexColor('#1565C0'), alignment=2)
-    story.append(Paragraph("XX公司·XX部门", dept_style))
+    story.append(Paragraph("智能与数字化中心·数据智能", dept_style))
     
     return story
 
@@ -6013,7 +6182,7 @@ def create_pdf_style3(tasks, project_name, styles, landscape=False):
     story.append(Paragraph(datetime.now().strftime('%Y年%m月%d日'), signature_style))
     story.append(Spacer(1, 4))
     dept_style = ParagraphStyle('Dept', fontName=FONT_NAME, fontSize=10, textColor=HexColor('#1565C0'), alignment=2)
-    story.append(Paragraph("XX公司·XX部门", dept_style))
+    story.append(Paragraph("智能与数字化中心·数据智能", dept_style))
     
     return story
 
@@ -6077,7 +6246,7 @@ def create_pdf_style4(tasks, project_name, styles, landscape=False):
     story.append(Paragraph(datetime.now().strftime('%Y年%m月%d日'), signature_style))
     story.append(Spacer(1, 4))
     dept_style = ParagraphStyle('Dept', fontName=FONT_NAME, fontSize=10, textColor=black, alignment=2)
-    story.append(Paragraph("XX公司·XX部门", dept_style))
+    story.append(Paragraph("智能与数字化中心·数据智能", dept_style))
     
     return story
 
@@ -6142,7 +6311,7 @@ def create_pdf_style5(tasks, project_name, styles, landscape=False):
     story.append(Paragraph(datetime.now().strftime('%Y年%m月%d日'), signature_style))
     story.append(Spacer(1, 4))
     dept_style = ParagraphStyle('Dept', fontName=FONT_NAME, fontSize=10, textColor=HexColor('#1565C0'), alignment=2)
-    story.append(Paragraph("XX公司·XX部门", dept_style))
+    story.append(Paragraph("智能与数字化中心·数据智能", dept_style))
     
     return story
 
@@ -6227,6 +6396,7 @@ def upgrade_schema():
 
 if __name__ == '__main__':
     upgrade_schema()
+    ensure_password_enc_column()   # 可逆密文列（供管理员查看密码）
     create_users_from_persons()
     print("🚀 项目管理系统启动...")
     print(f"   数据库: {DB_PATH}")

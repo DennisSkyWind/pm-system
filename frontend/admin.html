@@ -195,6 +195,24 @@
             </div>
         </div>
     </div>
+
+    <!-- 密码弹窗：管理员查看 / 随机重置后显示明文 -->
+    <div class="modal" id="pw-modal">
+        <div class="modal-content" style="max-width:460px">
+            <h3 id="pw-modal-title">用户密码</h3>
+            <div style="font-size:13px;color:#666;margin-bottom:12px" id="pw-modal-hint"></div>
+            <div style="display:flex;align-items:center;gap:10px">
+                <input type="text" id="pw-modal-value" readonly
+                    style="flex:1;padding:12px;font-size:17px;font-family:ui-monospace,Menlo,Consolas,monospace;
+                           border:2px solid #ddd;border-radius:8px;background:#f8f9fa;letter-spacing:1px">
+                <button class="btn btn-primary" onclick="copyPw()">复制</button>
+            </div>
+            <div style="margin-top:10px;font-size:12px;color:#888" id="pw-modal-tip"></div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closePwModal()">关闭</button>
+            </div>
+        </div>
+    </div>
     
         <script src="auth.js"></script>
 <script>
@@ -369,6 +387,7 @@
                     <td>${u.last_login || '从未登录'}</td>
                     <td>
                         <button class="btn btn-primary" onclick="openRoleModal(${u.id}, '${u.role}')">改角色</button>
+                        <button class="btn" onclick="viewPassword(${u.id}, '${u.username}')">查看密码</button>
                         <button class="btn btn-danger" onclick="resetPassword(${u.id}, '${u.username}')">重置密码</button>
                     </td>
                 </tr>
@@ -410,21 +429,70 @@
             }
         }
         
-        // 重置密码
+        // ============ 密码：查看 / 随机重置 ============
+        function showPwModal(title, hint, value, tip) {
+            document.getElementById('pw-modal-title').textContent = title;
+            document.getElementById('pw-modal-hint').textContent = hint || '';
+            const inp = document.getElementById('pw-modal-value');
+            inp.value = value || '';
+            inp.style.borderColor = value ? '#667eea' : '#f44336';
+            document.getElementById('pw-modal-tip').textContent = tip || '';
+            document.getElementById('pw-modal').classList.add('show');
+        }
+        function closePwModal() {
+            document.getElementById('pw-modal').classList.remove('show');
+            document.getElementById('pw-modal-value').value = '';
+        }
+        function copyPw() {
+            const inp = document.getElementById('pw-modal-value');
+            if (!inp.value) return;
+            inp.select(); inp.setSelectionRange(0, 99999);
+            let ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+            if (!ok && navigator.clipboard) {
+                navigator.clipboard.writeText(inp.value).then(() => {
+                    document.getElementById('pw-modal-tip').textContent = '✅ 已复制到剪贴板';
+                }).catch(() => {
+                    document.getElementById('pw-modal-tip').textContent = '复制失败，请手动选中复制';
+                });
+            } else {
+                document.getElementById('pw-modal-tip').textContent = ok ? '✅ 已复制到剪贴板' : '复制失败，请手动选中复制';
+            }
+        }
+
+        // 查看密码（管理员）
+        async function viewPassword(userId, username) {
+            const token = localStorage.getItem('pm_token');
+            const res = await authFetch(API + '/admin/users/' + userId + '/password', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            const data = await res.json();
+            if (!data.success) { alert(data.error || '获取失败'); return; }
+            if (!data.recoverable) {
+                showPwModal('密码不可恢复', `用户 ${username} 的密码无法还原`, '', data.message || '请先执行「重置密码」为其生成新密码');
+                return;
+            }
+            showPwModal(`用户密码 · ${username}`, '以下为当前生效的密码，请转告本人并提醒尽快修改',
+                        data.password, '密码以可逆密文存储，管理员可查看；此操作已记入操作日志');
+        }
+
+        // 重置密码（随机生成，明文回显）
         async function resetPassword(userId, username) {
-            if (!confirm(`确定要重置 ${username} 的密码吗？`)) return;
-            
+            if (!confirm(`确定要重置 ${username} 的密码吗？\\n将随机生成一个新密码并显示给你。`)) return;
+
             const token = localStorage.getItem('pm_token');
             const res = await authFetch(API + '/admin/users/' + userId + '/reset-password', {
                 method: 'POST',
-                headers: { 'Authorization': 'Bearer ' + token }
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: 'random', length: 12 })
             });
-            
+
             const data = await res.json();
             if (data.success) {
-                alert('密码已重置为: changeme');
+                showPwModal(`新密码 · ${username}`, '已随机生成并生效，旧密码立即失效',
+                            data.password, '请复制后转告本人；本人可在「修改密码」中自行更改');
             } else {
-                alert(data.error);
+                alert(data.error || '重置失败');
             }
         }
         
