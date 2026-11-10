@@ -157,6 +157,11 @@ async function showUserInHeader() {
     if (user) {
         const userArea = document.getElementById('user-area');
         if (userArea) {
+            /* ★ 2026-11-10：顶栏改为「头像 + 下拉菜单」，统一由 nav.js 渲染；
+               未加载 nav.js 的页面（如 login.html）退回旧的平铺按钮结构。 */
+            if (typeof window.renderPmUserMenu === 'function' && window.renderPmUserMenu(user)) {
+                return;
+            }
             userArea.innerHTML = `
                 <span class="user-name">👤 ${user.person_name}</span>
                 <button class="logout-btn" onclick="showChangePasswordModal()" style="background:rgba(255,255,255,0.15);">🔑 改密</button>

@@ -214,7 +214,7 @@
         </div>
     </div>
     
-        <script src="auth.js"></script>
+        <script src="auth.js?v=20261110v11"></script>
 <script>
         
         // ========== 全局搜索 ==========
@@ -331,7 +331,10 @@
                 return false;
             }
             
-            document.getElementById('user-name').textContent = '👤 ' + data.user.person_name;
+            /* ★ 顶栏改为下拉菜单后可能没有 #user-name 元素 → 安全写入 */
+            const _un = document.getElementById('user-name');
+            if (_un) _un.textContent = '👤 ' + data.user.person_name;
+            if (typeof window.renderPmUserMenu === 'function') window.renderPmUserMenu(data.user);
             return true;
         }
         
@@ -569,6 +572,6 @@
         }
     </script>
     <script src="dark-mode.js"></script>
-  <script src="nav.js?v=20261110v10"></script>
+  <script src="nav.js?v=20261110v12"></script>
 </body>
 </html>
