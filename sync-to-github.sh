@@ -66,6 +66,9 @@ with open(server, 'w') as f:
 personal_map = {
     '周泓武 → zhw': '张三 → zhangsan',
     '周泓武,admin,老周,zhou@email.com,13800138000': '张三,admin,技术部,zhangsan@example.com,13800138000',
+    # ★ 2026-11-10 补：以下两种形式此前漏网，会把真实 user_id / 密码带进开源仓库
+    '周泓武#vQ==': 'YOUR_DINGTALK_USER_ID',
+    '"username":"zhw","password":"pm2026"': '"username":"zhw","password":"changeme"',
     '陈玲,member,Migo,ling@email.com,13900139000': '李四,member,产品部,lisi@example.com,13900139000',
     '{\"name\": \"周泓武\", \"role\": \"admin\", \"department\": \"老周\"}': '{\"name\": \"张三\", \"role\": \"admin\", \"department\": \"技术部\"}',
     '{\"name\": \"陈玲\", \"role\": \"member\", \"department\": \"Migo\"}': '{\"name\": \"李四\", \"role\": \"member\", \"department\": \"产品部\"}',
