@@ -49,21 +49,20 @@
         .toast.error { background: #f44336; }
     </style>
     <link rel="stylesheet" href="dark-mode.css">
+    <link rel="stylesheet" href="theme-tech.css">
+    <link rel="stylesheet" href="theme-enterprise.css">
     <link rel="stylesheet" href="common.css">
     <link rel="stylesheet" href="mobile.css">
 </head>
 <body>
+    <!-- 主题切换按钮 -->
+    <div style="position:fixed;top:14px;right:14px;z-index:99999;display:flex;align-items:center;gap:8px;">
+        <span class="dark-mode-btn" title="切换主题">🌙</span>
+    </div>
+
     <header>
         <h1>📥 参与人回填工具</h1>
-        <nav>
-            <a href="index.html">Dashboard</a>
-            <a href="tasks.html">任务管理</a>
-            <a href="persons.html">👥 人员</a>
-            <a href="report.html">📊 报告</a>
-            <a href="performance.html">📊 绩效</a>
-            <a href="pm-task-participant-backfill.html" class="active">📥 回填工具</a>
-            <span style="margin-left:auto;cursor:pointer;opacity:0.7;font-size:13px" onclick="location.reload()">🔄 刷新</span>
-        </nav>
+
     </header>
 
     <main>
@@ -301,5 +300,7 @@
         if (!localStorage.getItem('pm_token')) { window.location.href = 'login.html'; }
         else { loadData(); }
     </script>
+    <script src="dark-mode.js"></script>
+  <script src="nav.js"></script>
 </body>
 </html>
