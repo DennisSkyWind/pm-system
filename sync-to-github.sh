@@ -56,12 +56,6 @@ path_map = {
 for old, new in path_map.items():
     content = content.replace(old, new)
 
-# ★ 2026-11-10 补：pm_server.py 专属脱敏（personal_map 只作用于 frontend/，管不到后端）
-#   放在独立脚本里，避免本文件 python3 -c 的双引号转义问题
-import subprocess
-subprocess.run(['python3', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sanitize_backend.py'), server], check=False)
-with open(server, 'r') as f:
-    content = f.read()
 
 
 
@@ -70,6 +64,14 @@ if 'import os' not in content[:500]:
 
 with open(server, 'w') as f:
     f.write(content)
+
+# ★ 2026-11-10 补：pm_server.py 专属脱敏（personal_map 只作用于 frontend/，管不到后端）
+#   必须放在本段写文件之后，否则会被上面的写入用旧内容覆盖回去。
+#   放在独立脚本里，避免 python3 -c 的双引号转义问题。
+import subprocess
+_sanitize = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sanitize_backend.py')
+if os.path.isfile(_sanitize):
+    subprocess.run(['python3', _sanitize, server], check=False)
 
 # 前端个人信息清理
 personal_map = {
