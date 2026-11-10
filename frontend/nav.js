@@ -37,23 +37,27 @@
     { href: 'admin.html',          label: '🔐 管理后台' }
   ];
 
+  /* h1 与 nav 标签的措辞映射（无 header 的页面自动补 h1 时用，保证与菜单文案一致） */
+  var H1_TITLES = {
+    'performance.html': '📊 绩效'
+  };
+
   var GH_SVG = '<svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" style="vertical-align:middle;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>';
 
   /* ---------- 2. 统一样式（保证不依赖 common.css，各页观感一致） ---------- */
   var CSS = [
-    'nav.pmnav{display:flex;gap:15px;margin-top:15px;margin-left:0;padding:0;flex-wrap:wrap;align-items:center;background:transparent;}',
-    'nav.pmnav>a{color:#fff;text-decoration:none;padding:8px 16px;border-radius:6px;background:rgba(255,255,255,0.2);font-size:14px;line-height:1.4;}',
-    'nav.pmnav>a:hover{background:rgba(255,255,255,0.3);}',
+    'nav.pmnav{display:flex;gap:15px;margin-top:15px;margin-left:0;padding:0;flex-wrap:wrap;align-items:center;background:transparent;font-size:14px;}',
+    'nav.pmnav>a:not(.pm-gh){color:#fff;text-decoration:none;padding:8px 16px;border-radius:6px;background:rgba(255,255,255,0.2);font-size:14px;line-height:1.4;flex-shrink:0;}',
+    'nav.pmnav>a:not(.pm-gh):hover{background:rgba(255,255,255,0.3);}',
     'nav.pmnav>a.active{background:rgba(255,255,255,0.4);font-weight:600;}',
-    'nav.pmnav .pm-tools{margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.7;}',
+    'nav.pmnav .pm-tools{margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;opacity:0.9;flex-shrink:0;}',
     /* body 直挂的 nav（无 header 包裹的页面）：自带统一紫蓝渐变，替代各页私设背景 */
-    'body>nav.pmnav{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);padding:12px 24px;margin:0;}',
     'nav.pmnav .pm-tools:hover{opacity:1;}',
     'nav.pmnav .pm-kbd{background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:4px;font-size:12px;}',
     'nav.pmnav #notification-bell{cursor:pointer;position:relative;font-size:18px;margin-left:8px;}',
-    'nav.pmnav #notification-badge{display:none;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;}',
+    'nav.pmnav #notification-badge{display:inline-block;position:absolute;top:-5px;right:-8px;background:#f44336;color:white;font-size:10px;padding:1px 5px;border-radius:10px;font-weight:600;}',
     'nav.pmnav .dark-mode-btn{cursor:pointer;font-size:18px;margin-left:8px;}',
-    'nav.pmnav a.pm-gh{font-size:18px;margin-left:8px;color:inherit;text-decoration:none;display:inline-flex;align-items:center;}',
+    'nav.pmnav a.pm-gh{font-size:18px;margin-left:8px;color:inherit;text-decoration:none;display:inline-flex;align-items:center;background:transparent;padding:0;border-radius:0;}',
     /* 兜底搜索/通知面板 */
     '#global-search-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;backdrop-filter:blur(2px);}',
     '#global-search-box{max-width:600px;margin:80px auto 0;background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;}',
@@ -83,7 +87,28 @@
   }
 
   function apiBase() {
-    return (typeof API !== 'undefined' && API) ? API : '/api';
+    /* ★ 必须 try/catch：页面若用 `const API = ...` 且声明在 nav.js 之后，
+       此处读取时 API 处于 TDZ，`typeof API` 同样抛 ReferenceError
+       （typeof 只对「从未声明」的变量返回 'undefined'，对 TDZ 变量会抛）。 */
+    try {
+      return (typeof API !== 'undefined' && API) ? API : '/api';
+    } catch (e) {
+      return '/api';
+    }
+  }
+
+  /* ★ API 根推导：页面的 API 常量未必是通用根。
+     例：person-report.html 的 API = '/api/report'（报表专用前缀），
+     若直接拼 '/notifications' 会 404（/api/report/notifications 不存在）。
+     通知等全局接口必须落在 API 根上，故从 '/api/report' 还原为 '/api'。 */
+  function apiRoot() {
+    var b = apiBase();
+    var m = String(b).match(/^(.*?)\/report(?:\/.*)?$/);
+    return (m && m[1]) ? m[1] : b;
+  }
+
+  function notificationsApi() {
+    return apiRoot() + '/notifications';
   }
 
   function authHeaders() {
@@ -211,7 +236,7 @@
         if (p.style.display === 'block') {
           var list = document.getElementById('notification-list');
           list.innerHTML = '<div style="padding:20px;text-align:center;color:#999">加载中…</div>';
-          getJSON(apiBase() + '/notifications').then(function (r) {
+          getJSON(notificationsApi()).then(function (r) {
             var ns = r.notifications || [];
             var badge = document.getElementById('notification-badge');
             var unread = ns.filter(function (n) { return !n.is_read; }).length;
@@ -248,7 +273,7 @@
     var tools =
       '<span class="pm-tools" onclick="showGlobalSearch()" title="全局搜索 (Ctrl+K)">🔍 <span class="pm-kbd">Ctrl+K</span></span>' +
       '<span id="notification-bell" onclick="toggleNotificationPanel()" title="通知">🔔' +
-        '<span id="notification-badge">0</span></span>' +
+        '<span id="notification-badge" style="display:none">0</span></span>' +
       '<span class="dark-mode-btn" onclick="toggleDarkMode()" title="切换暗黑模式">🌙</span>' +
       '<a class="pm-gh" href="https://github.com/DennisSkyWind/pm-system" target="_blank" title="GitHub仓库">' + GH_SVG + '</a>';
 
@@ -275,7 +300,8 @@
       var header = document.querySelector('header');
       if (!header) {
         header = document.createElement('header');
-        var ttl = (document.title || '').split(' - ')[0] || '项目管理系统';
+        var cur0 = currentFile();
+        var ttl = H1_TITLES[cur0] || (document.title || '').split(' - ')[0] || '项目管理系统';
         var h1 = document.createElement('h1');
         h1.textContent = '📊 ' + ttl;
         header.appendChild(h1);
@@ -285,13 +311,56 @@
     }
     nav.className = 'pmnav';
     nav.innerHTML = buildNavHTML();
+    /* h1 文案与菜单标签对齐（仅当页面 h1 存在且映射表有该页时才改） */
+    var h1map = H1_TITLES[currentFile()];
+    if (h1map) {
+      var host = nav.parentElement;
+      var h1el = host && host.querySelector('h1');
+      if (h1el) h1el.textContent = h1map;
+    }
   }
 
   /* ---------- 6. 启动 ---------- */
+  /* 未读角标：统一由 nav.js 拉取并写入。
+     ★ 各页旧代码写 `style.display = unread > 0 ? '' : 'none'`，
+       空字符串会覆盖 CSS 的 display:none 导致数字算出来却看不见；
+       现 CSS 默认 inline-block、各页写 '' 即显示，nav.js 也主动兜底（覆盖无角标代码的页面） */
+  function paintBadge(n) {
+    var b = document.getElementById('notification-badge');
+    if (!b) return;
+    b.textContent = n;
+    b.style.display = n > 0 ? 'inline-block' : 'none';
+  }
+  function refreshBadge() {
+    if (typeof apiBase !== 'function') return;
+    getJSON(notificationsApi()).then(function (r) {
+      r = r || {};
+      var unread = (typeof r.unread_count === 'number')
+        ? r.unread_count
+        : (r.notifications || []).filter(function (n) { return !n.is_read; }).length;
+      paintBadge(unread);
+    }).catch(function () {});
+  }
+
   function boot() {
     injectCSS();
     installFallbacks();
     inject();
+    /* ★ 各页 body 普遍带 has-nav（dark-mode/theme 用它判断有无导航）；
+       performance.html 原本没有 → 切企业MIS主题时 8 个菜单项被钉到左侧却无侧栏底色，
+       变成幽灵文字浮在内容上。这里统一补上。 */
+    if (document.body) document.body.classList.add('has-nav');
+    /* ★ 角标刷新必须等 DOMContentLoaded：此时页面所有 script 已执行完，
+       `const API` 才不在 TDZ，notificationsApi() 才能取到正确前缀。 */
+    function startBadge() {
+      refreshBadge();
+      setInterval(refreshBadge, 30000);
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', startBadge);
+    } else {
+      startBadge();
+    }
   }
 
   if (document.readyState === 'loading') {
