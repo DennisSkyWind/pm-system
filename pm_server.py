@@ -17,12 +17,12 @@ from functools import wraps
 APP_VERSION = '2.5.3'
 
 # 前端文件目录
-FRONTEND_DIR = os.environ.get('PM_FRONTEND_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend'))
+FRONTEND_DIR = '/home/ubuntu/.openclaw/workspace/pm-system'
 
 app = Flask(__name__, static_folder=FRONTEND_DIR)
 app.json.sort_keys = False
-DB_PATH = os.environ.get('PM_DB_PATH', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'pm.db'))
-MEMOS_SCRIPT = os.environ.get('MEMOS_SCRIPT', '')
+DB_PATH = '/home/ubuntu/.copaw/data/pm.db'
+MEMOS_SCRIPT = '/home/ubuntu/.copaw/scripts/write_to_memos.py'
 
 # 用户会话存储（简单实现）
 USER_SESSIONS = {}
@@ -2012,7 +2012,7 @@ def send_dingtalk_notification(message):
         cmd = ['copaw', 'channel', 'send',
                '--agent-id', os.environ.get('PM_AGENT_ID', 'default'),
                '--channel', 'dingtalk',
-               '--target-user', os.environ.get('PM_TARGET_USER', 'YOUR_DINGTALK_USER_ID'),
+               '--target-user', os.environ.get('PM_TARGET_USER', '周泓武#vQ=='),
                '--target-session', os.environ.get('PM_TARGET_SESSION', 'Ux/CHNs='),
                '--text', message]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
@@ -5177,7 +5177,7 @@ def api_directory_page():
 
 # ========== 附件管理 ==========
 
-UPLOAD_DIR = os.environ.get('PM_UPLOAD_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'attachments'))
+UPLOAD_DIR = '/home/ubuntu/.copaw/data/pm_attachments'
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def init_attachment_table():
