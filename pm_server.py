@@ -317,6 +317,31 @@ def create_users_from_persons():
     conn.close()
     return created_count
 
+def create_user_for_person(cursor, person_id, name, existing_names=None):
+    """为【单个】新建人员建立账号 —— 「新建人员即建号」，不再依赖全量同步。
+
+    【设计修复 2026-11-10】
+    此前 POST /api/persons 只插入 person，建号要靠 create_users_from_persons()
+    全量同步；而全量同步会把 **全部** 人员重建一遍（username 撞名加后缀），
+    于是「每新建 1 个人 → 凭空多出 45 个重复账号」，累积 127 次 = 5603 行。
+    现在新建人员时只给这一个人建号，其余人员原账号一律不动。
+
+    返回 (username, created)；已存在账号时返回 (None, False)。
+    """
+    if cursor.execute('SELECT id FROM pm_user WHERE person_id = ? LIMIT 1',
+                      (person_id,)).fetchone():
+        return None, False
+    if existing_names is None:
+        existing_names = set(r['username'] for r in cursor.execute('SELECT username FROM pm_user'))
+    username = generate_username(name, existing_names)
+    password_hash = hash_password(os.environ.get('PM_DEFAULT_PASSWORD', 'changeme'))
+    cursor.execute('''
+        INSERT INTO pm_user (person_id, username, password_hash, role)
+        VALUES (?, ?, ?, 'user')
+    ''', (person_id, username, password_hash))
+    return username, True
+
+
 def generate_token():
     """生成会话token"""
     return secrets.token_hex(32)
@@ -531,6 +556,12 @@ def change_password():
     add_log('user', user['id'], 'change_password', None, None, user.get('person_id'), user.get('person_name'))
     
     return jsonify({'success': True, 'message': '密码修改成功'})
+
+@app.route('/favicon.ico')
+def favicon():
+    """favicon：避免每次页面加载都在日志里刷一条 404 Traceback"""
+    return '', 204
+
 
 @app.route('/api/users/init', methods=['POST'])
 def init_users():
@@ -3125,10 +3156,14 @@ def create_person():
           data.get('major'), data.get('school'), data.get('education'), data.get('birthday')))
     
     person_id = cursor.lastrowid
+    # ★ 新建人员即建号（同事务）：只给这一个人建，其余人员账号不动
+    username, account_created = create_user_for_person(cursor, person_id, data.get('name') or '')
     conn.commit()
     conn.close()
     
-    return jsonify({'success': True, 'id': person_id})
+    return jsonify({'success': True, 'id': person_id,
+                    'username': username, 'account_created': account_created,
+                    'default_password': os.environ.get('PM_DEFAULT_PASSWORD', 'changeme') if account_created else None})
 
 @app.route('/api/persons/<int:person_id>', methods=['GET'])
 def get_person(person_id):
