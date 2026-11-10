@@ -293,19 +293,22 @@
   }
 
   /* 用户区统一为「👤姓名 / 🔑改密 / 退出」：
-     admin.html 原来自带一份用户区但少了「🔑改密」按钮，这里补齐并保证全站一致。 */
+     ★ admin.html 原来自带一份用户区，但少了「🔑改密」按钮，且元素间无换行，
+       导致 DOM 文本与各页原生渲染（auth.js 模板带换行）不一致。
+       这里对「已登录态」的用户区统一重建为标准模板；
+       未登录态（只有「登录」链接）保持不动，交给 auth.js 的 showUserInHeader 填充。 */
   function normalizeUserArea() {
     var ua = document.getElementById('user-area');
     if (!ua) return;
-    if (!ua.querySelector('.pm-chpwd')) {
-      var b = document.createElement('button');
-      b.className = 'logout-btn pm-chpwd';
-      b.setAttribute('onclick', 'showChangePasswordModal()');
-      b.setAttribute('style', 'background:rgba(255,255,255,0.15);');
-      b.textContent = '🔑 改密';
-      var lo = ua.querySelector('.logout-btn[onclick*="logout"]');
-      if (lo) ua.insertBefore(b, lo); else ua.appendChild(b);
-    }
+    var nameEl = ua.querySelector('.user-name');
+    if (!nameEl) return;                       // 未登录态：不干预
+    var nameId = nameEl.id || '';
+    var nameTxt = nameEl.textContent || '';
+    ua.innerHTML = `
+                <span class="user-name"${nameId ? ' id="' + nameId + '"' : ''}>${nameTxt}</span>
+                <button class="logout-btn pm-chpwd" onclick="showChangePasswordModal()" style="background:rgba(255,255,255,0.15);">🔑 改密</button>
+                <button class="logout-btn" onclick="logout()">退出</button>
+            `;
   }
 
   /* 填充用户名：★ 只有 index.html 调了 initAuthPage()，其余页的 auth.js 从不填用户区
