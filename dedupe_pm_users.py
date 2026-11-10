@@ -25,7 +25,7 @@ import sqlite3
 import sys
 from datetime import datetime
 
-DB_PATH = os.environ.get('PM_DB_PATH', '/home/ubuntu/.copaw/data/pm.db')
+DB_PATH = os.environ.get('PM_DB_PATH', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'pm.db'))
 BACKUP_DIR = os.path.dirname(DB_PATH)
 
 
