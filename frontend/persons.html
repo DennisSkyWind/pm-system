@@ -157,7 +157,7 @@
                 </div>
                 <div class="form-group">
                     <label>部门</label>
-                    <input type="text" id="person-department" value="智能与数字化中心">
+                    <input type="text" id="person-department" value="XX公司">
                 </div>
                 
                 <!-- 第二行：职位序列、条线、子条线 -->
@@ -641,7 +641,7 @@
             document.getElementById('modal-title').textContent = '新增人员';
             document.getElementById('person-employee-id').value = '';
             document.getElementById('person-name').value = '';
-            document.getElementById('person-department').value = '智能与数字化中心';
+            document.getElementById('person-department').value = 'XX公司';
             document.getElementById('person-job-sequence').value = '专业序列';
             document.getElementById('person-line').value = '';
             document.getElementById('person-sub-line').value = '';
@@ -664,7 +664,7 @@
             document.getElementById('modal-title').textContent = '编辑人员';
             document.getElementById('person-employee-id').value = person.employee_id || '';
             document.getElementById('person-name').value = person.name;
-            document.getElementById('person-department').value = person.department || '智能与数字化中心';
+            document.getElementById('person-department').value = person.department || 'XX公司';
             document.getElementById('person-job-sequence').value = person.job_sequence || '专业序列';
             document.getElementById('person-line').value = person.line || '';
             document.getElementById('person-sub-line').value = person.sub_line || '';
@@ -693,7 +693,7 @@
             const data = {
                 employee_id: document.getElementById('person-employee-id').value,
                 name: name,
-                department: document.getElementById('person-department').value || '智能与数字化中心',
+                department: document.getElementById('person-department').value || 'XX公司',
                 job_sequence: document.getElementById('person-job-sequence').value,
                 line: document.getElementById('person-line').value,
                 sub_line: document.getElementById('person-sub-line').value,

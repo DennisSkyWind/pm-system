@@ -3319,7 +3319,7 @@ def create_person():
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (data.get('employee_id'), data.get('name'), data.get('role', 'member'), 
           data.get('email'), data.get('phone'), 
-          data.get('department', '智能与数字化中心'),
+          data.get('department', 'XX公司'),
           data.get('job_sequence'), data.get('line'), data.get('sub_line'), 
           data.get('position'), data.get('status', 'active'), data.get('hire_date'),
           data.get('major'), data.get('school'), data.get('education'), data.get('birthday')))
@@ -5949,7 +5949,7 @@ def create_pdf_style1(tasks, project_name, styles, landscape=False):
     story.append(Paragraph(datetime.now().strftime('%Y年%m月%d日'), signature_style))
     story.append(Spacer(1, 4))
     dept_style = ParagraphStyle('Dept', fontName=FONT_NAME, fontSize=10, textColor=black, alignment=2)
-    story.append(Paragraph("智能与数字化中心·数据智能", dept_style))
+    story.append(Paragraph("XX公司·数据智能", dept_style))
     
     return story
 
@@ -6078,7 +6078,7 @@ def create_pdf_style2(tasks, project_name, styles, landscape=False):
     story.append(Paragraph(datetime.now().strftime('%Y年%m月%d日'), signature_style))
     story.append(Spacer(1, 4))
     dept_style = ParagraphStyle('Dept', fontName=FONT_NAME, fontSize=10, textColor=HexColor('#1565C0'), alignment=2)
-    story.append(Paragraph("智能与数字化中心·数据智能", dept_style))
+    story.append(Paragraph("XX公司·数据智能", dept_style))
     
     return story
 
@@ -6182,7 +6182,7 @@ def create_pdf_style3(tasks, project_name, styles, landscape=False):
     story.append(Paragraph(datetime.now().strftime('%Y年%m月%d日'), signature_style))
     story.append(Spacer(1, 4))
     dept_style = ParagraphStyle('Dept', fontName=FONT_NAME, fontSize=10, textColor=HexColor('#1565C0'), alignment=2)
-    story.append(Paragraph("智能与数字化中心·数据智能", dept_style))
+    story.append(Paragraph("XX公司·数据智能", dept_style))
     
     return story
 
@@ -6246,7 +6246,7 @@ def create_pdf_style4(tasks, project_name, styles, landscape=False):
     story.append(Paragraph(datetime.now().strftime('%Y年%m月%d日'), signature_style))
     story.append(Spacer(1, 4))
     dept_style = ParagraphStyle('Dept', fontName=FONT_NAME, fontSize=10, textColor=black, alignment=2)
-    story.append(Paragraph("智能与数字化中心·数据智能", dept_style))
+    story.append(Paragraph("XX公司·数据智能", dept_style))
     
     return story
 
@@ -6311,7 +6311,7 @@ def create_pdf_style5(tasks, project_name, styles, landscape=False):
     story.append(Paragraph(datetime.now().strftime('%Y年%m月%d日'), signature_style))
     story.append(Spacer(1, 4))
     dept_style = ParagraphStyle('Dept', fontName=FONT_NAME, fontSize=10, textColor=HexColor('#1565C0'), alignment=2)
-    story.append(Paragraph("智能与数字化中心·数据智能", dept_style))
+    story.append(Paragraph("XX公司·数据智能", dept_style))
     
     return story
 
