@@ -1433,28 +1433,25 @@ def update_task(task_id):
         if task_info:  # task_info在前面已获取
             data['completed_date'] = None  # 清除完成日期
     
-    cursor.execute('''
-        UPDATE task SET 
-            name = COALESCE(?, name),
-            description = COALESCE(?, description),
-            status = COALESCE(?, status),
-            priority = COALESCE(?, priority),
-            due_date = COALESCE(?, due_date),
-            start_date = COALESCE(?, start_date),
-            progress = COALESCE(?, progress),
-            completed_date = COALESCE(?, completed_date),
-            notes = COALESCE(?, notes),
-            assignee_id = COALESCE(?, assignee_id),
-            phase_id = COALESCE(?, phase_id),
-            project_id = COALESCE(?, project_id),
-            rating = COALESCE(?, rating),
-            updated_at = ?
-        WHERE id = ?
-    ''', (data.get('name'), data.get('description'), data.get('status'),
-          data.get('priority'), data.get('due_date'), data.get('start_date'), data.get('progress'),
-          data.get('completed_date'), data.get('notes'), data.get('assignee_id'),
-          data.get('phase_id'), data.get('project_id'), data.get('rating'),
-          datetime.now().isoformat(), task_id))
+    # ★ 动态构建 SET 子句：区分"本次没传该字段(保持不变)"与"显式传 None(清空)"
+    #   旧写法 `col = COALESCE(?, col)` 无法清空——传 NULL 会被 COALESCE 挡回旧值，
+    #   导致「从 completed 退回其他状态」时 completed_date 清不掉，
+    #   脏数据残留于 task#88（RPA财务领域机器人迁移：in_progress 却带 completed_date=2026-10-24），
+    #   并虚增当月完成数（2026-10 虚高 1 个）。
+    #   前端契约：编辑弹窗不传 status/completed_date，看板拖拽才显式传，
+    #   故"未传=不改、传 null=清空"的语义与前端完全一致。
+    _UPDATABLE = ('name', 'description', 'status', 'priority', 'due_date', 'start_date',
+                   'progress', 'completed_date', 'notes', 'assignee_id', 'phase_id',
+                   'project_id', 'rating')
+    _set_parts, _set_vals = [], []
+    for _col in _UPDATABLE:
+        if _col in data:
+            _set_parts.append(f"{_col} = ?")
+            _set_vals.append(data[_col])
+    _set_parts.append('updated_at = ?')
+    _set_vals.append(datetime.now().isoformat())
+    _set_vals.append(task_id)
+    cursor.execute(f'UPDATE task SET {", ".join(_set_parts)} WHERE id = ?', _set_vals)
     
     # 记录截止日期变更历史
     new_due_date = data.get('due_date')
