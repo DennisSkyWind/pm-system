@@ -69,7 +69,8 @@ with open(server, 'w') as f:
 #   必须放在本段写文件之后，否则会被上面的写入用旧内容覆盖回去。
 #   放在独立脚本里，避免 python3 -c 的双引号转义问题。
 import subprocess
-_sanitize = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sanitize_backend.py')
+# ★ 注意：本段跑在 python3 -c 里，__file__ 未定义（NameError），必须用 os.getcwd()
+_sanitize = os.path.join(os.getcwd(), 'sanitize_backend.py')
 if os.path.isfile(_sanitize):
     subprocess.run(['python3', _sanitize, server], check=False)
 
