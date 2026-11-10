@@ -121,7 +121,7 @@ def hash_password(password: str) -> str:
 # ================================================================
 # ★ 为什么需要可逆加密：
 #   sha256 散列不可逆，管理员**无法**查看用户密码。
-#   老周要求「管理员可以看到用户密码」+「重置密码可随机生成并显示」，
+#   需求方要求「管理员可以看到用户密码」+「重置密码可随机生成并显示」，
 #   因此额外存一份可逆密文 password_enc（登录仍用 sha256 校验，不受影响）。
 #
 # ★ 安全设计：
@@ -700,7 +700,7 @@ def update_user_role(user_id):
 @require_admin
 def admin_reset_password(user_id):
     """管理员：重置用户密码
-    ★ 默认【随机生成】并把明文回显给管理员（老周要求）；
+    ★ 默认【随机生成】并把明文回显给管理员（需求方要求）；
       传 mode='default' 则重置为默认密码。"""
     data = request.get_json(silent=True) or {}
     mode = data.get('mode', 'random')
