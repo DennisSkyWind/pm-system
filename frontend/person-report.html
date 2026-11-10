@@ -47,10 +47,26 @@
                          padding-left: 10px; border-left: 3px solid #0f766e; }
 
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th { background: #0f766e; color: white; padding: 9px 8px; text-align: left; font-weight: 500; white-space: nowrap; }
-        td { padding: 8px; border-bottom: 1px solid #eee; }
-        /* ★ 3 字姓名折行推高行高 → 姓名/岗位列不换行 */
-        #overview-table td:nth-child(2), #overview-table td:nth-child(3) { white-space: nowrap; }
+        th { background: #0f766e; color: white; padding: 9px 6px; text-align: left; font-weight: 500; white-space: nowrap; }
+        td { padding: 8px 6px; border-bottom: 1px solid #eee; }
+
+        /* ★ 2026-11-10 修硬伤：14 列总宽超出容器 → 末列「本周评价」被硬裁切，
+           导出 PNG 是静态快照，.tbl-scroll 的横向滚动救不回来，整列会丢失。
+           对策：table-layout:fixed + 显式百分比列宽，让表格永不超容器。 */
+        #overview-table { table-layout: fixed; }
+        #overview-table th, #overview-table td { overflow: hidden; text-overflow: ellipsis; }
+        #overview-table col.c-idx   { width: 3%; }
+        #overview-table col.c-name  { width: 7%; }
+        #overview-table col.c-pos   { width: 12%; }
+        #overview-table col.c-score { width: 6%; }
+        #overview-table col.c-num   { width: 6%; }
+        #overview-table col.c-sm    { width: 5%; }
+        #overview-table col.c-proj  { width: 6%; }
+        #overview-table col.c-rate  { width: 6%; }
+        #overview-table col.c-rating{ width: 16%; }
+        /* 姓名不折行；岗位/条线过长则省略号（它是最占宽的一列） */
+        #overview-table td:nth-child(2) { white-space: nowrap; }
+        #overview-table td:nth-child(3) { white-space: nowrap; }
         tr:nth-child(even) td { background: #fafcfb; }
         .num-cell { text-align: center; font-variant-numeric: tabular-nums; }
         .tbl-scroll { overflow-x: auto; }
@@ -156,6 +172,14 @@
             <div class="section-title">📊 人员总览（按工作量分排序）</div>
             <div class="tbl-scroll">
                 <table id="overview-table">
+                    <colgroup>
+                        <col class="c-idx"><col class="c-name"><col class="c-pos">
+                        <col class="c-score">
+                        <col class="c-num"><col class="c-num"><col class="c-sm"><col class="c-sm"><col class="c-sm"><col class="c-num">
+                        <col class="c-proj"><col class="c-proj">
+                        <col class="c-rate">
+                        <col class="c-rating">
+                    </colgroup>
                     <thead>
                     <tr>
                         <th>#</th><th>姓名</th><th>岗位/条线</th>
@@ -415,6 +439,10 @@ async function exportReport(format) {
 <style>${css}
 html,body{background:#fff !important;}
 body{max-width:1000px !important;margin:0 auto !important;padding:20px !important;}
+/* ★ 导出时强制表格完整显示：禁止横向滚动裁切，表格按容器宽度自适应 */
+.tbl-scroll{overflow:visible !important;}
+#overview-table{table-layout:fixed !important;width:100% !important;}
+#overview-table th,#overview-table td{overflow:hidden !important;text-overflow:ellipsis !important;}
 @page{size:A4;margin:12mm}
 .person-card{break-inside:avoid;page-break-inside:avoid;}
 </style></head><body>${clone.outerHTML}</body></html>`;
