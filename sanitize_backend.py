@@ -52,12 +52,14 @@ def main():
     with open(path, 'w', encoding='utf-8') as f:
         f.write(content)
 
-    # 复核：不得残留真实信息
-    leaks = [t for t in ['周泓武', 'pm2026', '/home/ubuntu'] if t in content]
+    # 复核：只检查本脚本负责的旧串是否已消失。
+    # 注意：'pm2026' 还可能出现在 os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026')，
+    # 那一处由 sync-to-github.sh 里的 sed 单独处理，不归本脚本管，误报会掩盖真问题。
+    leaks = [old for old, _ in SENSITIVE if old in content]
     if leaks:
         print(f'❌ 脱敏后仍残留: {leaks}')
         return 1
-    print(f'✅ 后端脱敏完成（替换 {changed} 处），复核无残留')
+    print(f'✅ 后端脱敏完成（替换 {changed} 处），本脚本负责项无残留')
     return 0
 
 

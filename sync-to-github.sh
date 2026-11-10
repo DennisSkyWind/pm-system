@@ -30,6 +30,7 @@ for f in index.html projects.html project.html tasks.html gantt.html issues.html
 done
 
 # 3. 清理硬编码路径
+sed -i "s/os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026')/os.environ.get('PM_DEFAULT_PASSWORD', 'changeme')/g" pm_server.py
 echo ""
 echo "🧹 清理硬编码路径和个人信息..."
 cd "$DST"
@@ -107,7 +108,6 @@ print('✅ 路径和个人信息已清理')
 "
 
 # 3.5 清理默认密码（开源版用changeme）
-sed -i "s/os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026')/os.environ.get('PM_DEFAULT_PASSWORD', 'changeme')/g" pm_server.py
 sed -i "s/密码已重置为: pm2026/密码已重置为: changeme/g" frontend/admin.html 2>/dev/null
 sed -i "s/默认密码：pm2026/默认密码：changeme/g" frontend/login.html 2>/dev/null
 echo "✅ 默认密码已改为changeme"
