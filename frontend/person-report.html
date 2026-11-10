@@ -39,11 +39,11 @@
         .report-period { color: #666; font-size: 15px; margin-top: 5px; }
 
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px; }
-        .stat-card { background: #f9f9f9; padding: 15px; border-radius: 8px; text-align: center; }
+        .stat-card { background: #f9f9f9; padding: 18px; border-radius: 8px; text-align: center; }
         .stat-card h4 { color: #666; font-size: 14px; margin-bottom: 5px; font-weight: 500; }
         .stat-card .number { font-size: 32px; font-weight: bold; color: #667eea; }
         .stat-card .number.warn { color: #f44336; }
-        .stat-card .sub { font-size: 11px; color: #999; margin-top: 4px; }
+        .stat-card .sub { font-size: 11px; color: #666; margin-top: 4px; }
 
         .section { margin-bottom: 26px; }
         .section-title { font-size: 18px; font-weight: 600; color: #333; margin-bottom: 15px;
@@ -82,16 +82,16 @@
         .rate { font-weight: 600; }
         /* ★ 语义色：色相与 report.html 完全同源(#4caf50/#ff9800/#f44336)，
              但小号文字改用同色相深色档(900)，对比度从 2.16~3.68 提升到 4.6~5.9(达 WCAG AA) */
-        .rate.good { color: #2e7d32; } .rate.mid { color: #bf360c; } .rate.low { color: #c62828; }
+        .rate.good { color: #2e7d32; } .rate.mid { color: #bd3f00; } .rate.low { color: #c62828; }
 
         .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-right: 4px; white-space: nowrap; }
-        .badge.lead { background: #667eea1a; color: #667eea; border: 1px solid #667eea55; }
-        .badge.join { background: #90a4ae1a; color: #546e7a; border: 1px solid #90a4ae55; }
-        .badge.rate-outstanding { background: #ff980020; color: #bf360c; }
-        .badge.rate-excellent { background: #4caf5020; color: #2e7d32; }
-        .badge.rate-normal { background: #9e9e9e20; color: #616161; }
-        .badge.rate-insufficient { background: #f4433620; color: #c62828; }
-        .badge.rate-none { background: #eee; color: #666; }
+        .badge.lead { background: #eef0fd; color: #5a4fcf; border: 1px solid #c3c7f5; }
+        .badge.join { background: #eceff1; color: #546e7a; border: 1px solid #b0bec5; }
+        .badge.rate-outstanding { background: #fff3e0; color: #bd3f00; border: 1px solid #ffcc80; }
+        .badge.rate-excellent { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+        .badge.rate-normal { background: #f5f5f5; color: #6d6d6d; border: 1px solid #e0e0e0; }
+        .badge.rate-insufficient { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+        .badge.rate-none { background: #fff; color: #bbb; border: 1px dashed #ddd; }
 
         /* 人员卡片 */
         .person-card { border: 1px solid #e8e8e8; border-radius: 10px; padding: 16px; margin-bottom: 12px; background: #fff; }
@@ -217,7 +217,9 @@
 <script>
 const API = '/api/report';
 const RATING_ORDER = ['卓越', '优秀', '正常', '不足'];
-const RATING_COLOR = { '卓越': '#bf360c', '优秀': '#2e7d32', '正常': '#9e9e9e', '不足': '#c62828' };
+/* ★ 色块用途 → 用浅色/高饱和档（与 report.html 的 .rating-badge 同源），
+   不能用文字的深色档：卓越与不足若同为深色会几乎撞色(对比度1.00，肉眼不可分) */
+const RATING_COLOR = { '卓越': '#ff9800', '优秀': '#4caf50', '正常': '#9e9e9e', '不足': '#f44336' };
 const WEEK_KIND = { done: '完成', progressed: '推进', new: '新增' };
 const RATING_CLASS = { '卓越': 'rate-outstanding', '优秀': 'rate-excellent', '正常': 'rate-normal', '不足': 'rate-insufficient' };
 
@@ -262,7 +264,7 @@ function completionCell(p) {
     }
     if (act < 3) {
         return `<span class="rate ${rateClass(p.completion_rate)}" title="样本仅 ${act} 个任务，百分比参考性有限">${done}/${act}</span>`
-             + `<span style="color:#666;font-size:11px"> ${p.completion_rate}%</span>`;
+             + `<span style="color:#666;font-size:12px;margin-left:3px"> ${p.completion_rate}%</span>`;
     }
     return `<span class="rate ${rateClass(p.completion_rate)}" title="本期完成 ${done} ÷ 本期有动作 ${act}">${p.completion_rate}%</span>`;
 }
@@ -279,7 +281,7 @@ function render(r) {
 
     const s = r.summary;
     document.getElementById('stats-grid').innerHTML = `
-        <div class="stat-card"><h4>本期有动作</h4><div class="number">${s.active_people}<span style="font-size:15px;color:#999">/${s.total_people}</span></div><div class="sub">共 ${s.week_active} 个任务</div></div>
+        <div class="stat-card"><h4>本期有动作</h4><div class="number">${s.active_people}<span style="font-size:15px;color:#666">/${s.total_people}</span></div><div class="sub">共 ${s.week_active} 个任务</div></div>
         <div class="stat-card"><h4>本期完成</h4><div class="number">${s.week_done}</div><div class="sub">推进 ${s.week_progressed} · 新增 ${s.week_new}</div></div>
         <div class="stat-card"><h4>主导项目</h4><div class="number">${s.total_lead_projects}</div><div class="sub">${s.lead_people} 人主导</div></div>
         <div class="stat-card"><h4>参与任务</h4><div class="number">${s.participate_week}</div><div class="sub">已评价 ${s.week_rated} 条</div></div>
@@ -333,7 +335,7 @@ function render(r) {
                         <span class="badge ${pj.role === 'lead' ? 'lead' : 'join'}">${pj.role === 'lead' ? '主导' : '参与'}</span>
                         ${esc(pj.project_name)}
                     </span>
-                    <span class="pj-bar"><span class="bar"><i style="width:${Math.min(100, pj.project_progress || 0)}%;background:${(pj.project_progress || 0) >= 80 ? '#4caf50' : (pj.project_progress || 0) >= 50 ? '#ff9800' : '#667eea'}"></i></span></span>
+                    <span class="pj-bar"><span class="bar"><i style="width:${Math.min(100, pj.project_progress || 0)}%;background:${(pj.project_progress || 0) >= 80 ? '#2e7d32' : (pj.project_progress || 0) >= 50 ? '#bd3f00' : '#667eea'}"></i></span></span>
                     <span class="pj-meta">${pj.completed || 0}/${pj.task_count || 0} 项 · 项目${pj.project_progress || 0}%</span>
                 </div>`).join('');
 
@@ -357,7 +359,7 @@ function render(r) {
                     <span>完成率 <b>${p.week_active ? `${p.week_done}/${p.week_active}` : '—'}</b></span>
                     ${p.avg_rating ? `<span>评价均分 <b>${p.avg_rating}</b></span>` : ''}
                 </div>
-                <div class="bar"><i style="width:${p.completion_rate}%;background:${p.completion_rate >= 80 ? '#4caf50' : p.completion_rate >= 50 ? '#ff9800' : '#f44336'}"></i></div>
+                <div class="bar"><i style="width:${p.completion_rate}%;background:${p.completion_rate >= 80 ? '#2e7d32' : p.completion_rate >= 50 ? '#bd3f00' : '#c62828'}"></i></div>
                 <div class="person-projects">
                     <div style="color:#667eea;font-weight:600;margin-bottom:4px">项目（主导 ${p.owned_projects.length} / 参与 ${p.join_projects.length}）</div>
                     ${projRows || '<div style="color:#999">本期无项目任务</div>'}
