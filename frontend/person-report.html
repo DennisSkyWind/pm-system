@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>人员周报 - 项目管理系统</title>
+    <script src="auth.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
+
+        header { background: linear-gradient(135deg, #0f766e 0%, #134e4a 100%); color: white; padding: 20px; }
+        header h1 { font-size: 24px; }
+        nav { display: flex; gap: 15px; margin-top: 15px; flex-wrap: wrap; }
+        nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; background: rgba(255,255,255,0.2); }
+        nav a:hover { background: rgba(255,255,255,0.3); }
+        nav a.active { background: rgba(255,255,255,0.4); }
+
+        main { padding: 20px; max-width: 1000px; margin: 0 auto; }
+
+        .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+        .btn { padding: 9px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px;
+               background: white; color: #0f766e; border: 1px solid #0f766e; font-weight: 500; }
+        .btn:hover { background: #0f766e; color: white; }
+        .btn.primary { background: #0f766e; color: white; }
+        .btn.primary:hover { opacity: .88; }
+        .btn:disabled { opacity: .45; cursor: not-allowed; }
+        .spacer { flex: 1; }
+        .period-label { font-size: 14px; color: #666; }
+
+        .report-container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+
+        .report-header { border-bottom: 2px solid #0f766e; padding-bottom: 18px; margin-bottom: 26px; }
+        .report-title { font-size: 26px; font-weight: bold; }
+        .report-period { color: #666; font-size: 15px; margin-top: 5px; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 26px; }
+        .stat-card { background: #f7faf9; padding: 18px; border-radius: 8px; text-align: center; border: 1px solid #e3ece9; }
+        .stat-card h4 { color: #667; font-size: 13px; margin-bottom: 8px; font-weight: 500; }
+        .stat-card .number { font-size: 28px; font-weight: bold; color: #0f766e; }
+        .stat-card .number.warn { color: #f44336; }
+        .stat-card .sub { font-size: 11px; color: #999; margin-top: 4px; }
+
+        .section { margin-bottom: 26px; }
+        .section-title { font-size: 16px; font-weight: 600; color: #0f766e; margin-bottom: 12px;
+                         padding-left: 10px; border-left: 3px solid #0f766e; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: #0f766e; color: white; padding: 9px 8px; text-align: left; font-weight: 500; white-space: nowrap; }
+        td { padding: 8px; border-bottom: 1px solid #eee; }
+        tr:nth-child(even) td { background: #fafcfb; }
+        .num-cell { text-align: center; font-variant-numeric: tabular-nums; }
+        .tbl-scroll { overflow-x: auto; }
+
+        .bar { height: 7px; background: #e6ecea; border-radius: 4px; overflow: hidden; min-width: 60px; }
+        .bar > i { display: block; height: 100%; border-radius: 4px; background: #0f766e; }
+        .rate { font-weight: 600; }
+        .rate.good { color: #2e7d32; } .rate.mid { color: #ef6c00; } .rate.low { color: #c62828; }
+
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-right: 4px; white-space: nowrap; }
+        .badge.lead { background: #0f766e1a; color: #0f766e; border: 1px solid #0f766e55; }
+        .badge.join { background: #90a4ae1a; color: #546e7a; border: 1px solid #90a4ae55; }
+        .badge.rate-outstanding { background: #e6510020; color: #e65100; }
+        .badge.rate-excellent { background: #4caf5020; color: #2e7d32; }
+        .badge.rate-normal { background: #9e9e9e20; color: #616161; }
+        .badge.rate-insufficient { background: #f4433620; color: #c62828; }
+        .badge.rate-none { background: #eee; color: #888; }
+        .badge.perf { background: #4527a01a; color: #4527a0; }
+
+        /* 人员卡片 */
+        .person-card { border: 1px solid #e3ece9; border-radius: 10px; padding: 16px; margin-bottom: 12px; background: #fff; }
+        .person-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+        .person-name { font-size: 16px; font-weight: 600; }
+        .person-meta { font-size: 12px; color: #888; }
+        .person-rank { margin-left: auto; font-size: 12px; color: #0f766e; font-weight: 600; }
+        .person-nums { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: #555; margin-bottom: 8px; }
+        .person-nums b { color: #0f766e; font-size: 14px; }
+        .person-nums .od b { color: #c62828; }
+        .person-projects { margin-top: 8px; font-size: 12px; }
+        .pj-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+        .pj-name { flex: 0 0 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .pj-bar { flex: 1; }
+        .pj-meta { flex: 0 0 90px; text-align: right; color: #888; font-variant-numeric: tabular-nums; }
+        .pj-tasks { margin-top: 6px; padding-left: 4px; color: #777; }
+        .pj-tasks div { padding: 2px 0; }
+
+        .empty-state { text-align: center; color: #999; padding: 30px; font-size: 13px; }
+        .rating-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: #555; margin-top: 8px; }
+        .rating-legend em { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+        @media (max-width: 800px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .pj-name { flex-basis: 130px; }
+        }
+        @media print {
+            header, .toolbar { display: none !important; }
+            body { background: #fff; }
+            .report-container { box-shadow: none; padding: 0; }
+            .person-card { break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>👥 人员维度周报</h1>
+    <nav>
+        <a href="index.html">Dashboard</a>
+        <a href="projects.html">项目列表</a>
+        <a href="tasks.html">任务管理</a>
+        <a href="report.html">📊 项目报告</a>
+        <a href="person-report.html" class="active">👥 人员周报</a>
+        <a href="persons.html">👥 人员</a>
+    </nav>
+</header>
+
+<main>
+    <div class="toolbar">
+        <button class="btn" onclick="loadReport(-1)">← 上周</button>
+        <button class="btn" onclick="loadReport(0)">本周</button>
+        <span class="period-label" id="period-label">加载中…</span>
+        <span class="spacer"></span>
+        <button class="btn" onclick="exportReport('html')">📥 导出 HTML</button>
+        <button class="btn" onclick="exportReport('pdf')">📄 导出 PDF</button>
+        <button class="btn" onclick="exportReport('png')">🖼️ 导出 PNG</button>
+    </div>
+
+    <div class="report-container" id="person-report">
+        <div class="report-header">
+            <div class="report-title">👥 人员维度周报</div>
+            <div class="report-period" id="report-period"></div>
+        </div>
+
+        <div class="stats-grid" id="stats-grid"></div>
+
+        <div class="section">
+            <div class="section-title">📊 人员总览（按工作量分排序）</div>
+            <div class="tbl-scroll">
+                <table id="overview-table">
+                    <thead>
+                    <tr>
+                        <th>#</th><th>姓名</th><th>岗位/条线</th>
+                        <th class="num-cell">工作量分</th>
+                        <th class="num-cell">负责</th><th class="num-cell">完成</th>
+                        <th class="num-cell">在办</th><th class="num-cell">待办</th>
+                        <th class="num-cell">逾期</th><th class="num-cell">参与</th>
+                        <th class="num-cell">主导项目</th><th class="num-cell">参与项目</th>
+                        <th class="num-cell">完成率</th>
+                        <th>评价</th><th>绩效</th>
+                    </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="rating-legend" id="rating-legend"></div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">🗂️ 人员明细（主导项目 / 参与项目 / 工作量 / 完成情况 / 评价）</div>
+            <div id="person-cards"></div>
+        </div>
+    </div>
+</main>
+
+<script>
+const API = '/api/report';
+const RATING_ORDER = ['卓越', '优秀', '正常', '不足'];
+const RATING_COLOR = { '卓越': '#e65100', '优秀': '#4caf50', '正常': '#9e9e9e', '不足': '#f44336' };
+const RATING_CLASS = { '卓越': 'rate-outstanding', '优秀': 'rate-excellent', '正常': 'rate-normal', '不足': 'rate-insufficient' };
+
+let reportData = null;
+let currentOffset = 0;
+
+async function loadReport(offset) {
+    currentOffset = offset;
+    const label = document.getElementById('period-label');
+    if (label) label.textContent = '加载中…';
+    try {
+        const res = await authFetch(`${API}/person-weekly?offset=${offset}`);
+        if (!res) return;
+        const data = await res.json();
+        if (!data.success) { alert('加载失败'); return; }
+        reportData = data.report;
+        render(reportData);
+    } catch (e) {
+        console.error(e);
+        alert('加载失败：' + e.message);
+    }
+}
+
+function rateClass(rate) {
+    if (rate >= 80) return 'good';
+    if (rate >= 50) return 'mid';
+    return 'low';
+}
+
+function render(r) {
+    document.getElementById('report-period').textContent = `报告周期：${r.period}`;
+    document.getElementById('period-label').textContent = r.period;
+
+    const s = r.summary;
+    document.getElementById('stats-grid').innerHTML = `
+        <div class="stat-card"><h4>覆盖人员</h4><div class="number">${s.active_people}<span style="font-size:15px;color:#999">/${s.total_people}</span></div><div class="sub">本周有工作量</div></div>
+        <div class="stat-card"><h4>主导项目</h4><div class="number">${s.total_lead_projects}</div><div class="sub">${s.lead_people} 人主导</div></div>
+        <div class="stat-card"><h4>完成任务</h4><div class="number">${s.total_completed}</div><div class="sub">在办 ${s.total_active} 项</div></div>
+        <div class="stat-card"><h4>参与任务</h4><div class="number">${s.total_participate}</div><div class="sub">已评价 ${s.total_rated} 条</div></div>
+    `;
+
+    // 总览表
+    const tb = document.querySelector('#overview-table tbody');
+    const rows = r.persons.filter(p => p.workload_score > 0);
+    if (!rows.length) {
+        tb.innerHTML = '<tr><td colspan="15" class="empty-state">本期无人员工作量数据</td></tr>';
+    } else {
+        tb.innerHTML = rows.map((p, i) => {
+            const badges = RATING_ORDER.filter(k => p.rating_detail[k])
+                .map(k => `<span class="badge ${RATING_CLASS[k]}">${k} ${p.rating_detail[k]}</span>`).join('');
+            const unrated = p.unrated_count > 0 ? `<span class="badge rating-none">未评价 ${p.unrated_count}</span>` : '';
+            return `<tr>
+                <td class="num-cell">${i + 1}</td>
+                <td><b>${esc(p.name)}</b></td>
+                <td>${esc(p.position || p.role || '-')}${p.line ? ' · ' + esc(p.line) : ''}</td>
+                <td class="num-cell"><b>${p.workload_score}</b></td>
+                <td class="num-cell">${p.task_count}</td>
+                <td class="num-cell">${p.completed_count}</td>
+                <td class="num-cell">${p.in_progress_count}</td>
+                <td class="num-cell">${p.pending_count}</td>
+                <td class="num-cell">${p.overdue_count ? `<span style="color:#c62828;font-weight:600">${p.overdue_count}</span>` : 0}</td>
+                <td class="num-cell">${p.participate_task_count}</td>
+                <td class="num-cell">${p.owned_projects.length}</td>
+                <td class="num-cell">${p.join_projects.length}</td>
+                <td class="num-cell"><span class="rate ${rateClass(p.completion_rate)}">${p.completion_rate}%</span></td>
+                <td>${badges}${unrated}</td>
+                <td>${p.performance ? `<span class="badge perf">${esc(p.performance.grade || '')} ${p.performance.score}</span>` : '-'}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    // 评价图例
+    const dist = r.rating_distribution || {};
+    const totalR = Object.values(dist).reduce((a, b) => a + b, 0);
+    document.getElementById('rating-legend').innerHTML = RATING_ORDER.map(k =>
+        `<span><em style="background:${RATING_COLOR[k]}"></em>${k} ${dist[k] || 0}${totalR ? `（${Math.round((dist[k] || 0) / totalR * 100)}%）` : ''}</span>`
+    ).join('') + (totalR ? '' : '<span style="color:#999">本期无评价数据</span>');
+
+    // 人员卡片
+    const box = document.getElementById('person-cards');
+    if (!rows.length) {
+        box.innerHTML = '<div class="empty-state">本期无人员明细</div>';
+    } else {
+        box.innerHTML = rows.map((p, i) => {
+            const projRows = p.projects.map(pj => `
+                <div class="pj-row">
+                    <span class="pj-name" title="${esc(pj.project_name)}">
+                        <span class="badge ${pj.role === 'lead' ? 'lead' : 'join'}">${pj.role === 'lead' ? '主导' : '参与'}</span>
+                        ${esc(pj.project_name)}
+                    </span>
+                    <span class="pj-bar"><span class="bar"><i style="width:${Math.min(100, pj.project_progress || 0)}%;background:${(pj.project_progress || 0) >= 80 ? '#2e7d32' : (pj.project_progress || 0) >= 50 ? '#ef6c00' : '#0f766e'}"></i></span></span>
+                    <span class="pj-meta">${pj.completed || 0}/${pj.task_count || 0} 项 · 项目${pj.project_progress || 0}%</span>
+                </div>`).join('');
+
+            const doneList = p.completed_task_list.slice(0, 5).map(t =>
+                `<div>✅ ${esc(t.name)} <span style="color:#999">· ${esc(t.project_name || '')} · ${t.completed_date || ''}${t.rating ? ' · ' + t.rating : ''}</span></div>`).join('');
+            const odList = p.overdue_task_list.map(t =>
+                `<div style="color:#c62828">⏰ ${esc(t.name)} · ${esc(t.project_name || '')} · 截止${t.due_date} · 进度${t.progress}%</div>`).join('');
+
+            return `<div class="person-card">
+                <div class="person-head">
+                    <span class="person-name">${esc(p.name)}</span>
+                    <span class="person-meta">${esc(p.position || p.role || '-')}${p.line ? ' · ' + esc(p.line) : ''}${p.department ? ' · ' + esc(p.department) : ''}</span>
+                    <span class="person-rank">#${i + 1} · 工作量 ${p.workload_score}</span>
+                </div>
+                <div class="person-nums">
+                    <span>负责 <b>${p.task_count}</b> 项</span>
+                    <span>完成 <b>${p.completed_count}</b></span>
+                    <span>在办 <b>${p.in_progress_count}</b></span>
+                    <span>待办 <b>${p.pending_count}</b></span>
+                    <span class="od">逾期 <b>${p.overdue_count}</b></span>
+                    <span>参与 <b>${p.participate_task_count}</b></span>
+                    <span>完成率 <b>${p.completion_rate}%</b></span>
+                    ${p.avg_rating ? `<span>评价均分 <b>${p.avg_rating}</b></span>` : ''}
+                    ${p.performance ? `<span>绩效 <b>${esc(p.performance.grade || '')} ${p.performance.score}</b></span>` : ''}
+                </div>
+                <div class="bar"><i style="width:${p.completion_rate}%;background:${p.completion_rate >= 80 ? '#2e7d32' : p.completion_rate >= 50 ? '#ef6c00' : '#c62828'}"></i></div>
+                <div class="person-projects">
+                    <div style="color:#0f766e;font-weight:600;margin-bottom:4px">项目（主导 ${p.owned_projects.length} / 参与 ${p.join_projects.length}）</div>
+                    ${projRows || '<div style="color:#999">本期无项目任务</div>'}
+                </div>
+                ${doneList ? `<div class="pj-tasks"><b style="color:#2e7d32">本周完成</b>${doneList}</div>` : ''}
+                ${odList ? `<div class="pj-tasks"><b style="color:#c62828">逾期任务</b>${odList}</div>` : ''}
+            </div>`;
+        }).join('');
+    }
+}
+
+function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, m =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+
+// ══════════ 导出（页面同源，HTML/PDF/PNG 三态）══════════
+async function collectPageCss() {
+    let css = '';
+    for (const sheet of document.styleSheets) {
+        try {
+            for (const rule of sheet.cssRules) css += rule.cssText + '\n';
+        } catch (e) { /* 跨域样式表跳过 */ }
+    }
+    return css;
+}
+
+function buildExportHtml() {
+    const node = document.getElementById('person-report');
+    if (!node) return null;
+    const clone = node.cloneNode(true);
+    clone.querySelectorAll('button, select, input, .toolbar').forEach(n => n.remove());
+    return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+<title>人员周报 ${reportData ? reportData.period : ''}</title>
+<style>${''}
+html,body{background:#fff !important;}
+body{max-width:1000px !important;margin:0 auto !important;padding:20px !important;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+@page{size:A4;margin:12mm}
+.person-card{break-inside:avoid;page-break-inside:avoid;}
+</style></head><body>${clone.outerHTML}</body></html>`;
+}
+
+async function exportReport(format) {
+    if (!reportData) { alert('请先加载数据'); return; }
+    const css = await collectPageCss();
+    const node = document.getElementById('person-report');
+    const clone = node.cloneNode(true);
+    clone.querySelectorAll('button, select, input, .toolbar').forEach(n => n.remove());
+    const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+<title>人员周报 ${reportData.period}</title>
+<style>${css}
+html,body{background:#fff !important;}
+body{max-width:1000px !important;margin:0 auto !important;padding:20px !important;}
+@page{size:A4;margin:12mm}
+.person-card{break-inside:avoid;page-break-inside:avoid;}
+</style></head><body>${clone.outerHTML}</body></html>`;
+
+    const fname = `PM_人员周报_${reportData.period.replace(/ ~ /, '_').replace(/-/g, '')}`;
+
+    if (format === 'html') {
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = fname + '.html';
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        return;
+    }
+
+    // PDF / PNG：走服务端 from-html（与项目报告同一套，保证渲染一致）
+    try {
+        const res = await fetch('/api/report/export/from-html', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+            body: JSON.stringify({ html, format, title: 'person-weekly' })
+        });
+        if (res.ok) {
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = fname + '.' + format;
+            document.body.appendChild(a); a.click(); a.remove();
+            URL.revokeObjectURL(url);
+            return;
+        }
+        console.warn('服务端 from-html 失败', res.status);
+    } catch (e) {
+        console.warn('服务端导出异常', e);
+    }
+    alert('导出失败，请重试');
+}
+
+loadReport(0);
+</script>
+</body>
+</html>

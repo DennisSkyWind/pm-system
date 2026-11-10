@@ -4,6 +4,7 @@
 
 SRC_FE=/home/ubuntu/.openclaw/workspace/pm-system
 SRC_BE=/home/ubuntu/.copaw/scripts/pm_server.py
+SRC_BE_DIR=/home/ubuntu/.copaw/scripts
 DST=/home/ubuntu/repos/pm-system-public
 
 if [ -z "$1" ]; then
@@ -17,8 +18,11 @@ echo "=== 同步PM系统到GitHub ==="
 cp "$SRC_BE" "$DST/pm_server.py"
 echo "✅ pm_server.py"
 
+# 1.1 后端模块（人员维度周报计算模块）
+cp "$SRC_BE_DIR/person_weekly.py" "$DST/person_weekly.py" 2>/dev/null && echo "✅ person_weekly.py"
+
 # 2. 同步前端核心文件
-for f in index.html projects.html project.html tasks.html gantt.html issues.html persons.html phases.html report.html templates.html reminders.html admin.html settings.html login.html task-pdf-preview.html task-pdf-styles.html performance.html auth.js dark-mode.js dark-mode.css common.css mobile.css gantt-export.js kanban-export.js pm-report-export.js; do
+for f in index.html projects.html project.html tasks.html gantt.html issues.html persons.html phases.html report.html templates.html reminders.html admin.html settings.html login.html task-pdf-preview.html task-pdf-styles.html performance.html person-report.html auth.js dark-mode.js dark-mode.css common.css mobile.css gantt-export.js kanban-export.js pm-report-export.js; do
   if [ -f "$SRC_FE/$f" ]; then
     cp "$SRC_FE/$f" "$DST/frontend/$f"
     echo "✅ $f"
