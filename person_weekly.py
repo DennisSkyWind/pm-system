@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""人员维度周报：计算每人主导/参与的项目工作量、完成情况与评价。
-作为 pm_server.py 的扩展模块挂载，提供 /api/report/person-weekly 接口。
+"""人员维度周报：计算每人本周主导/参与的项目工作量、完成情况与评价。
+
+★ 核心口径（2026-11-10 修订）：周报只反映"本周"。
+  - 本周有动作 = completed_date 在本周 OR updated_at 在本周 OR created_at 在本周
+  - 「我主导的任务」「我参与的任务」两个明细区块只列本周有动作的任务
+  - 统计口径（本周完成/本周推进/本周新增/完成率）全部基于本周
+  - 「当前在手」单独标注，明确是存量负荷，不混入本周产出
+  - 绩效评分（performance 月度考核）不在周报呈现
 """
+import re
 from datetime import datetime, timedelta
 
 RATING_LABELS = {
@@ -12,8 +19,19 @@ RATING_LABELS = {
     'outstanding': '卓越',
 }
 RATING_ORDER = ['卓越', '优秀', '正常', '不足']
-# 评价分值权重（用于算综合评价分）
 RATING_SCORE = {'卓越': 100, '优秀': 85, '正常': 70, '不足': 50}
+
+_DATE_PAT = re.compile(r'(\d{4})-(\d{2})-(\d{2})')
+
+
+def _date_of(value):
+    """从 TIMESTAMP/DATE 字段里取出 YYYY-MM-DD。
+    ★ 兼容两种实际格式：'2026-11-09T09:02:04.216544' 与 '2026-11-09 01:01:53'
+    """
+    if not value:
+        return None
+    m = _DATE_PAT.search(str(value))
+    return m.group(0) if m else None
 
 
 def _week_range(offset=0):
@@ -26,48 +44,48 @@ def _week_range(offset=0):
             f"{monday.strftime('%Y-%m-%d')} ~ {sunday.strftime('%Y-%m-%d')}")
 
 
+def _blank():
+    return {
+        'week_done': 0, 'week_progressed': 0, 'week_new': 0, 'week_active': 0,
+        'overdue_week': 0, 'risk_week': 0,
+        'participate_week': 0, 'participate_done_week': 0, 'participate_progressed_week': 0,
+        'rating_detail': {}, 'rating_total': 0, 'rating_score_sum': 0,
+        'lead_tasks': [], 'participate_tasks': [],
+        'projects': {},
+    }
+
+
 def build_person_weekly(cursor, offset=0):
-    """核心计算：每人主导项目 / 参与项目 / 工作量 / 完成情况 / 评价。"""
+    """核心计算：本周每人主导/参与的项目工作量、完成情况与评价。"""
     start, end, period = _week_range(offset)
     today_str = datetime.now().strftime('%Y-%m-%d')
+    soon_str = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d')
 
-    # ── 1. 本周完成的任务（含负责人、项目、评价）────────────────────────
+    # ── 1. 取全部未归档项目的任务（过滤保密项目）────────────────────
     cursor.execute('''
         SELECT t.id, t.name, t.status, t.progress, t.priority, t.due_date,
-               t.completed_date, t.rating, t.assignee_id, t.project_id,
+               t.start_date, t.completed_date, t.created_at, t.updated_at,
+               t.rating, t.assignee_id, t.project_id,
                pj.name AS project_name, pj.progress AS project_progress,
+               pj.owner_id AS project_owner_id,
                per.name AS assignee_name
         FROM task t
         LEFT JOIN project pj ON t.project_id = pj.id
         LEFT JOIN person per ON t.assignee_id = per.id
-        WHERE t.completed_date >= ? AND t.completed_date <= ?
-          AND t.status != 'cancelled'
-          AND pj.status NOT IN ('archived','cancelled')
-          AND COALESCE(pj.confidential, 0) = 0
-        ORDER BY t.completed_date DESC
-    ''', (start, end))
-    completed_tasks = [dict(r) for r in cursor.fetchall()]
-
-    # ── 2. 本周在办任务（进行中/待办）────────────────────────────────
-    cursor.execute('''
-        SELECT t.id, t.name, t.status, t.progress, t.priority, t.due_date,
-               t.assignee_id, t.project_id, pj.name AS project_name,
-               pj.progress AS project_progress, per.name AS assignee_name
-        FROM task t
-        LEFT JOIN project pj ON t.project_id = pj.id
-        LEFT JOIN person per ON t.assignee_id = per.id
-        WHERE t.status IN ('in_progress','pending')
+        WHERE t.status != 'cancelled'
           AND pj.status NOT IN ('archived','cancelled')
           AND COALESCE(pj.confidential, 0) = 0
     ''')
-    active_tasks = [dict(r) for r in cursor.fetchall()]
+    all_tasks = [dict(r) for r in cursor.fetchall()]
 
-    # ── 3. 本周参与的任务（task_participant）───────────────────────────
+    # ── 2. 取参与关系 ────────────────────────────────────────────────
     cursor.execute('''
         SELECT tp.id AS tp_id, tp.person_id, tp.role, t.id AS task_id,
                t.name, t.status, t.progress, t.priority, t.due_date,
-               t.completed_date, t.rating, t.assignee_id, t.project_id,
+               t.start_date, t.completed_date, t.created_at, t.updated_at,
+               t.rating, t.assignee_id, t.project_id,
                pj.name AS project_name, pj.progress AS project_progress,
+               pj.owner_id AS project_owner_id,
                per.name AS assignee_name, pp.name AS participant_name
         FROM task_participant tp
         JOIN task t ON tp.task_id = t.id
@@ -77,12 +95,10 @@ def build_person_weekly(cursor, offset=0):
         WHERE t.status != 'cancelled'
           AND pj.status NOT IN ('archived','cancelled')
           AND COALESCE(pj.confidential, 0) = 0
-          AND (t.completed_date >= ? AND t.completed_date <= ?
-               OR t.status IN ('in_progress','pending'))
-    ''', (start, end))
+    ''')
     participant_rows = [dict(r) for r in cursor.fetchall()]
 
-    # ── 4. 主导的项目（project.owner_id = 本人）────────────────────────
+    # ── 3. 主导的项目 ────────────────────────────────────────────────
     cursor.execute('''
         SELECT pj.id AS project_id, pj.name AS project_name, pj.progress,
                pj.status, pj.start_date, pj.target_end_date, pj.owner_id,
@@ -94,58 +110,21 @@ def build_person_weekly(cursor, offset=0):
     ''')
     owned_projects = [dict(r) for r in cursor.fetchall()]
 
-    # ── 5. 项目任务总量（用于算项目内本人贡献占比）──────────────────────
+    # ── 4. 项目任务总量 ──────────────────────────────────────────────
     cursor.execute('''
-        SELECT project_id,
-               COUNT(*) AS total_tasks,
+        SELECT project_id, COUNT(*) AS total_tasks,
                SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AS done_tasks
-        FROM task
-        WHERE status != 'cancelled'
-        GROUP BY project_id
+        FROM task WHERE status != 'cancelled' GROUP BY project_id
     ''')
     project_task_totals = {r['project_id']: dict(r) for r in cursor.fetchall()}
 
-    # ── 6. 绩效评价（performance 表，取最近一期）───────────────────────
-    cursor.execute('''
-        SELECT pf.person_id, pf.score, pf.grade, pf.comment,
-               pf.period_type, pf.year, pf.period
-        FROM performance pf
-        WHERE pf.id IN (
-            SELECT MAX(id) FROM performance GROUP BY person_id, period_type
-        )
-    ''')
-    perf_map = {}
-    for r in cursor.fetchall():
-        row = dict(r)
-        perf_map[row['person_id']] = row
-
-    # ── 7. 组织信息（全部在职人员，做基线，避免"没数据的人"消失）────────
-    cursor.execute('''
-        SELECT id, name, role, position, line, department, status
-        FROM person
-        WHERE status = 'active'
-    ''')
+    # ── 5. 在职人员 ──────────────────────────────────────────────────
+    cursor.execute("SELECT id, name, role, position, line, department, status FROM person WHERE status='active'")
     all_persons = [dict(r) for r in cursor.fetchall()]
 
-    # ══════════ 归集 ══════════
     people = {}
-
-    def blank():
-        return {
-            'task_count': 0, 'completed_count': 0, 'in_progress_count': 0,
-            'pending_count': 0, 'overdue_count': 0, 'risk_count': 0,
-            'total_progress_sum': 0,
-            'lead_task_count': 0, 'lead_completed': 0,
-            'participate_task_count': 0, 'participate_completed': 0,
-            'participate_in_progress': 0,
-            'owned_projects': [], 'joined_projects': {},
-            'rating_detail': {}, 'rating_total': 0, 'rating_score_sum': 0,
-            'completed_tasks': [], 'overdue_tasks': [], 'risk_tasks': [],
-            'projects': {},
-        }
-
     for p in all_persons:
-        people[p['id']] = dict(blank(), **{
+        people[p['id']] = dict(_blank(), **{
             'person_id': p['id'], 'name': p['name'], 'role': p['role'] or '',
             'position': p['position'] or '', 'line': p['line'] or '',
             'department': p['department'] or '',
@@ -154,128 +133,127 @@ def build_person_weekly(cursor, offset=0):
     def P(pid):
         return people.get(pid)
 
-    def touch_project(person, pj, role):
-        """登记项目归属：role = 'lead' 主导 / 'join' 参与"""
-        if not person or not pj:
+    def touch_project(person, t, role):
+        if not person or not t:
             return
-        key = pj['project_id']
-        ent = person['projects'].get(key)
+        pid = t.get('project_id')
+        ent = person['projects'].get(pid)
         if not ent:
-            ent = {'project_id': key, 'project_name': pj['project_name'],
-                   'project_progress': pj.get('project_progress'),
+            ent = {'project_id': pid, 'project_name': t.get('project_name'),
+                   'project_progress': t.get('project_progress'),
                    'role': role, 'task_count': 0, 'completed': 0}
-            person['projects'][key] = ent
-        # 主导优先（主导 > 参与）
+            person['projects'][pid] = ent
         if role == 'lead':
             ent['role'] = 'lead'
         elif ent['role'] != 'lead':
             ent['role'] = 'join'
 
-    # 7.1 主导项目 + 项目内负责的任务
-    for pj in owned_projects:
-        pid = pj['owner_id']
-        person = P(pid)
-        if not person:
-            continue
-        total = project_task_totals.get(pj['project_id'], {})
-        person['owned_projects'].append({
-            'project_id': pj['project_id'],
-            'project_name': pj['project_name'],
-            'project_progress': pj['progress'],
-            'project_status': pj['status'],
-            'start_date': pj['start_date'],
-            'due_date': pj['target_end_date'],
-            'project_total_tasks': total.get('total_tasks', 0),
-            'project_done_tasks': total.get('done_tasks', 0),
-        })
-        touch_project(person, {
-            'project_id': pj['project_id'], 'project_name': pj['project_name'],
-            'project_progress': pj['progress'],
-        }, 'lead')
+    # ── 6. 判定"本周有动作" ──────────────────────────────────────────
+    def week_flags(t):
+        """返回 (有动作, 动作类型集合)"""
+        kinds = set()
+        cd = _date_of(t.get('completed_date'))
+        ud = _date_of(t.get('updated_at'))
+        ct = _date_of(t.get('created_at'))
+        if cd and start <= cd <= end:
+            kinds.add('done')
+        if ud and start <= ud <= end:
+            kinds.add('progressed')
+        if ct and start <= ct <= end:
+            kinds.add('new')
+        return bool(kinds), kinds
 
-    # 7.2 负责人任务（本周完成 + 本周在办）
-    for t in completed_tasks:
-        person = P(t['assignee_id'])
+    # 6.1 本人主导（作为负责人）的任务
+    for t in all_tasks:
+        person = P(t.get('assignee_id'))
         if not person:
             continue
-        person['task_count'] += 1
-        person['completed_count'] += 1
-        person['lead_task_count'] += 1
-        person['lead_completed'] += 1
-        person['completed_tasks'].append(t)
-        # 评价
-        label = RATING_LABELS.get(t['rating'])
-        if label:
-            person['rating_detail'][label] = person['rating_detail'].get(label, 0) + 1
-            person['rating_total'] += 1
-            person['rating_score_sum'] += RATING_SCORE.get(label, 70)
-        touch_project(person, t, 'lead')
-        ent = person['projects'].get(t['project_id'])
-        if ent:
-            ent['task_count'] += 1
-            ent['completed'] += 1
-
-    for t in active_tasks:
-        person = P(t['assignee_id'])
-        if not person:
+        active, kinds = week_flags(t)
+        if not active:
             continue
-        person['task_count'] += 1
-        person['lead_task_count'] += 1
-        if t['status'] == 'in_progress':
-            person['in_progress_count'] += 1
-        else:
-            person['pending_count'] += 1
-        person['total_progress_sum'] += (t['progress'] or 0)
-        overdue = bool(t['due_date'] and t['due_date'] < today_str)
-        if overdue:
-            person['overdue_count'] += 1
-            person['overdue_tasks'].append(t)
-        risk = (t['progress'] or 0) < 50 and bool(t['due_date']) and t['due_date'] <= (
-            datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d')
-        if risk:
-            person['risk_count'] += 1
-            person['risk_tasks'].append(t)
-        touch_project(person, t, 'lead')
-        ent = person['projects'].get(t['project_id'])
-        if ent:
-            ent['task_count'] += 1
-
-    # 7.3 参与的任务（task_participant）——与本人负责的任务去重
-    for r in participant_rows:
-        pid = r['person_id']
-        person = P(pid)
-        if not person:
-            continue
-        # 本人就是负责人的那条，已在上面统计过，跳过避免重复计数
-        if r['assignee_id'] == pid:
-            continue
-        person['participate_task_count'] += 1
-        if r['status'] == 'completed':
-            person['participate_completed'] += 1
-            label = RATING_LABELS.get(r['rating'])
+        person['week_active'] += 1
+        if 'done' in kinds:
+            person['week_done'] += 1
+            label = RATING_LABELS.get(t.get('rating'))
             if label:
                 person['rating_detail'][label] = person['rating_detail'].get(label, 0) + 1
                 person['rating_total'] += 1
                 person['rating_score_sum'] += RATING_SCORE.get(label, 70)
-        elif r['status'] == 'in_progress':
-            person['participate_in_progress'] += 1
-        touch_project(person, r, 'join')
-        ent = person['projects'].get(r['project_id'])
+        if 'progressed' in kinds and t.get('status') != 'completed':
+            person['week_progressed'] += 1
+        if 'new' in kinds and t.get('status') != 'completed':
+            person['week_new'] += 1
+        overdue = bool(t.get('due_date') and t['due_date'] < today_str)
+        if overdue and t.get('status') != 'completed':
+            person['overdue_week'] += 1
+        if (t.get('progress') or 0) < 50 and t.get('due_date') and t['due_date'] <= soon_str \
+                and t.get('status') != 'completed':
+            person['risk_week'] += 1
+
+        touch_project(person, t, 'lead')
+        ent = person['projects'].get(t.get('project_id'))
         if ent:
             ent['task_count'] += 1
-            if r['status'] == 'completed':
+            if t.get('status') == 'completed':
                 ent['completed'] += 1
 
-    # ══════════ 汇总指标 ══════════
+        person['lead_tasks'].append({
+            'id': t['id'], 'name': t['name'], 'status': t['status'],
+            'progress': t.get('progress'), 'priority': t.get('priority'),
+            'due_date': t.get('due_date'), 'completed_date': t.get('completed_date'),
+            'project_name': t.get('project_name'), 'project_id': t.get('project_id'),
+            'rating': RATING_LABELS.get(t.get('rating'), ''),
+            'week_kinds': sorted(kinds),
+            'overdue': overdue,
+            'is_project_lead': t.get('project_owner_id') == t.get('assignee_id'),
+        })
+
+    # 6.2 本人参与的任务（本人不是负责人的那些）
+    for r in participant_rows:
+        person = P(r.get('person_id'))
+        if not person:
+            continue
+        if r.get('assignee_id') == r.get('person_id'):
+            continue  # 本人就是负责人的，已在上面统计
+        active, kinds = week_flags(r)
+        if not active:
+            continue
+        person['participate_week'] += 1
+        if 'done' in kinds:
+            person['participate_done_week'] += 1
+            label = RATING_LABELS.get(r.get('rating'))
+            if label:
+                person['rating_detail'][label] = person['rating_detail'].get(label, 0) + 1
+                person['rating_total'] += 1
+                person['rating_score_sum'] += RATING_SCORE.get(label, 70)
+        if 'progressed' in kinds and r.get('status') != 'completed':
+            person['participate_progressed_week'] += 1
+        touch_project(person, r, 'join')
+        ent = person['projects'].get(r.get('project_id'))
+        if ent:
+            ent['task_count'] += 1
+            if r.get('status') == 'completed':
+                ent['completed'] += 1
+        person['participate_tasks'].append({
+            'id': r['task_id'], 'name': r['name'], 'status': r['status'],
+            'progress': r.get('progress'), 'priority': r.get('priority'),
+            'due_date': r.get('due_date'), 'completed_date': r.get('completed_date'),
+            'project_name': r.get('project_name'), 'project_id': r.get('project_id'),
+            'rating': RATING_LABELS.get(r.get('rating'), ''),
+            'week_kinds': sorted(kinds),
+            'role': r.get('role'), 'assignee_name': r.get('assignee_name'),
+            'overdue': bool(r.get('due_date') and r['due_date'] < today_str),
+            'is_project_lead': r.get('project_owner_id') == r.get('person_id'),
+        })
+
+    # ── 7. 汇总 ──────────────────────────────────────────────────────
     result = []
     for person in people.values():
-        total = person['task_count']
-        done = person['completed_count']
-        rate = round(done / total * 100, 1) if total else 0
-        # 综合工作量分：完成 10 分 + 在办 3 分 + 待办 1 分 + 参与 2 分
-        workload_score = (done * 10 + person['in_progress_count'] * 3
-                          + person['pending_count'] * 1
-                          + person['participate_task_count'] * 2)
+        week_active = person['week_active']
+        done = person['week_done']
+        rate = round(done / week_active * 100, 1) if week_active else 0
+        workload_score = (done * 10 + person['week_progressed'] * 3
+                          + person['week_new'] * 2 + person['participate_week'] * 2)
         avg_rating = (round(person['rating_score_sum'] / person['rating_total'], 1)
                       if person['rating_total'] else None)
         projects = list(person['projects'].values())
@@ -283,7 +261,6 @@ def build_person_weekly(cursor, offset=0):
         lead_projects = [p for p in projects if p['role'] == 'lead']
         join_projects = [p for p in projects if p['role'] == 'join']
 
-        perf = perf_map.get(person['person_id'])
         result.append({
             'person_id': person['person_id'],
             'name': person['name'],
@@ -291,63 +268,56 @@ def build_person_weekly(cursor, offset=0):
             'position': person['position'],
             'line': person['line'],
             'department': person['department'],
-            # 工作量
-            'task_count': total,
-            'completed_count': done,
-            'in_progress_count': person['in_progress_count'],
-            'pending_count': person['pending_count'],
-            'overdue_count': person['overdue_count'],
-            'risk_count': person['risk_count'],
-            'participate_task_count': person['participate_task_count'],
-            'participate_completed': person['participate_completed'],
-            'participate_in_progress': person['participate_in_progress'],
-            'lead_task_count': person['lead_task_count'],
-            'workload_score': workload_score,
-            'avg_progress': (round(person['total_progress_sum'] / (
-                person['in_progress_count'] + person['pending_count']), 1)
-                if (person['in_progress_count'] + person['pending_count']) else 0),
-            # 完成情况
+            # ── 本周口径 ──
+            'week_active': week_active,
+            'week_done': done,
+            'week_progressed': person['week_progressed'],
+            'week_new': person['week_new'],
             'completion_rate': rate,
-            # 评价
+            'overdue_week': person['overdue_week'],
+            'risk_week': person['risk_week'],
+            'participate_week': person['participate_week'],
+            'participate_done_week': person['participate_done_week'],
+            'participate_progressed_week': person['participate_progressed_week'],
+            'workload_score': workload_score,
+            # ── 评价 ──
             'rating_detail': person['rating_detail'],
             'rating_total': person['rating_total'],
             'avg_rating': avg_rating,
             'unrated_count': max(0, done - person['rating_total']),
-            'performance': perf,
-            # 项目
+            # ── 项目 ──
+            'owned_projects': [dict(op, project_total_tasks=project_task_totals.get(
+                op['project_id'], {}).get('total_tasks', 0),
+                project_done_tasks=project_task_totals.get(
+                    op['project_id'], {}).get('done_tasks', 0))
+                for op in owned_projects if op['owner_id'] == person['person_id']],
             'lead_projects': lead_projects,
             'join_projects': join_projects,
-            'owned_projects': person['owned_projects'],
             'project_count': len(projects),
             'projects': projects,
-            # 明细
-            'completed_task_list': [
-                {'id': t['id'], 'name': t['name'], 'project_name': t['project_name'],
-                 'completed_date': t['completed_date'],
-                 'rating': RATING_LABELS.get(t['rating'], '')}
-                for t in person['completed_tasks'][:20]
-            ],
-            'overdue_task_list': [
-                {'id': t['id'], 'name': t['name'], 'project_name': t['project_name'],
-                 'due_date': t['due_date'], 'progress': t['progress']}
-                for t in person['overdue_tasks'][:10]
-            ],
+            # ── 明细（只含本周有动作的任务）──
+            'lead_task_list': sorted(person['lead_tasks'],
+                                     key=lambda x: (x['completed_date'] or '', x['id']),
+                                     reverse=True),
+            'participate_task_list': sorted(person['participate_tasks'],
+                                            key=lambda x: (x['completed_date'] or '', x['id']),
+                                            reverse=True),
         })
 
-    # 排序：有工作量在前，再按完成数
-    result.sort(key=lambda x: (-x['workload_score'], -x['completed_count'], x['name']))
+    result.sort(key=lambda x: (-x['workload_score'], -x['week_done'], x['name']))
 
-    # 汇总
     summary = {
         'total_people': len(result),
-        'active_people': len([r for r in result if r['workload_score'] > 0]),
+        'active_people': len([r for r in result if r['week_active'] > 0]),
         'lead_people': len([r for r in result if r['owned_projects']]),
         'total_lead_projects': len(owned_projects),
-        'total_completed': len(completed_tasks),
-        'total_active': len(active_tasks),
-        'total_participate': len([r for r in participant_rows if r['assignee_id'] != r['person_id']]),
-        'total_overdue': len([r for r in result if r['overdue_count']]),
-        'total_rated': sum(r['rating_total'] for r in result),
+        'week_done': sum(r['week_done'] for r in result),
+        'week_progressed': sum(r['week_progressed'] for r in result),
+        'week_new': sum(r['week_new'] for r in result),
+        'week_active': sum(r['week_active'] for r in result),
+        'participate_week': sum(r['participate_week'] for r in result),
+        'week_overdue': sum(r['overdue_week'] for r in result),
+        'week_rated': sum(r['rating_total'] for r in result),
     }
     rating_dist = {}
     for r in result:
@@ -358,6 +328,7 @@ def build_person_weekly(cursor, offset=0):
         'period': period,
         'start_date': start,
         'end_date': end,
+        'scope': '本周',
         'summary': summary,
         'rating_distribution': rating_dist,
         'persons': result,

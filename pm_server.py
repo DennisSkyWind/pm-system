@@ -4148,6 +4148,25 @@ def get_biweekly_report():
         }
     })
 
+@app.route('/api/report/person-weekly', methods=['GET'])
+def get_person_weekly_report():
+    """人员维度周报：每人主导/参与项目的工作量、完成情况与评价。
+    查询参数 offset=0 本周 / -1 上周。
+    """
+    try:
+        offset = int(request.args.get('offset', 0))
+    except Exception:
+        offset = 0
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        import person_weekly as pw
+        data = pw.build_person_weekly(cursor, offset=offset)
+    finally:
+        conn.close()
+    return jsonify({'success': True, 'report': data})
+
+
 @app.route('/api/report/monthly', methods=['GET'])
 def get_monthly_report():
     """生成月报 - 支持year/month参数选择历史月份"""
