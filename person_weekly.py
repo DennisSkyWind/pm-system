@@ -55,9 +55,21 @@ def _blank():
     }
 
 
-def build_person_weekly(cursor, offset=0):
-    """核心计算：本周每人主导/参与的项目工作量、完成情况与评价。"""
-    start, end, period = _week_range(offset)
+def build_person_weekly(cursor, offset=0, window=None):
+    """核心计算：每人主导/参与的项目工作量、完成情况与评价。
+
+    window=None/'week' → 自然周（周一~周日），offset=0 本周 / -1 上周
+    window=整数天数    → 滚动窗口（今天往前 N 天），用于数据稀疏时看趋势
+    """
+    if isinstance(window, int) and window > 0:
+        today = datetime.now()
+        start = (today - timedelta(days=window - 1)).strftime('%Y-%m-%d')
+        end = today.strftime('%Y-%m-%d')
+        period = f"近 {window} 天（{start} ~ {end}）"
+        scope = f"近{window}天"
+    else:
+        start, end, period = _week_range(offset)
+        scope = '本周'
     today_str = datetime.now().strftime('%Y-%m-%d')
     soon_str = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d')
 
@@ -274,6 +286,11 @@ def build_person_weekly(cursor, offset=0):
             'week_progressed': person['week_progressed'],
             'week_new': person['week_new'],
             'completion_rate': rate,
+            # ★ 原始计数：分母小时百分比会剧烈跳动（如 1/2=50% vs 0/1=0%），
+            #   页面应同时给出分子分母，避免误读
+            'week_done_count': done,
+            'week_active_count': week_active,
+            'completion_rate_valid': week_active > 0,
             'overdue_week': person['overdue_week'],
             'risk_week': person['risk_week'],
             'participate_week': person['participate_week'],
@@ -328,7 +345,7 @@ def build_person_weekly(cursor, offset=0):
         'period': period,
         'start_date': start,
         'end_date': end,
-        'scope': '本周',
+        'scope': scope,
         'summary': summary,
         'rating_distribution': rating_dist,
         'persons': result,

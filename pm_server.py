@@ -4157,11 +4157,19 @@ def get_person_weekly_report():
         offset = int(request.args.get('offset', 0))
     except Exception:
         offset = 0
+    # window：'week'（默认自然周）或整数天数（滚动窗口）
+    _w = request.args.get('window', 'week')
+    window = None
+    if _w and _w != 'week':
+        try:
+            window = int(_w)
+        except Exception:
+            window = None
     conn = get_db()
     cursor = conn.cursor()
     try:
         import person_weekly as pw
-        data = pw.build_person_weekly(cursor, offset=offset)
+        data = pw.build_person_weekly(cursor, offset=offset, window=window)
     finally:
         conn.close()
     return jsonify({'success': True, 'report': data})

@@ -50,7 +50,7 @@
         th { background: #0f766e; color: white; padding: 9px 6px; text-align: left; font-weight: 500; white-space: nowrap; }
         td { padding: 8px 6px; border-bottom: 1px solid #eee; }
 
-        /* ★ 2026-11-10 修硬伤：14 列总宽超出容器 → 末列「本周评价」被硬裁切，
+        /* ★ 2026-11-10 修硬伤：14 列总宽超出容器 → 末列「本期评价」被硬裁切，
            导出 PNG 是静态快照，.tbl-scroll 的横向滚动救不回来，整列会丢失。
            对策：table-layout:fixed + 显式百分比列宽，让表格永不超容器。 */
         #overview-table { table-layout: fixed; }
@@ -153,6 +153,8 @@
     <div class="toolbar">
         <button class="btn" onclick="loadReport(-1)">← 上周</button>
         <button class="btn" onclick="loadReport(0)">本周</button>
+        <button class="btn" onclick="loadWindow(28)">近 4 周</button>
+        <button class="btn" onclick="loadWindow(56)">近 8 周</button>
         <span class="period-label" id="period-label">加载中…</span>
         <span class="spacer"></span>
         <button class="btn" onclick="exportReport('html')">📥 导出 HTML</button>
@@ -183,16 +185,16 @@
                     <thead>
                     <tr>
                         <th>#</th><th>姓名</th><th>岗位/条线</th>
-                        <th class="num-cell" title="本周工作量综合得分">工作量</th>
-                        <th class="num-cell" title="本周有动作的负责任务数">本负</th>
-                        <th class="num-cell" title="本周完成的任务数">本完</th>
-                        <th class="num-cell" title="本周有推进的任务数">推进</th>
-                        <th class="num-cell" title="本周新建的任务数">本新</th>
-                        <th class="num-cell" title="本周有动作且已逾期的任务数">逾期</th>
-                        <th class="num-cell" title="本周有动作的参与任务数">参与</th>
+                        <th class="num-cell" title="本期工作量综合得分">工作量</th>
+                        <th class="num-cell" title="本期有动作的负责任务数">本负</th>
+                        <th class="num-cell" title="本期完成的任务数">本完</th>
+                        <th class="num-cell" title="本期有推进的任务数">推进</th>
+                        <th class="num-cell" title="本期新建的任务数">本新</th>
+                        <th class="num-cell" title="本期有动作且已逾期的任务数">逾期</th>
+                        <th class="num-cell" title="本期有动作的参与任务数">参与</th>
                         <th class="num-cell" title="本人主导的项目数">主导项</th><th class="num-cell" title="本人参与的项目数">参与项</th>
                         <th class="num-cell">完成率</th>
-                        <th>本周评价</th>
+                        <th>本期评价</th>
                     </tr>
                     </thead>
                     <tbody></tbody>
@@ -217,13 +219,24 @@ const RATING_CLASS = { '卓越': 'rate-outstanding', '优秀': 'rate-excellent',
 
 let reportData = null;
 let currentOffset = 0;
+let currentWindow = null;   // null=自然周；整数=滚动窗口天数
 
 async function loadReport(offset) {
-    currentOffset = offset;
+    currentOffset = offset; currentWindow = null;
+    await fetchReport();
+}
+
+async function loadWindow(days) {
+    currentOffset = 0; currentWindow = days;
+    await fetchReport();
+}
+
+async function fetchReport() {
     const label = document.getElementById('period-label');
     if (label) label.textContent = '加载中…';
+    const q = currentWindow ? `window=${currentWindow}` : `offset=${currentOffset}`;
     try {
-        const res = await authFetch(`${API}/person-weekly?offset=${offset}`);
+        const res = await authFetch(`${API}/person-weekly?${q}`);
         if (!res) return;
         const data = await res.json();
         if (!data.success) { alert('加载失败'); return; }
@@ -233,6 +246,21 @@ async function loadReport(offset) {
         console.error(e);
         alert('加载失败：' + e.message);
     }
+}
+
+// ★ 完成率单元格：分母为 0 时不能显示 0%（那不是"完成率零"，是"本期无负责任务"）
+//   分母 < 3 时百分比极不稳定（0/1 与 1/2 只差 1 个任务），补原始计数避免误读
+function completionCell(p) {
+    const done = p.week_done_count != null ? p.week_done_count : p.week_done;
+    const act = p.week_active_count != null ? p.week_active_count : p.week_active;
+    if (!act) {
+        return '<span style="color:#bbb" title="本期没有本人负责且有动作的任务，完成率不适用">—</span>';
+    }
+    if (act < 3) {
+        return `<span class="rate ${rateClass(p.completion_rate)}" title="样本仅 ${act} 个任务，百分比参考性有限">${done}/${act}</span>`
+             + `<span style="color:#999;font-size:11px"> ${p.completion_rate}%</span>`;
+    }
+    return `<span class="rate ${rateClass(p.completion_rate)}" title="本期完成 ${done} ÷ 本期有动作 ${act}">${p.completion_rate}%</span>`;
 }
 
 function rateClass(rate) {
@@ -247,8 +275,8 @@ function render(r) {
 
     const s = r.summary;
     document.getElementById('stats-grid').innerHTML = `
-        <div class="stat-card"><h4>本周有动作</h4><div class="number">${s.active_people}<span style="font-size:15px;color:#999">/${s.total_people}</span></div><div class="sub">共 ${s.week_active} 个任务</div></div>
-        <div class="stat-card"><h4>本周完成</h4><div class="number">${s.week_done}</div><div class="sub">推进 ${s.week_progressed} · 新增 ${s.week_new}</div></div>
+        <div class="stat-card"><h4>本期有动作</h4><div class="number">${s.active_people}<span style="font-size:15px;color:#999">/${s.total_people}</span></div><div class="sub">共 ${s.week_active} 个任务</div></div>
+        <div class="stat-card"><h4>本期完成</h4><div class="number">${s.week_done}</div><div class="sub">推进 ${s.week_progressed} · 新增 ${s.week_new}</div></div>
         <div class="stat-card"><h4>主导项目</h4><div class="number">${s.total_lead_projects}</div><div class="sub">${s.lead_people} 人主导</div></div>
         <div class="stat-card"><h4>参与任务</h4><div class="number">${s.participate_week}</div><div class="sub">已评价 ${s.week_rated} 条</div></div>
     `;
@@ -276,7 +304,7 @@ function render(r) {
                 <td class="num-cell">${p.participate_week}</td>
                 <td class="num-cell">${p.owned_projects.length}</td>
                 <td class="num-cell">${p.join_projects.length}</td>
-                <td class="num-cell"><span class="rate ${rateClass(p.completion_rate)}">${p.completion_rate}%</span></td>
+                <td class="num-cell">${completionCell(p)}</td>
                 <td>${badges}${unrated}</td>
             </tr>`;
         }).join('');
@@ -305,7 +333,7 @@ function render(r) {
                     <span class="pj-meta">${pj.completed || 0}/${pj.task_count || 0} 项 · 项目${pj.project_progress || 0}%</span>
                 </div>`).join('');
 
-            // 逾期任务：从本周主导任务里筛（只算本周有动作的）
+            // 逾期任务：从本期主导任务里筛（只算本期有动作的）
             const odList = (p.lead_task_list || []).filter(t => t.overdue).map(t =>
                 `<div style="color:#c62828">⏰ ${esc(t.name)} · ${esc(t.project_name || '')} · 截止${t.due_date || '-'} · 进度${t.progress}%</div>`).join('');
 
@@ -316,13 +344,13 @@ function render(r) {
                     <span class="person-rank">#${i + 1} · 工作量 ${p.workload_score}</span>
                 </div>
                 <div class="person-nums">
-                    <span>本周负责 <b>${p.week_active}</b> 项</span>
-                    <span>本周完成 <b>${p.week_done}</b></span>
+                    <span>本期负责 <b>${p.week_active}</b> 项</span>
+                    <span>本期完成 <b>${p.week_done}</b></span>
                     <span>推进中 <b>${p.week_progressed}</b></span>
-                    <span>本周新增 <b>${p.week_new}</b></span>
+                    <span>本期新增 <b>${p.week_new}</b></span>
                     <span class="od">逾期 <b>${p.overdue_week}</b></span>
                     <span>参与 <b>${p.participate_week}</b></span>
-                    <span>完成率 <b>${p.completion_rate}%</b></span>
+                    <span>完成率 <b>${p.week_active ? `${p.week_done}/${p.week_active}` : '—'}</b></span>
                     ${p.avg_rating ? `<span>评价均分 <b>${p.avg_rating}</b></span>` : ''}
                 </div>
                 <div class="bar"><i style="width:${p.completion_rate}%;background:${p.completion_rate >= 80 ? '#2e7d32' : p.completion_rate >= 50 ? '#ef6c00' : '#c62828'}"></i></div>
@@ -332,13 +360,13 @@ function render(r) {
                 </div>
                 ${leadTaskBlock(p)}
                 ${partTaskBlock(p)}
-                ${odList ? `<div class="pj-tasks"><b style="color:#c62828">本周逾期</b>${odList}</div>` : ''}
+                ${odList ? `<div class="pj-tasks"><b style="color:#c62828">本期逾期</b>${odList}</div>` : ''}
             </div>`;
         }).join('');
     }
 }
 
-    // ★ 本周主导的任务（只含本周有动作的）
+    // ★ 本期主导的任务（只含本期有动作的）
     function leadTaskBlock(p) {
         const list = p.lead_task_list || [];
         if (!list.length) return '';
@@ -356,16 +384,16 @@ function render(r) {
             </tr>`;
         }).join('');
         return `<details class="task-block">
-            <summary>📌 本周我主导的任务（${list.length}）</summary>
+            <summary>📌 本期我主导的任务（${list.length}）</summary>
             <table class="task-table"><thead><tr>
                 <th class="num-cell">#</th><th>任务</th><th>项目</th>
                 <th class="num-cell">状态</th><th class="num-cell">进度</th>
-                <th class="num-cell">截止</th><th>本周动作/评价</th>
+                <th class="num-cell">截止</th><th>本期动作/评价</th>
             </tr></thead><tbody>${rows}</tbody></table>
         </details>`;
     }
 
-    // ★ 本周参与的任务
+    // ★ 本期参与的任务
     function partTaskBlock(p) {
         const list = p.participate_task_list || [];
         if (!list.length) return '';
@@ -384,11 +412,11 @@ function render(r) {
             </tr>`;
         }).join('');
         return `<details class="task-block">
-            <summary>🤝 本周我参与的任务（${list.length}）</summary>
+            <summary>🤝 本期我参与的任务（${list.length}）</summary>
             <table class="task-table"><thead><tr>
                 <th class="num-cell">#</th><th>任务</th><th>项目</th><th>负责人</th>
                 <th class="num-cell">状态</th><th class="num-cell">进度</th>
-                <th class="num-cell">截止</th><th>本周动作/评价</th>
+                <th class="num-cell">截止</th><th>本期动作/评价</th>
             </tr></thead><tbody>${rows}</tbody></table>
         </details>`;
     }
