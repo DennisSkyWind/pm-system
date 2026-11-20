@@ -444,10 +444,26 @@ async function collectPageCss() {
     return css;
 }
 
+// ★ 导出前把折叠块全部展开
+//   <details>（本期我主导/我参与的任务明细）在页面上是收起的，
+//   Chromium 打印/截图时会跳过未展开的 details 内容 → 导出的 PDF/PNG 丢失全部任务明细。
+//   这里在克隆体上统一 open 属性，并去掉 summary 的可折叠三角，导出件即为平铺表格。
+function expandDetails(clone) {
+    clone.querySelectorAll('details').forEach(d => {
+        d.setAttribute('open', '');
+        d.classList.add('export-open');
+    });
+    clone.querySelectorAll('details > summary').forEach(s => {
+        s.style.listStyle = 'none';
+        s.style.cursor = 'default';
+    });
+    return clone;
+}
+
 function buildExportHtml() {
     const node = document.getElementById('person-report');
     if (!node) return null;
-    const clone = node.cloneNode(true);
+    const clone = expandDetails(node.cloneNode(true));
     clone.querySelectorAll('button, select, input, .toolbar').forEach(n => n.remove());
     return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
 <title>人员周报 ${reportData ? reportData.period : ''}</title>
@@ -463,7 +479,7 @@ async function exportReport(format) {
     if (!reportData) { alert('请先加载数据'); return; }
     const css = await collectPageCss();
     const node = document.getElementById('person-report');
-    const clone = node.cloneNode(true);
+    const clone = expandDetails(node.cloneNode(true));
     clone.querySelectorAll('button, select, input, .toolbar').forEach(n => n.remove());
     const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
 <title>人员周报 ${reportData.period}</title>
@@ -474,8 +490,18 @@ body{max-width:1000px !important;margin:0 auto !important;padding:20px !importan
 .tbl-scroll{overflow:visible !important;}
 #overview-table{table-layout:fixed !important;width:100% !important;}
 #overview-table th,#overview-table td{overflow:hidden !important;text-overflow:ellipsis !important;}
+/* ★ 折叠块导出时强制展开（详见 expandDetails 说明） */
+details.task-block{open;}
+details.task-block > summary{list-style:none !important;cursor:default !important;}
+details.task-block > summary::before{content:'' !important;}
+details.task-block > summary::-webkit-details-marker{display:none !important;}
+details.task-block > *:not(summary){display:revert !important;}
 @page{size:A4;margin:12mm}
-.person-card{break-inside:avoid;page-break-inside:avoid;}
+/* ★ 展开后人员卡片可能很长，不能整体 avoid（会导致整卡被挤到下一页甚至裁切） */
+/*   改为只保证「任务表的一行」不跨页断开 */
+.person-card{break-inside:auto !important;page-break-inside:auto !important;}
+.task-table tr{break-inside:avoid;page-break-inside:avoid;}
+.task-block{break-inside:auto;page-break-inside:auto;}
 </style></head><body>${clone.outerHTML}</body></html>`;
 
     const fname = `PM_人员周报_${reportData.period.replace(/ ~ /, '_').replace(/-/g, '')}`;
