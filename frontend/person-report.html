@@ -60,7 +60,10 @@
         #overview-table { table-layout: fixed; }
         #overview-table th, #overview-table td { overflow: hidden; text-overflow: ellipsis; }
         #overview-table col.c-idx   { width: 3%; }
-        #overview-table col.c-name  { width: 7%; }
+        /* ★ 2026-11-20 修：姓名列 7% 在「表格被压缩到 703px(A4可打印宽)」时只剩 ~42px，
+           装不下三字名(39px)+内边距(12px) → 导出 PDF 里姓名被裁成「周泓…」。
+           提到 9%，并从「本期评价」列（余量很大）挪。 */
+        #overview-table col.c-name  { width: 9%; }
         #overview-table col.c-pos   { width: 12%; }
         #overview-table col.c-score { width: 6%; }
         #overview-table col.c-num   { width: 6%; }
@@ -71,6 +74,8 @@
         /* 姓名不折行；岗位/条线过长则省略号（它是最占宽的一列） */
         #overview-table td:nth-child(2) { white-space: nowrap; }
         #overview-table td:nth-child(3) { white-space: nowrap; }
+        /* ★ 窄屏下让表格保持最小宽度并横向滚动，而不是把姓名压扁 */
+        @media screen { #overview-table { min-width: 820px; } }
         tr:nth-child(even) td { background: #f8f9fa; }
         .num-cell { text-align: center; font-variant-numeric: tabular-nums; }
         .tbl-scroll { overflow-x: auto; }
@@ -488,8 +493,25 @@ html,body{background:#fff !important;}
 body{max-width:1000px !important;margin:0 auto !important;padding:20px !important;}
 /* ★ 导出时强制表格完整显示：禁止横向滚动裁切，表格按容器宽度自适应 */
 .tbl-scroll{overflow:visible !important;}
-#overview-table{table-layout:fixed !important;width:100% !important;}
+#overview-table{table-layout:fixed !important;width:100% !important;min-width:0 !important;}
 #overview-table th,#overview-table td{overflow:hidden !important;text-overflow:ellipsis !important;}
+/* ★ 2026-11-20 修：导出 PDF 时表格被压到 A4 可打印宽(603px)，
+   姓名列按页面比例只剩 ~42px，装不下「周泓武」(39px)+内边距(12px) → 显示成「周泓…」。
+   对策：导出时重新分配列宽（姓名 9%→11%），并收窄内外边距换可用宽度。 */
+#overview-table col.c-idx   { width: 4%  !important; }
+#overview-table col.c-name  { width: 11% !important; }
+#overview-table col.c-pos   { width: 14% !important; }
+#overview-table col.c-score { width: 8%  !important; }
+#overview-table col.c-num   { width: 6%  !important; }
+#overview-table col.c-sm    { width: 5%  !important; }
+#overview-table col.c-proj  { width: 6%  !important; }
+#overview-table col.c-rate  { width: 8%  !important; }
+#overview-table col.c-rating{ width: 10% !important; }
+/* ★ 表头允许折行：宁可两行也要显示完整文字，不接受「工…」「本负」这种被截的表头 */
+#overview-table th{white-space:normal !important;line-height:1.3 !important;}
+#overview-table td:nth-child(2){white-space:nowrap !important;}
+body{padding:10px !important;}
+.report-container{padding:14px !important;}
 /* ★ 折叠块导出时强制展开（详见 expandDetails 说明） */
 details.task-block{open;}
 details.task-block > summary{list-style:none !important;cursor:default !important;}
