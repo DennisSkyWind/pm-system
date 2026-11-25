@@ -233,10 +233,10 @@ def build_person_weekly(cursor, offset=0, window=None):
         person['participate_week'] += 1
         if 'done' in kinds:
             person['participate_done_week'] += 1
-            # ★ 2026-11-20 老周拍板「方案 A：参与者不计评价，谁负责谁受评」
+            # ★ 2026-11-20 作者拍板「方案 A：参与者不计评价，谁负责谁受评」
             #   根因：task.rating 是【任务级】单一字段，task_participant 表没有参与者自己的
             #   rating 列 → 管理员给「负责人的任务」打的评价，会被同时记到该任务全部参与者头上，
-            #   同一份评价被复制成 N 份（周泓武近8周的 2 个「优秀」实为任务 #144/#137，
+            #   同一份评价被复制成 N 份（某负责人近8周的 2 个「优秀」实为任务 #144/#137，
             #   负责人是李婵/邓畅，他只是参与者；近8周 rating_distribution 因此虚高）。
             #   本分支不再把 rating 计入 rating_detail / rating_total / rating_score_sum。
             #   ★ 参与任务明细里仍展示该任务的 rating（标注为任务评价），但不进本人评价统计。

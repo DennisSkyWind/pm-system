@@ -393,7 +393,7 @@ def create_users_from_persons():
     persons = cursor.fetchall()
     
     # 默认密码
-    default_password = os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026')
+    default_password = os.environ.get('PM_DEFAULT_PASSWORD', 'changeme')
     password_hash = hash_password(default_password)
     password_enc = encrypt_password(default_password)
     
@@ -439,7 +439,7 @@ def create_user_for_person(cursor, person_id, name, existing_names=None):
     if existing_names is None:
         existing_names = set(r['username'] for r in cursor.execute('SELECT username FROM pm_user'))
     username = generate_username(name, existing_names)
-    password_hash = hash_password(os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026'))
+    password_hash = hash_password(os.environ.get('PM_DEFAULT_PASSWORD', 'changeme'))
     cursor.execute('''
         INSERT INTO pm_user (person_id, username, password_hash, password_enc, role)
         VALUES (?, ?, ?, ?, 'user')
@@ -712,7 +712,7 @@ def admin_reset_password(user_id):
         length = max(8, min(32, length))
         new_password = generate_random_password(length)
     else:
-        new_password = os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026')
+        new_password = os.environ.get('PM_DEFAULT_PASSWORD', 'changeme')
 
     conn = get_db()
     cursor = conn.cursor()
@@ -760,7 +760,7 @@ def admin_view_password(user_id):
     recoverable = bool(plain)
     if not recoverable:
         # 老数据未迁移：若密码仍是默认口令则可推断，否则只能重置
-        default_pw = os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026')
+        default_pw = os.environ.get('PM_DEFAULT_PASSWORD', 'changeme')
         if row['password_hash'] == hash_password(default_pw):
             plain = default_pw
             recoverable = True
@@ -3332,7 +3332,7 @@ def create_person():
     
     return jsonify({'success': True, 'id': person_id,
                     'username': username, 'account_created': account_created,
-                    'default_password': os.environ.get('PM_DEFAULT_PASSWORD', 'pm2026') if account_created else None})
+                    'default_password': os.environ.get('PM_DEFAULT_PASSWORD', 'changeme') if account_created else None})
 
 @app.route('/api/persons/<int:person_id>', methods=['GET'])
 def get_person(person_id):
