@@ -992,7 +992,58 @@ ${clone.outerHTML}
 </body></html>`;
         }
 
+
+        /* ============================================================
+         * ★ 2026-11-25 导出失败提示（原来失败全部 console.warn 静默吞掉，
+         *   用户看到的是「点了没反应」）。此浮层不阻塞操作，12 秒自动消失。
+         * ============================================================ */
+        function showExportError(title, detail) {
+            console.error('[导出失败]', title, detail || '');
+            try {
+                let box = document.getElementById('pm-export-error-box');
+                if (!box) {
+                    box = document.createElement('div');
+                    box.id = 'pm-export-error-box';
+                    box.style.cssText = [
+                        'position:fixed', 'bottom:16px', 'right:16px', 'z-index:99999',
+                        'max-width:440px', 'background:#fff', 'border:1px solid #e53935',
+                        'border-left:5px solid #e53935', 'border-radius:8px',
+                        'box-shadow:0 6px 24px rgba(0,0,0,.18)', 'padding:14px 16px',
+                        'font-size:13px', 'color:#333', 'line-height:1.6',
+                        'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif'
+                    ].join(';') + ';';
+                    document.body.appendChild(box);
+                }
+                box.innerHTML = '';
+                const t = document.createElement('div');
+                t.style.cssText = 'font-weight:700;color:#c62828;font-size:14px;margin-bottom:6px;';
+                t.textContent = '❌ ' + (title || '导出失败');
+                box.appendChild(t);
+                if (detail) {
+                    const d = document.createElement('div');
+                    d.style.cssText = 'color:#666;white-space:pre-wrap;';
+                    d.textContent = detail;
+                    box.appendChild(d);
+                }
+                const c = document.createElement('div');
+                c.style.cssText = 'margin-top:8px;color:#999;font-size:12px;';
+                c.textContent = '（此提示 12 秒后自动消失，详细信息见浏览器控制台 F12）';
+                box.appendChild(c);
+                clearTimeout(box._pmTimer);
+                box._pmTimer = setTimeout(() => { if (box && box.parentNode) box.remove(); }, 12000);
+            } catch (e) {
+                alert('导出失败：' + (title || '') + '\n' + (detail || ''));
+            }
+        }
+        const PM_EXPORT_TYPE_CN = {
+            'daily': '日报', 'weekly': '周报', 'biweekly': '双周报',
+            'monthly': '月报', 'quarterly': '季报', 'annual': '年报',
+            'person-weekly': '人员周报', 'person_weekly': '人员周报'
+        };
+
         async function exportReportFile(type, format, panelId, fallbackHtml, fallbackName) {
+            // ★ 2026-11-25：逐段收集失败原因，最终失败时明确报错（不再静默吞掉）
+            const problems = [];
             try {
                 if (panelId) {
                     const html = await buildExportHtml(panelId);
@@ -1025,11 +1076,13 @@ ${clone.outerHTML}
                             URL.revokeObjectURL(url);
                             return true;
                         }
-                        console.warn(`服务端 from-html ${format} 失败，状态 ${res.status}`);
+                        problems.push(`页面同源导出接口返回 HTTP ${res.status}`);
+                    } else {
+                        problems.push('未能从页面提取到可导出的内容');
                     }
                 }
             } catch (e) {
-                console.warn(`页面同源导出失败，回退服务端模板:`, e);
+                problems.push('页面同源导出异常：' + (e && e.message ? e.message : String(e)));
             }
             try {
                 const res = await authFetch(`${API}/report/export/image?type=${type}&format=${format}`);
@@ -1043,8 +1096,9 @@ ${clone.outerHTML}
                     URL.revokeObjectURL(url);
                     return true;
                 }
+                problems.push(`服务端模板导出接口返回 HTTP ${res ? res.status : '无响应'}`);
             } catch (e) {
-                console.warn(`服务端 ${type}/${format} 导出失败:`, e);
+                problems.push('服务端模板导出异常：' + (e && e.message ? e.message : String(e)));
             }
             if (format === 'html' && fallbackHtml) {
                 const blob = new Blob([fallbackHtml], {type:'text/html;charset=utf-8'});
@@ -1056,6 +1110,12 @@ ${clone.outerHTML}
                 URL.revokeObjectURL(url);
                 return true;
             }
+            // ★ 走到这里说明确实失败了 —— 必须让用户看见
+            const cn = PM_EXPORT_TYPE_CN[type] || type;
+            showExportError(
+                `${cn} ${String(format).toUpperCase()} 导出失败`,
+                problems.join('\n') + '\n\n常见原因：服务端渲染依赖浏览器内核，HTTP 500 多为渲染内核异常，请联系管理员。'
+            );
             return false;
         }
 

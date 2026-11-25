@@ -500,6 +500,7 @@ const PM_REPORT_EXPORT = {
 
             // ===== 第一步：逐板块渲染为 canvas =====
             const rendered = [];
+            const failedSections = [];   // ★ 2026-11-25 记录渲染失败的板块
             for (const section of sections) {
                 if (!section.html || !section.html.trim()) continue;
 
@@ -524,14 +525,27 @@ const PM_REPORT_EXPORT = {
                     });
 
                     if (canvas.width === 0 || canvas.height === 0) {
+                        // ★ 2026-11-25：板块渲染不出来会让导出件缺内容，必须让用户知道
+                        failedSections.push(`${section.name}(尺寸异常)`);
                         document.body.removeChild(container);
                         continue;
                     }
                     rendered.push(canvas);
                 } catch (e) {
+                    // ★ 2026-11-25：不再只 console.warn 静默吞掉
+                    failedSections.push(`${section.name}(${e && e.message ? e.message : e})`);
                     console.warn(`渲染板块"${section.name}"失败:`, e);
                 }
                 document.body.removeChild(container);
+            }
+
+            if (failedSections.length) {
+                const msg = '以下板块未能渲染，导出文件中会缺失对应内容：\n' + failedSections.join('\n');
+                if (typeof showExportError === 'function') {
+                    showExportError('项目报告导出：部分板块渲染失败', msg);
+                } else {
+                    console.warn(msg);
+                }
             }
 
             if (!rendered.length) {

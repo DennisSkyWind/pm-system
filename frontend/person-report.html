@@ -130,6 +130,8 @@
         .task-table { margin-top: 6px; font-size: 12px; }
         .task-table th { background: #f8f9fa; color: #666; padding: 6px 6px; font-size: 11.5px; }
         .task-table td { padding: 5px 6px; }
+        /* ★ 2026-11-20：参与任务里显示的评价是【任务负责人的】，不是本人评价 → 弱化样式区分 */
+        .task-rating { color: #8a8a8a; font-size: 11px; }
         .kind { color: #667eea; font-size: 11px; }
         .rating-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: #555; margin-top: 8px; }
         .rating-legend em { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
@@ -393,7 +395,7 @@ function render(r) {
             <table class="task-table"><thead><tr>
                 <th class="num-cell">#</th><th>任务</th><th>项目</th>
                 <th class="num-cell">状态</th><th class="num-cell">进度</th>
-                <th class="num-cell">截止</th><th>本期动作/评价</th>
+                <th class="num-cell">截止</th><th title="评价归属：谁负责谁受评（本人主导任务的评价计入本人统计）">本期动作/本人评价</th>
             </tr></thead><tbody>${rows}</tbody></table>
         </details>`;
     }
@@ -413,7 +415,7 @@ function render(r) {
                 <td class="num-cell">${st}</td>
                 <td class="num-cell">${t.progress != null ? t.progress + '%' : '-'}</td>
                 <td class="num-cell">${esc(t.due_date || '-')}</td>
-                <td>${kind ? `<span class="kind">${kind}</span>` : ''}${t.rating ? ' ' + t.rating : ''}</td>
+                <td>${kind ? `<span class="kind">${kind}</span>` : ''}${t.rating ? ` <span class="task-rating" title="该任务负责人的评价，不计入本人评价统计">${esc(t.rating)}（任务评价）</span>` : ''}</td>
             </tr>`;
         }).join('');
         return `<details class="task-block">
@@ -421,7 +423,8 @@ function render(r) {
             <table class="task-table"><thead><tr>
                 <th class="num-cell">#</th><th>任务</th><th>项目</th><th>负责人</th>
                 <th class="num-cell">状态</th><th class="num-cell">进度</th>
-                <th class="num-cell">截止</th><th>本期动作/评价</th>
+                <th class="num-cell">截止</th>
+                <th title="评价归属：谁负责谁受评；此处显示的是任务负责人的评价，不计入本人评价统计">本期动作/任务评价</th>
             </tr></thead><tbody>${rows}</tbody></table>
         </details>`;
     }
@@ -480,6 +483,55 @@ body{max-width:1000px !important;margin:0 auto !important;padding:20px !importan
 </style></head><body>${clone.outerHTML}</body></html>`;
 }
 
+
+        /* ============================================================
+         * ★ 2026-11-25 导出失败提示（原来失败全部 console.warn 静默吞掉，
+         *   用户看到的是「点了没反应」）。此浮层不阻塞操作，12 秒自动消失。
+         * ============================================================ */
+        function showExportError(title, detail) {
+            console.error('[导出失败]', title, detail || '');
+            try {
+                let box = document.getElementById('pm-export-error-box');
+                if (!box) {
+                    box = document.createElement('div');
+                    box.id = 'pm-export-error-box';
+                    box.style.cssText = [
+                        'position:fixed', 'bottom:16px', 'right:16px', 'z-index:99999',
+                        'max-width:440px', 'background:#fff', 'border:1px solid #e53935',
+                        'border-left:5px solid #e53935', 'border-radius:8px',
+                        'box-shadow:0 6px 24px rgba(0,0,0,.18)', 'padding:14px 16px',
+                        'font-size:13px', 'color:#333', 'line-height:1.6',
+                        'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif'
+                    ].join(';') + ';';
+                    document.body.appendChild(box);
+                }
+                box.innerHTML = '';
+                const t = document.createElement('div');
+                t.style.cssText = 'font-weight:700;color:#c62828;font-size:14px;margin-bottom:6px;';
+                t.textContent = '❌ ' + (title || '导出失败');
+                box.appendChild(t);
+                if (detail) {
+                    const d = document.createElement('div');
+                    d.style.cssText = 'color:#666;white-space:pre-wrap;';
+                    d.textContent = detail;
+                    box.appendChild(d);
+                }
+                const c = document.createElement('div');
+                c.style.cssText = 'margin-top:8px;color:#999;font-size:12px;';
+                c.textContent = '（此提示 12 秒后自动消失，详细信息见浏览器控制台 F12）';
+                box.appendChild(c);
+                clearTimeout(box._pmTimer);
+                box._pmTimer = setTimeout(() => { if (box && box.parentNode) box.remove(); }, 12000);
+            } catch (e) {
+                alert('导出失败：' + (title || '') + '\n' + (detail || ''));
+            }
+        }
+        const PM_EXPORT_TYPE_CN = {
+            'daily': '日报', 'weekly': '周报', 'biweekly': '双周报',
+            'monthly': '月报', 'quarterly': '季报', 'annual': '年报',
+            'person-weekly': '人员周报', 'person_weekly': '人员周报'
+        };
+
 async function exportReport(format) {
     if (!reportData) { alert('请先加载数据'); return; }
     const css = await collectPageCss();
@@ -496,7 +548,7 @@ body{max-width:1000px !important;margin:0 auto !important;padding:20px !importan
 #overview-table{table-layout:fixed !important;width:100% !important;min-width:0 !important;}
 #overview-table th,#overview-table td{overflow:hidden !important;text-overflow:ellipsis !important;}
 /* ★ 2026-11-20 修：导出 PDF 时表格被压到 A4 可打印宽(603px)，
-   姓名列按页面比例只剩 ~42px，装不下「周泓武」(39px)+内边距(12px) → 显示成「周泓…」。
+   姓名列按页面比例只剩 ~42px，装不下「张三」(39px)+内边距(12px) → 显示成「周泓…」。
    对策：导出时重新分配列宽（姓名 9%→11%），并收窄内外边距换可用宽度。 */
 #overview-table col.c-idx   { width: 4%  !important; }
 #overview-table col.c-name  { width: 11% !important; }
@@ -539,6 +591,8 @@ details.task-block > *:not(summary){display:revert !important;}
     }
 
     // PDF / PNG：走服务端 from-html（与项目报告同一套，保证渲染一致）
+    // ★ 2026-11-25：失败原因可见（原来只有一句「导出失败，请重试」）
+    const problems = [];
     try {
         const res = await fetch('/api/report/export/from-html', {
             method: 'POST',
@@ -554,11 +608,14 @@ details.task-block > *:not(summary){display:revert !important;}
             URL.revokeObjectURL(url);
             return;
         }
-        console.warn('服务端 from-html 失败', res.status);
+        problems.push(`服务端渲染接口返回 HTTP ${res.status}`);
     } catch (e) {
-        console.warn('服务端导出异常', e);
+        problems.push('服务端导出异常：' + (e && e.message ? e.message : String(e)));
     }
-    alert('导出失败，请重试');
+    showExportError(
+        `人员周报 ${String(format).toUpperCase()} 导出失败`,
+        problems.join('\n') + '\n\n常见原因：服务端渲染依赖浏览器内核，HTTP 500 多为渲染内核异常，请联系管理员。'
+    );
 }
 
 loadReport(0);
